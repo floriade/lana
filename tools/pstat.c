@@ -1,5 +1,5 @@
 /*
- * pptop - Linux performance counter subsystem uspace tracing
+ * pstat - Linux performance counter subsystem uspace or kthread tracing
  *
  * Borrowed some code from libperf, which has been written by
  * Copyright 2010 Wolfgang Richter <wolf@cs.cmu.edu>
@@ -14,15 +14,18 @@
  * Copyright 2009      Paul Mackerras <paulus@au1.ibm.com>
  * Subject to the GPL / see COPYING.
  *
- * pptop (aka process perf top) has been written by
+ * pstat has been written by
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
  *
  * Needs Linux kernel >= 2.6.32. For more detailed information have a look at 
- * tools/perf/design.txt and http://lkml.org/lkml/2009/6/6/149.
+ * tools/perf/design.txt and http://lkml.org/lkml/2009/6/6/149. Tested on 
+ * x86_64. Larger comments refer to tools/perf/design.txt.
  *
- * Compile: gcc cputrace.c -o cputrace -O2 -lrt
+ * Compile: gcc pstat.c -o pstat -lrt -O2
+ * ToDo: mmap + epoll?
+ * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
  */
 
 #include <stdio.h>
@@ -123,6 +126,36 @@ enum perf_sw_ids {
 
 /*
  * Hardware event_id to monitor via a performance monitoring event:
+ *
+ * The 'disabled' bit specifies whether the counter starts out disabled
+ * or enabled.  If it is initially disabled, it can be enabled by ioctl
+ * or prctl.
+ * 
+ * The 'inherit' bit, if set, specifies that this counter should count
+ * events on descendant tasks as well as the task specified.  This only
+ * applies to new descendents, not to any existing descendents at the
+ * time the counter is created (nor to any new descendents of existing
+ * descendents).
+ * 
+ * The 'pinned' bit, if set, specifies that the counter should always be
+ * on the CPU if at all possible.  It only applies to hardware counters
+ * and only to group leaders.  If a pinned counter cannot be put onto the
+ * CPU (e.g. because there are not enough hardware counters or because of
+ * a conflict with some other event), then the counter goes into an
+ * 'error' state, where reads return end-of-file (i.e. read() returns 0)
+ * until the counter is subsequently enabled or disabled.
+ * 
+ * The 'exclusive' bit, if set, specifies that when this counter's group
+ * is on the CPU, it should be the only group using the CPU's counters.
+ * In future, this will allow sophisticated monitoring programs to supply
+ * extra configuration information via 'extra_config_len' to exploit
+ * advanced features of the CPU's Performance Monitor Unit (PMU) that are
+ * not otherwise accessible and that might disrupt other hardware
+ * counters.
+ * 
+ * The 'exclude_user', 'exclude_kernel' and 'exclude_hv' bits provide a
+ * way to request that counting of events be restricted to times when the
+ * CPU is in user, kernel and/or hypervisor mode.
  */
 struct perf_event_attr {
 	/*
@@ -147,7 +180,7 @@ struct perf_event_attr {
 	      inherit:1,        /* children inherit it */
 	      pinned:1,         /* must always be on PMU */
 	      exclusive:1,      /* only group on PMU */
-	      exclude_user:1,   /* don't count user */
+	      exclude_user:1,   /* don't count usermode events */
 	      exclude_kernel:1, /* ditto kernel */
 	      exclude_hv:1,     /* ditto hypervisor */
 	      exclude_idle:1,   /* don't count when idle */
@@ -178,6 +211,14 @@ struct perf_event_attr {
 };
 
 /*
+ * For the __u64 read_format above.
+ */
+enum perf_event_read_format {
+	PERF_FORMAT_TOTAL_TIME_ENABLED = 1,
+	PERF_FORMAT_TOTAL_TIME_RUNNING = 2,
+};
+
+/*
  * Ioctls that can be done on a perf event fd:
  */
 #define PERF_EVENT_IOC_ENABLE _IO ('$', 0)
@@ -199,7 +240,7 @@ struct perf_event_attr {
 # define bug() __builtin_trap()
 #endif
 
-#define PROGNAME "cputrace"
+#define PROGNAME "pstat"
 #define VERSNAME "0.9"
 
 /*
@@ -400,7 +441,6 @@ struct perf_data {
 	int fds[MAX_COUNTERS];
 	struct perf_event_attr *attrs;
 	unsigned long long wall_start;
-	FILE *log;
 };
 
 struct perf_stats {
@@ -497,7 +537,9 @@ static void update_stats(struct perf_stats *stats, uint64_t val)
 	double delta;
 
 	stats->n++;
+
 	delta = val - stats->mean;
+
 	stats->mean += delta / stats->n;
 	stats->M2 += delta * (val - stats->mean);
 }
@@ -507,9 +549,37 @@ static double avg_stats(struct perf_stats *stats)
 	return stats->mean;
 }
 
+/*
+ * The 'group_fd' parameter allows counter "groups" to be set up.  A
+ * counter group has one counter which is the group "leader".  The leader
+ * is created first, with group_fd = -1 in the perf_event_open call
+ * that creates it.  The rest of the group members are created
+ * subsequently, with group_fd giving the fd of the group leader.
+ * (A single counter on its own is created with group_fd = -1 and is
+ * considered to be a group with only 1 member.)
+ *
+ * A counter group is scheduled onto the CPU as a unit, that is, it will
+ * only be put onto the CPU if all of the counters in the group can be
+ * put onto the CPU.  This means that the values of the member counters
+ * can be meaningfully compared, added, divided (to get ratios), etc.,
+ * with each other, since they have counted events for the same set of
+ * executed instructions.
+ */
 static inline int sys_perf_event_open(struct perf_event_attr *attr, pid_t pid,
 				      int cpu, int group_fd, unsigned long flags)
 {
+	/*
+	 * PID settings:
+	 *   pid == 0: counter attached to current task
+	 *   pid > 0: counter attached to specific task
+	 *   pid < 0: counter attached to all tasks
+	 * CPU settings:
+	 *   cpu >= 0: counter restricted to a specific CPU
+	 *   cpu == -1: counter counts on all CPUs
+	 * User/kernel/hypervisor modes:
+	 *   See attr bits for excluding stuff!
+	 * Note: pid == -1 && cpu == -1 is invalid!
+	 */
 	attr->size = sizeof(*attr);
 	return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
 }
@@ -521,8 +591,7 @@ static inline pid_t gettid()
 
 static struct perf_data *perf_initialize(pid_t pid, int cpu)
 {
-	int fd, i, ret;
-	char logname[256];
+	int i;
 	struct perf_data *pd;
 	struct perf_event_attr *attr;
 	struct perf_event_attr *attrs;
@@ -540,19 +609,6 @@ static struct perf_data *perf_initialize(pid_t pid, int cpu)
 	memcpy(attrs, default_attrs, sizeof(default_attrs));
 	pd->attrs = attrs;
 
-	memset(logname, 0, sizeof(logname));
-	ret = snprintf(logname, sizeof(logname), "/tmp/cputrace.%d", pid);
-	if (unlikely(ret < 0))
-		panic("snprintf screwed up!\n");
-
-	fd = open(logname, O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR |
-			   S_IRGRP | S_IROTH);
-	if (unlikely(fd < 0))
-		panic("cannot open log file %s!\n", logname);
-	pd->log = fdopen(fd, "a");
-	if (unlikely(!pd->log))
-		panic("fdopen cannot map fd!\n");
-
 	for (i = 0; i < ARRAY_SIZE(default_attrs); i++) {
 		attr = &attrs[i];
 
@@ -566,51 +622,23 @@ static struct perf_data *perf_initialize(pid_t pid, int cpu)
 	}
 
 	pd->wall_start = rdclock();
-
 	return pd;
 }
 
-static void perf_finalize(struct perf_data *pd, void *id)
-{
-	int i, ret, *fds;
-	uint64_t count[3];
-	struct perf_stats event_stats[ARRAY_SIZE(default_attrs)];
-	struct perf_stats walltime_nsecs_stats;
-
-	for (fds = pd->fds, i = 0; i < ARRAY_SIZE(default_attrs); i++) {
-		if (fds[i] < 0)
-			panic("caught bad file descriptor!\n");
-
-		ret = read(fds[i], count, sizeof(uint64_t));
-		if (unlikely(ret != sizeof(uint64_t)))
-			panic("perf_counter read error!\n");
-
-		update_stats(&event_stats[i], count[0]);
-
-		close(fds[i]);
-		fds[i] = FDS_INVALID;
-
-		fprintf(pd->log, "stats [%p, %d]: %14.0f\n", id, i, avg_stats(&event_stats[i]));
-	}
-
-	update_stats(&walltime_nsecs_stats, rdclock() - pd->wall_start);
-
-	fprintf(pd->log, "stats [%p, %d]: %14.9f\n", id, i, avg_stats(&walltime_nsecs_stats) / 1e9);
-	fclose(pd->log);
-
-	xfree(pd->attrs);
-	xfree(pd);
-}
-
+/*
+ * A read() on a counter returns the current value of the counter and possible
+ * additional values as specified by 'read_format', each value is a u64 (8 bytes)
+ * in size.
+ */
 static uint64_t perf_read_counter(struct perf_data *pd, int counter)
 {
 	int ret;
 	uint64_t value;
 
+	if (counter == INTERNAL_SW_WALL_TIME)
+		return (uint64_t) (rdclock() - pd->wall_start);
 	if (unlikely(counter < 0 || counter > MAX_COUNTERS))
 		panic("bug! invalid counter value!\n");
-	if (counter == MAX_COUNTERS)
-		return (uint64_t) (rdclock() - pd->wall_start);
 
 	ret = read(pd->fds[counter], &value, sizeof(uint64_t));
 	if (unlikely(ret != sizeof(uint64_t)))
@@ -619,6 +647,18 @@ static uint64_t perf_read_counter(struct perf_data *pd, int counter)
 	return value;
 }
 
+/*
+ * Counters can be enabled and disabled in two ways: via ioctl and via
+ * prctl.  When a counter is disabled, it doesn't count or generate
+ * events but does continue to exist and maintain its count value.
+ *
+ * Enabling or disabling the leader of a group enables or disables the
+ * whole group; that is, while the group leader is disabled, none of the
+ * counters in the group will count.  Enabling or disabling a member of a
+ * group other than the leader only affects that counter - disabling an
+ * non-leader stops that counter from counting but doesn't affect any
+ * other counter.
+ */
 static void perf_enable_counter(struct perf_data *pd, int counter)
 {
 	int ret;
@@ -637,6 +677,48 @@ static void perf_enable_counter(struct perf_data *pd, int counter)
 		panic("error enabling perf counter!\n");
 }
 
+/*
+ * The counter will be enabled for 'nr' events and the gets disabled again.
+ */
+static void perf_enable_counter_nr(struct perf_data *pd, int counter, int nr)
+{
+	int ret;
+
+	if (unlikely(counter < 0 || counter >= MAX_COUNTERS))
+		panic("bug! invalid counter value!\n");
+	if (pd->fds[counter] == FDS_INVALID) {
+		pd->fds[counter] = sys_perf_event_open(&pd->attrs[counter], pd->pid,
+						       pd->cpu, pd->group, 0);
+		if (unlikely(pd->fds[counter] < 0))
+			panic("sys_perf_event_open failed!\n");
+	}
+
+	ret = ioctl(pd->fds[counter], PERF_EVENT_IOC_ENABLE);
+	if (ret)
+		panic("error enabling perf counter!\n");
+}
+
+static void perf_enable_all_counter(struct perf_data *pd)
+{
+	int ret, i;
+
+	for (i = 0; i < MAX_COUNTERS; i++) {
+		if (pd->fds[i] == FDS_INVALID) {
+			pd->fds[i] = sys_perf_event_open(&pd->attrs[i], pd->pid,
+							 pd->cpu, pd->group, 0);
+			if (unlikely(pd->fds[i] < 0))
+				panic("sys_perf_event_open failed!\n");
+		}
+	}
+
+	/* XXX: Only group leader? */
+	for (i = 0; i < MAX_COUNTERS; i++) {
+		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_ENABLE);
+		if (ret)
+			panic("error enabling perf counter!\n");
+	}
+}
+
 static void perf_disable_counter(struct perf_data *pd, int counter)
 {
 	int ret;
@@ -651,6 +733,20 @@ static void perf_disable_counter(struct perf_data *pd, int counter)
 		panic("error disabling perf counter!\n");
 }
 
+static void perf_disable_all_counter(struct perf_data *pd)
+{
+	int ret, i;
+
+	/* XXX: Only group leader? */
+	for (i = 0; i < MAX_COUNTERS; i++) {
+		if (pd->fds[i] == FDS_INVALID)
+			continue;
+		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_DISABLE);
+		if (ret)
+			panic("error disabling perf counter!\n");
+	}
+}
+
 static void perf_cleanup(struct perf_data *pd)
 {
 	int i;
@@ -658,26 +754,23 @@ static void perf_cleanup(struct perf_data *pd)
 	for (i = 0; i < ARRAY_SIZE(default_attrs); i++)
 		if (pd->fds[i] >= 0)
 			close(pd->fds[i]);
-	fclose(pd->log);
-
 	xfree(pd->attrs);
 	xfree(pd);
-}
-
-static FILE *perf_get_logger(struct perf_data *pd)
-{
-	return pd->log;
 }
 
 static void usage(void)
 {
 	printf("\n%s %s\n", PROGNAME, VERSNAME);
-	printf("Usage: cputrace <cmd> || cputrace [options]\n");
+	printf("Usage: %s <cmd> || cputrace [options]\n", PROGNAME);
+	printf("Defaults: all CPUs, kernel|user|hyper mode\n");
 	printf("Options:\n");
 	printf("  -p|--pid <pid>         Attach to running process\n");
-	printf("  -e|--event <e>         Specify event (default: COUNT_HW_CACHE_MISSES)\n");
-	printf("  -l|--list              List available events\n");
-	printf("  -t|--interval <time>   Refresh time in seconds as float (default 1.0)\n");
+	printf("  -c|--cpu <cpu>         Bind counter to cpuid\n");
+	printf("  -n|--num <num>         Number of samples, then exit\n");
+	printf("  -e|--excl              Be the exclusive counter group on CPU\n");
+	printf("  -k|--kernel            Count kernel mode\n");
+	printf("  -u|--user              Count user mode\n");
+	printf("  -h|--hyper             Count hypervisor mode\n");
 	printf("  -v|--version           Print version\n");
 	printf("  -h|--help              Print this help\n");
 	printf("\n");
@@ -705,8 +798,8 @@ static void version(void)
 int main(int argc, char **argv)
 {
 	int status;
+	uint64_t tmp1, tmp2;
 	pid_t pid;
-	uint64_t counter;
 	struct perf_data *pd;
 
 	if (argc == 1)
@@ -714,18 +807,97 @@ int main(int argc, char **argv)
 
 	pid = fork();
 	pd = perf_initialize(pid, -1);
-	perf_enable_counter(pd, COUNT_HW_CACHE_MISSES);
+	perf_enable_all_counter(pd);
 
-	if (!pid)
+	if (!pid) {
 		execvp(argv[1], &argv[1]);
-	else {
-		wait(&status);
-		counter = perf_read_counter(pd, COUNT_HW_CACHE_MISSES);
-
-		perf_disable_counter(pd, COUNT_HW_CACHE_MISSES);
-		fprintf(stdout, "counter read: %" PRIu64 "\n", counter);
+		die(); /* shouldn't reach this anyways */
 	}
 
-	perf_finalize(pd, 0);
+	wait(&status);
+	perf_disable_all_counter(pd);
+
+	printf("CPU:, PID: %d\n", pid);
+	printf("Kernel:, User:, Hypervisor:\n");
+	printf("Software counters:\n");
+	printf("  CPU clock ticks %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_SW_CPU_CLOCK));
+	printf("  task clock ticks %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_SW_TASK_CLOCK));
+	printf("  CPU context switches %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_SW_CONTEXT_SWITCHES));
+	printf("  CPU migrations %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_SW_CPU_MIGRATIONS));
+	printf("  pagefaults/minor/major "
+	       "%" PRIu64 "/%" PRIu64 "/%" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS),
+	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS_MIN),
+	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS_MAJ));
+	printf("Hardware counters:\n");
+	printf("  CPU cycles %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CPU_CYCLES));
+	printf("  instructions %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_INSTRUCTIONS));
+	tmp1 = perf_read_counter(pd, COUNT_HW_CACHE_REFERENCES);
+	tmp2 = perf_read_counter(pd, COUNT_HW_CACHE_MISSES);
+	printf("  cache references %" PRIu64 "\n", tmp1);
+	printf("  cache misses (rate) %" PRIu64 " (%.4lf %%)\n",
+	       tmp2, (1.0 * tmp2 / tmp1) * 100.0);
+	tmp1 = perf_read_counter(pd, COUNT_HW_BRANCH_INSTRUCTIONS);
+	tmp2 = perf_read_counter(pd, COUNT_HW_BRANCH_MISSES);
+	printf("  branch instructions %" PRIu64 "\n", tmp1);
+	printf("  branch misses (rate) %" PRIu64 " (%.4lf %%)\n",
+	       tmp2, (1.0 * tmp2 / tmp1) * 100.0);
+	printf("  bus cycles %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_BUS_CYCLES));
+	printf("L1D, data cache:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_STORES));
+	printf("  store misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_STORES_MISSES));
+	printf("  prefetches %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_PREFETCHES));
+	printf("L1I, instruction cache:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1I_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_L1I_LOADS_MISSES));
+	printf("LL, last level cache:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_LL_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_LL_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_LL_STORES));
+	printf("  store misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_LL_STORES_MISSES));
+	printf("DTLB, data translation lookaside buffer:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_STORES));
+	printf("  store misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_STORES_MISSES));
+	printf("ILLB, instruction translation lookaside buffer:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS_MISSES));
+	printf("BPU, branch prediction unit:\n");
+	printf("  loads %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_BPU_LOADS));
+	printf("  load misses %" PRIu64 "\n",
+	       perf_read_counter(pd, COUNT_HW_CACHE_BPU_LOADS_MISSES));
+	printf("Wall-clock time elapsed:\n");
+	printf("  msec %" PRIu64 "\n",
+	       perf_read_counter(pd, INTERNAL_SW_WALL_TIME));
+
+	perf_cleanup(pd);
 	return 0;
 }
