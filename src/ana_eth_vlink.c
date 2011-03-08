@@ -10,6 +10,18 @@
 #include <linux/notifier.h>
 #include <linux/netdevice.h>
 
+struct ana_eth_dev {
+	struct net_device *dev;
+	struct net_device *real_dev;
+};
+
+/*
+ * The virtual device ingress path to the upper ANA layer.
+ */
+static struct sk_buff *ana_eth_vlink_handle_frame(struct sk_buff *skb)
+{
+}
+
 static int ana_eth_vlink_device_event(struct notifier_block *this,
 				      unsigned long event, void *ptr)
 {

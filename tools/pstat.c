@@ -34,12 +34,14 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <math.h>
+#include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stropts.h>
 #include <time.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <signal.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -434,6 +436,23 @@ static struct perf_event_attr default_attrs[] = {
 	},
 };
 
+static sig_atomic_t sigint = 0;
+
+static const char *short_options = "p:c:n:ekuyvh";
+
+static struct option long_options[] = {
+	{"pid", required_argument, 0, 'p'},
+	{"cpu", required_argument, 0, 'c'},
+	{"num", no_argument, 0, 'n'},
+	{"excl", no_argument, 0, 'e'},
+	{"kernel", no_argument, 0, 'k'},
+	{"user", no_argument, 0, 'u'},
+	{"hyper", no_argument, 0, 'y'},
+	{"version", no_argument, 0, 'v'},
+	{"help", no_argument, 0, 'h'},
+	{0, 0, 0, 0}
+};
+
 struct perf_data {
 	pid_t pid;
 	int cpu;
@@ -446,6 +465,32 @@ struct perf_data {
 struct perf_stats {
 	double n, mean, M2;
 };
+
+static void signal_handler(int number)
+{
+	switch (number) {
+	case SIGINT:
+		sigint = 1;
+		break;
+	case SIGHUP:
+		break;
+	default:
+		break;
+	}
+}
+
+static inline void register_signal(int signal, void (*handler)(int))
+{
+	sigset_t block_mask;
+	struct sigaction saction;
+
+	sigfillset(&block_mask);
+	saction.sa_handler = handler;
+	saction.sa_mask = block_mask;
+	saction.sa_flags = SA_RESTART;
+
+	sigaction(signal, &saction, NULL);
+}
 
 static inline unsigned long long rdclock(void)
 {
@@ -589,7 +634,7 @@ static inline pid_t gettid()
 	return syscall(SYS_gettid);
 }
 
-static struct perf_data *perf_initialize(pid_t pid, int cpu)
+static struct perf_data *perf_initialize(pid_t pid, int cpu, int k, int u, int y)
 {
 	int i;
 	struct perf_data *pd;
@@ -763,16 +808,17 @@ static void usage(void)
 	printf("\n%s %s\n", PROGNAME, VERSNAME);
 	printf("Usage: %s <cmd> || cputrace [options]\n", PROGNAME);
 	printf("Defaults: all CPUs, kernel|user|hyper mode\n");
+	printf("Note: -p 0 means all procs for a given cpuid\n");
 	printf("Options:\n");
-	printf("  -p|--pid <pid>         Attach to running process\n");
-	printf("  -c|--cpu <cpu>         Bind counter to cpuid\n");
-	printf("  -n|--num <num>         Number of samples, then exit\n");
-	printf("  -e|--excl              Be the exclusive counter group on CPU\n");
-	printf("  -k|--kernel            Count kernel mode\n");
-	printf("  -u|--user              Count user mode\n");
-	printf("  -h|--hyper             Count hypervisor mode\n");
-	printf("  -v|--version           Print version\n");
-	printf("  -h|--help              Print this help\n");
+	printf("  -p|--pid <pid>   Attach to running process/kthread\n");
+	printf("  -c|--cpu <cpu>   Bind counter to cpuid\n");
+	printf("  -n|--num <num>   Number of samples, then exit\n");
+	printf("  -e|--excl        Be exclusive counter group on CPU\n");
+	printf("  -k|--kernel      Count events in kernel mode\n");
+	printf("  -u|--user        Count events in user mode\n");
+	printf("  -y|--hyper       Count events in hypervisor mode\n");
+	printf("  -v|--version     Print version\n");
+	printf("  -h|--help        Print this help\n");
 	printf("\n");
 	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
 	printf("Copyright (C) 2011 Daniel Borkmann\n");
@@ -797,27 +843,89 @@ static void version(void)
 
 int main(int argc, char **argv)
 {
-	int status;
+	int status, c, opt_index, k, u, y, ffork = 1, cpu = -1;
+	unsigned long cpus;
 	uint64_t tmp1, tmp2;
-	pid_t pid;
+	pid_t pid = -1;
 	struct perf_data *pd;
 
 	if (argc == 1)
 		usage();
 
-	pid = fork();
-	pd = perf_initialize(pid, -1);
+	k = u = y = 0;
+	cpus = system("exit `grep ^processor /proc/cpuinfo  | wc -l`");
+	cpus = WEXITSTATUS(cpus);
+
+	while ((c = getopt_long(argc, argv, short_options, long_options,
+				&opt_index)) != EOF) {
+		switch (c) {
+		case 'h':
+			usage();
+			break;
+		case 'v':
+			version();
+			break;
+		case 'p':
+			pid = atoi(optarg);
+			if (pid < 0)
+				panic("bad pid! either 0 for all procs or x > 0!\n");
+			if (pid == 0)
+				pid = -1;
+			ffork = 0;
+			break;
+		case 'c':
+			cpu = atoi(optarg);
+			if (cpu < 0 || cpu >= cpus)
+				panic("bad cpuid! needs to be 0 <= x <= %lu!\n", cpus);
+			break;
+		case 'n':
+			panic("not yet supported\n");
+			break;
+		case 'e':
+			panic("not yet supported\n");
+			break;
+		case 'k':
+			k = 1;
+			break;
+		case 'u':
+			u = 1;
+			break;
+		case 'y':
+			y = 1;
+			break;
+		}
+	}
+
+	if (pid == -1 && cpu == -1)
+		panic("either all procs on a single core or all cpus on a "
+		      "single proc, but not both!\n");
+
+	register_signal(SIGINT, signal_handler);
+	register_signal(SIGHUP, signal_handler);
+
+	if (ffork)
+		pid = fork();
+
+	pd = perf_initialize(pid, cpu, k, u, y);
+	printf("pstat running ...\n");
 	perf_enable_all_counter(pd);
 
-	if (!pid) {
+	if (ffork && !pid) {
 		execvp(argv[1], &argv[1]);
 		die(); /* shouldn't reach this anyways */
 	}
 
-	wait(&status);
+	if (ffork)
+		wait(&status);
+	else
+		while (!sigint)
+			;
 	perf_disable_all_counter(pd);
 
-	printf("CPU:, PID: %d\n", pid);
+	if (cpu == -1)
+		printf("CPU: all, PID: %d\n", pid);
+	else
+		printf("CPU: %d, PID: %d\n", cpu, pid);
 	printf("Kernel:, User:, Hypervisor:\n");
 	printf("Software counters:\n");
 	printf("  CPU clock ticks %" PRIu64 "\n",
