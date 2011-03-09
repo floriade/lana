@@ -27,7 +27,6 @@
  * tools/perf/design.txt and http://lkml.org/lkml/2009/6/6/149. Tested on 
  * x86_64. Larger comments refer to tools/perf/design.txt.
  *
- * pstat can also attach itself to a running process by using ptrace!
  * Compile: gcc pstat.c -o pstat -lrt -O2
  * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
  */
@@ -50,6 +49,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#include <sys/ptrace.h>
 #include <asm/byteorder.h>
 #include <linux/types.h>
 #include <linux/ioctl.h>
@@ -622,7 +622,7 @@ static void version(void)
 	die();
 }
 
-static void signal_handler(int number)
+static void shandler(int number)
 {
 	switch (number) {
 	case SIGINT:
@@ -633,6 +633,15 @@ static void signal_handler(int number)
 	default:
 		break;
 	}
+}
+
+static void reaper(int sig)
+{
+	int pid;
+	int status;
+
+	while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
+		;
 }
 
 static inline void register_signal(int signal, void (*handler)(int))
@@ -978,7 +987,7 @@ static enum tracepoint lookup_counter(char *name)
 
 int main(int argc, char **argv)
 {
-	int status, c, opt_index, mode, pt, cpu, excl, cmd = 1;
+	int status, c, opt_index, mode, pt, cpu, excl, ret, cmd = 1;
 	char *event = NULL;
 	unsigned long cpus, samples = 0;
 	uint64_t tmp1, tmp2;
@@ -1059,11 +1068,21 @@ doit:
 	if (mode == 0)
 		mode = MODE_KERNEL | MODE_USER | MODE_HYPER;
 
-	register_signal(SIGINT, signal_handler);
-	register_signal(SIGHUP, signal_handler);
+	register_signal(SIGINT, shandler);
+	register_signal(SIGHUP, shandler);
+	register_signal(SIGCHLD, reaper);
 
 	if (!pt)
 		pid = fork();
+	else {
+		/* We make ourself the new parent of the process */
+		ret = ptrace(PT_ATTACH, pid, (char *) 1, 0);
+		if (ret < 0) {
+			panic("cannot attach to process!\n");
+			perror("");
+		}
+		fprintf(stderr, "Process %u attached - interrupt to quit\n", pid);
+	}
 
 	pd = initialize(pid, cpu, mode, excl);
 	enable_all_counter(pd);
@@ -1072,15 +1091,24 @@ doit:
 		execvp(argv[cmd], &argv[cmd]);
 		die();
 	}
-	if (!pt)
-		wait(&status);
+	wait(&status);
 	disable_all_counter(pd);
+
+	if (pt) {
+		ret = ptrace(PT_DETACH, pid, (char *) 1, SIGCONT);
+		if (ret < 0) {
+			panic("cannot detach from process!\n");
+			perror("");
+		}
+		fprintf(stderr, "Process %u detached\n", pid);
+	}
 
 	if (cpu == -1)
 		printf("CPU: all, PID: %d\n", pid);
 	else
 		printf("CPU: %d, PID: %d\n", cpu, pid);
-	printf("Kernel: %d, User: %d, Hypervisor: %d\n", (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0, (mode & MODE_HYPER) > 0);
+	printf("Kernel: %d, User: %d, Hypervisor: %d\n",
+	       (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0, (mode & MODE_HYPER) > 0);
 	printf("Software counters:\n");
 	printf("  CPU clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_CPU_CLOCK));
 	printf("  task clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_TASK_CLOCK));
