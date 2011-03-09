@@ -7,6 +7,10 @@
  * Copyright 2010 Karl Naden <kbn@cs.cmu.edu>
  * Subject to the GPL.
  *
+ * strlcpy has been written by
+ * Copyright 1991, 1992 Linus Torvalds <torvalds@transmeta.com>
+ * Subject to the GPL.
+ *
  * Performance events, data type definitions, declarations by
  * Copyright 2008-2009 Thomas Gleixner <tglx@linutronix.de>
  * Copyright 2008-2009 Ingo Molnar <mingo@redhat.com>
@@ -23,6 +27,7 @@
  * tools/perf/design.txt and http://lkml.org/lkml/2009/6/6/149. Tested on 
  * x86_64. Larger comments refer to tools/perf/design.txt.
  *
+ * pstat can also attach itself to a running process by using ptrace!
  * Compile: gcc pstat.c -o pstat -lrt -O2
  * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
  */
@@ -231,6 +236,11 @@ enum perf_event_read_format {
 #define FDS_INVALID  -1
 #define GRP_INVALID  -1
 
+#define MODE_KERNEL 1
+#define MODE_USER   2
+#define MODE_HYPER  4
+#define MODE_IDLE   8
+
 #ifndef likely
 # define likely(x) __builtin_expect(!!(x), 1)
 #endif
@@ -291,7 +301,111 @@ enum tracepoint {
 	COUNT_HW_CACHE_BPU_LOADS = 31,
 	COUNT_HW_CACHE_BPU_LOADS_MISSES = 32,
 	/* Internal */
-	INTERNAL_SW_WALL_TIME = 33
+	INTERNAL_SW_WALL_TIME = 33,
+	INTERNAL_INVALID_TP = 34
+};
+
+struct trace_map {
+	char *name;
+	/* char *description; */
+	enum tracepoint tracepoint;
+};
+
+struct trace_map whole_map[] = {
+	{
+		.name = "COUNT_SW_CPU_CLOCK",
+		.tracepoint = COUNT_SW_CPU_CLOCK
+	}, {
+		.name = "COUNT_SW_CONTEXT_SWITCHES",
+		.tracepoint = COUNT_SW_CONTEXT_SWITCHES
+	}, {
+		.name = "COUNT_SW_CPU_MIGRATIONS",
+		.tracepoint = COUNT_SW_CPU_MIGRATIONS
+	}, {
+		.name = "COUNT_SW_PAGE_FAULTS",
+		.tracepoint = COUNT_SW_PAGE_FAULTS
+	}, {
+		.name = "COUNT_SW_PAGE_FAULTS_MIN",
+		.tracepoint = COUNT_SW_PAGE_FAULTS_MIN
+	}, {
+		.name = "COUNT_SW_PAGE_FAULTS_MAJ",
+		.tracepoint = COUNT_SW_PAGE_FAULTS_MAJ
+	}, {
+		.name = "COUNT_HW_CPU_CYCLES",
+		.tracepoint = COUNT_HW_CPU_CYCLES
+	}, {
+		.name = "COUNT_HW_INSTRUCTIONS",
+		.tracepoint = COUNT_HW_INSTRUCTIONS
+	}, {
+		.name = "COUNT_HW_CACHE_REFERENCES",
+		.tracepoint = COUNT_HW_CACHE_REFERENCES
+	}, {
+		.name = "COUNT_HW_CACHE_MISSES",
+		.tracepoint = COUNT_HW_CACHE_MISSES
+	}, {
+		.name = "COUNT_HW_BRANCH_INSTRUCTIONS",
+		.tracepoint = COUNT_HW_BRANCH_INSTRUCTIONS
+	}, {
+		.name = "COUNT_HW_BRANCH_MISSES",
+		.tracepoint = COUNT_HW_BRANCH_MISSES
+	}, {
+		.name = "COUNT_HW_BUS_CYCLES",
+		.tracepoint = COUNT_HW_BUS_CYCLES
+	}, {
+		.name = "COUNT_HW_CACHE_L1D_LOADS",
+		.tracepoint = COUNT_HW_CACHE_L1D_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_L1D_LOADS_MISSES",
+		.tracepoint = COUNT_HW_CACHE_L1D_LOADS_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_L1D_STORES",
+		.tracepoint = COUNT_HW_CACHE_L1D_STORES
+	}, {
+		.name = "COUNT_HW_CACHE_L1D_STORES_MISSES",
+		.tracepoint = COUNT_HW_CACHE_L1D_STORES_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_L1D_PREFETCHES",
+		.tracepoint = COUNT_HW_CACHE_L1D_PREFETCHES
+	}, {
+		.name = "COUNT_HW_CACHE_L1I_LOADS",
+		.tracepoint = COUNT_HW_CACHE_L1I_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_LL_LOADS",
+		.tracepoint = COUNT_HW_CACHE_LL_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_LL_LOADS_MISSES",
+		.tracepoint = COUNT_HW_CACHE_LL_LOADS_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_LL_STORES",
+		.tracepoint = COUNT_HW_CACHE_LL_STORES
+	}, {
+		.name = "COUNT_HW_CACHE_LL_STORES_MISSES",
+		.tracepoint = COUNT_HW_CACHE_LL_STORES_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_DTLB_LOADS",
+		.tracepoint = COUNT_HW_CACHE_DTLB_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_DTLB_LOADS_MISSES",
+		.tracepoint = COUNT_HW_CACHE_DTLB_LOADS_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_DTLB_STORES",
+		.tracepoint = COUNT_HW_CACHE_DTLB_STORES
+	}, {
+		.name = "COUNT_HW_CACHE_DTLB_STORES_MISSES",
+		.tracepoint = COUNT_HW_CACHE_DTLB_STORES_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_ITLB_LOADS",
+		.tracepoint = COUNT_HW_CACHE_ITLB_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_ITLB_LOADS_MISSES",
+		.tracepoint = COUNT_HW_CACHE_ITLB_LOADS_MISSES
+	}, {
+		.name = "COUNT_HW_CACHE_BPU_LOADS",
+		.tracepoint = COUNT_HW_CACHE_BPU_LOADS
+	}, {
+		.name = "COUNT_HW_CACHE_BPU_LOADS_MISSES",
+		.tracepoint = COUNT_HW_CACHE_BPU_LOADS_MISSES
+	}
 };
 
 static struct perf_event_attr default_attrs[] = {
@@ -437,16 +551,19 @@ static struct perf_event_attr default_attrs[] = {
 
 static sig_atomic_t sigint = 0;
 
-static const char *short_options = "p:c:n:ekuyvh";
+static const char *short_options = "p:c:n:ekuyvhlx:i";
 
 static struct option long_options[] = {
 	{"pid", required_argument, 0, 'p'},
 	{"cpu", required_argument, 0, 'c'},
-	{"num", no_argument, 0, 'n'},
+	{"num", required_argument, 0, 'n'},
+	{"use", required_argument, 0, 'x'},
 	{"excl", no_argument, 0, 'e'},
 	{"kernel", no_argument, 0, 'k'},
 	{"user", no_argument, 0, 'u'},
 	{"hyper", no_argument, 0, 'y'},
+	{"idle", no_argument, 0, 'i'},
+	{"list", no_argument, 0, 'l'},
 	{"version", no_argument, 0, 'v'},
 	{"help", no_argument, 0, 'h'},
 	{0, 0, 0, 0}
@@ -460,6 +577,50 @@ struct perf_data {
 	struct perf_event_attr *attrs;
 	unsigned long long wall_start;
 };
+
+static inline void die(void)
+{
+	exit(EXIT_FAILURE);
+}
+
+static void usage(void)
+{
+	printf("\n%s %s\n", PROGNAME, VERSNAME);
+	printf("Usage: %s [options] [<cmd>]\n", PROGNAME);
+	printf("Options:\n");
+	printf("  -p|--pid <pid>   Attach to running process/kthread\n");
+	printf("  -c|--cpu <cpu>   Bind counter to cpuid\n");
+	printf("  -n|--num <num>   Number of samples, then exit\n");
+	printf("  -e|--excl        Be exclusive counter group on CPU\n");
+	printf("  -k|--kernel      Count events in kernel mode\n");
+	printf("  -u|--user        Count events in user mode\n");
+	printf("  -y|--hyper       Count events in hypervisor mode\n");
+	printf("  -i|--idle        Do also count when idle\n");
+	printf("  -l|--list        List possible events\n");
+	printf("  -x|--use <event> Count only certain event\n");
+	printf("  -v|--version     Print version\n");
+	printf("  -h|--help        Print this help\n");
+	printf("\n");
+	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
+	printf("Copyright (C) 2011 Daniel Borkmann\n");
+	printf("License: GNU GPL version 2\n");
+	printf("This is free software: you are free to change and redistribute it.\n");
+	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+
+	die();
+}
+
+static void version(void)
+{
+	printf("\n%s %s\n", PROGNAME, VERSNAME);
+	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
+	printf("Copyright (C) 2011 Daniel Borkmann\n");
+	printf("License: GNU GPL version 2\n");
+	printf("This is free software: you are free to change and redistribute it.\n");
+	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+
+	die();
+}
 
 static void signal_handler(int number)
 {
@@ -495,11 +656,6 @@ static inline unsigned long long rdclock(void)
 	return ts.tv_sec * 1000000000ULL + ts.tv_nsec;
 }
 
-static inline void die(void)
-{
-	exit(EXIT_FAILURE);
-}
-
 static inline void panic(char *msg, ...)
 {
 	va_list vl;
@@ -518,6 +674,19 @@ static inline void whine(char *msg, ...)
 	va_end(vl);
 }
 
+size_t strlcpy(char *dest, const char *src, size_t size)
+{
+	size_t ret = strlen(src);
+
+	if (size) {
+		size_t len = (ret >= size) ? size - 1 : ret;
+		memcpy(dest, src, len);
+		dest[len] = '\0';
+	}
+
+	return ret;
+}
+
 static void *xzmalloc(size_t size)
 {
 	void *ptr;
@@ -532,6 +701,33 @@ static void *xzmalloc(size_t size)
 	memset(ptr, 0, size);
 
 	return ptr;
+}
+
+static void *xmalloc(size_t size)
+{
+	void *ptr;
+
+	if (unlikely(size == 0))
+		panic("xmalloc: zero size\n");
+
+	ptr = malloc(size);
+	if (unlikely(ptr == NULL))
+		panic("xmalloc: out of memory (allocating %lu bytes)\n",
+		      (u_long) size);
+
+	return ptr;
+}
+
+char *xstrdup(const char *str)
+{
+	size_t len;
+	char *cp;
+
+	len = strlen(str) + 1;
+	cp = xmalloc(len);
+	strlcpy(cp, str, len);
+
+	return cp;
 }
 
 static void xfree(void *ptr)
@@ -581,7 +777,7 @@ static inline pid_t gettid()
 	return syscall(SYS_gettid);
 }
 
-static struct perf_data *perf_initialize(pid_t pid, int cpu, int k, int u, int y)
+static struct perf_data *initialize(pid_t pid, int cpu, int mode, int excl)
 {
 	int i;
 	struct perf_data *pd;
@@ -604,16 +800,20 @@ static struct perf_data *perf_initialize(pid_t pid, int cpu, int k, int u, int y
 	for (i = 0; i < ARRAY_SIZE(default_attrs); i++) {
 		attr = &attrs[i];
 
-		attr->inherit = 1; /* default */
+		attr->inherit = 1;
 		attr->disabled = 1;
 		attr->enable_on_exec = 0;
+		attr->exclusive = excl;
+		attr->exclude_user = ((mode & MODE_USER) == 0);
+		attr->exclude_kernel = ((mode & MODE_KERNEL) == 0);
+		attr->exclude_hv = ((mode & MODE_HYPER) == 0);
+		attr->exclude_idle = ((mode & MODE_IDLE) == 0);
 
 		pd->fds[i] = sys_perf_event_open(attr, pid, cpu, GRP_INVALID, 0);
 		if (unlikely(pd->fds[i] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
 
-	pd->wall_start = rdclock();
 	return pd;
 }
 
@@ -622,7 +822,7 @@ static struct perf_data *perf_initialize(pid_t pid, int cpu, int k, int u, int y
  * additional values as specified by 'read_format', each value is a u64 (8 bytes)
  * in size.
  */
-static uint64_t perf_read_counter(struct perf_data *pd, int counter)
+static uint64_t read_counter(struct perf_data *pd, int counter)
 {
 	int ret;
 	uint64_t value;
@@ -651,7 +851,7 @@ static uint64_t perf_read_counter(struct perf_data *pd, int counter)
  * non-leader stops that counter from counting but doesn't affect any
  * other counter.
  */
-static void perf_enable_counter(struct perf_data *pd, int counter)
+static void enable_counter(struct perf_data *pd, int counter)
 {
 	int ret;
 
@@ -667,12 +867,14 @@ static void perf_enable_counter(struct perf_data *pd, int counter)
 	ret = ioctl(pd->fds[counter], PERF_EVENT_IOC_ENABLE);
 	if (ret)
 		panic("error enabling perf counter!\n");
+
+	pd->wall_start = rdclock();
 }
 
 /*
  * The counter will be enabled for 'nr' events and the gets disabled again.
  */
-static void perf_enable_counter_nr(struct perf_data *pd, int counter, int nr)
+static void enable_counter_nr(struct perf_data *pd, int counter, int nr)
 {
 	int ret;
 
@@ -688,9 +890,11 @@ static void perf_enable_counter_nr(struct perf_data *pd, int counter, int nr)
 	ret = ioctl(pd->fds[counter], PERF_EVENT_IOC_ENABLE);
 	if (ret)
 		panic("error enabling perf counter!\n");
+
+	pd->wall_start = rdclock();
 }
 
-static void perf_enable_all_counter(struct perf_data *pd)
+static void enable_all_counter(struct perf_data *pd)
 {
 	int ret, i;
 
@@ -709,9 +913,11 @@ static void perf_enable_all_counter(struct perf_data *pd)
 		if (ret)
 			panic("error enabling perf counter!\n");
 	}
+
+	pd->wall_start = rdclock();
 }
 
-static void perf_disable_counter(struct perf_data *pd, int counter)
+static void disable_counter(struct perf_data *pd, int counter)
 {
 	int ret;
 
@@ -725,7 +931,7 @@ static void perf_disable_counter(struct perf_data *pd, int counter)
 		panic("error disabling perf counter!\n");
 }
 
-static void perf_disable_all_counter(struct perf_data *pd)
+static void disable_all_counter(struct perf_data *pd)
 {
 	int ret, i;
 
@@ -739,7 +945,7 @@ static void perf_disable_all_counter(struct perf_data *pd)
 	}
 }
 
-static void perf_cleanup(struct perf_data *pd)
+static void cleanup(struct perf_data *pd)
 {
 	int i;
 
@@ -750,48 +956,31 @@ static void perf_cleanup(struct perf_data *pd)
 	xfree(pd);
 }
 
-static void usage(void)
+static void list_counter(void)
 {
-	printf("\n%s %s\n", PROGNAME, VERSNAME);
-	printf("Usage: %s <cmd> || cputrace [options]\n", PROGNAME);
-	printf("Defaults: all CPUs, kernel|user|hyper mode\n");
-	printf("Note: -p 0 means all procs for a given cpuid\n");
-	printf("Options:\n");
-	printf("  -p|--pid <pid>   Attach to running process/kthread\n");
-	printf("  -c|--cpu <cpu>   Bind counter to cpuid\n");
-	printf("  -n|--num <num>   Number of samples, then exit\n");
-	printf("  -e|--excl        Be exclusive counter group on CPU\n");
-	printf("  -k|--kernel      Count events in kernel mode\n");
-	printf("  -u|--user        Count events in user mode\n");
-	printf("  -y|--hyper       Count events in hypervisor mode\n");
-	printf("  -v|--version     Print version\n");
-	printf("  -h|--help        Print this help\n");
-	printf("\n");
-	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
-	printf("Copyright (C) 2011 Daniel Borkmann\n");
-	printf("License: GNU GPL version 2\n");
-	printf("This is free software: you are free to change and redistribute it.\n");
-	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(whole_map); i++)
+		printf("%s\n", whole_map[i].name);
 
 	die();
 }
 
-static void version(void)
+static enum tracepoint lookup_counter(char *name)
 {
-	printf("\n%s %s\n", PROGNAME, VERSNAME);
-	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
-	printf("Copyright (C) 2011 Daniel Borkmann\n");
-	printf("License: GNU GPL version 2\n");
-	printf("This is free software: you are free to change and redistribute it.\n");
-	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+	int i;
 
-	die();
+	for (i = 0; i < ARRAY_SIZE(whole_map); i++) 
+		if (!strncmp(whole_map[i].name, name, strlen(whole_map[i].name)))
+			return whole_map[i].tracepoint;
+	return INTERNAL_INVALID_TP;
 }
 
 int main(int argc, char **argv)
 {
-	int status, c, opt_index, k, u, y, ffork = 1, cpu = -1;
-	unsigned long cpus;
+	int status, c, opt_index, mode, pt, cpu, excl, cmd = 1;
+	char *event = NULL;
+	unsigned long cpus, samples = 0;
 	uint64_t tmp1, tmp2;
 	pid_t pid = -1;
 	struct perf_data *pd;
@@ -799,9 +988,10 @@ int main(int argc, char **argv)
 	if (argc == 1)
 		usage();
 
-	k = u = y = 0;
 	cpus = system("exit `grep ^processor /proc/cpuinfo  | wc -l`");
 	cpus = WEXITSTATUS(cpus);
+	cpu = -1;
+	mode = excl = pt = 0;
 
 	while ((c = getopt_long(argc, argv, short_options, long_options,
 				&opt_index)) != EOF) {
@@ -818,141 +1008,128 @@ int main(int argc, char **argv)
 				panic("bad pid! either 0 for all procs or x > 0!\n");
 			if (pid == 0)
 				pid = -1;
-			ffork = 0;
+			pt = 1;
 			break;
 		case 'c':
 			cpu = atoi(optarg);
 			if (cpu < 0 || cpu >= cpus)
-				panic("bad cpuid! needs to be 0 <= x <= %lu!\n", cpus);
+				panic("bad cpuid! needs to be 0 <= x < %lu!\n", cpus);
 			break;
 		case 'n':
-			panic("not yet supported\n");
+			samples = atoi(optarg);
 			break;
 		case 'e':
-			panic("not yet supported\n");
+			excl = 1;
 			break;
 		case 'k':
-			k = 1;
+			mode |= MODE_KERNEL;
 			break;
 		case 'u':
-			u = 1;
+			mode |= MODE_USER;
 			break;
 		case 'y':
-			y = 1;
+			mode |= MODE_HYPER;
 			break;
+		case 'i':
+			mode |= MODE_IDLE;
+			break;
+		case 'l':
+			list_counter();
+			break;
+		case 'x':
+			event = xstrdup(optarg);
+			break;
+		case '?':
+			/*
+			 * We assume that all the other stuff is part of the
+			 * <cmd> the user tries to exec, so we break the loop
+			 * and try our luck!
+			 */
+		default:
+			cmd = opt_index;
+			goto doit;
 		}
 	}
 
-	if (pid == -1 && cpu == -1)
+doit:
+	if (pt && pid == -1 && cpu == -1)
 		panic("either all procs on a single core or all cpus on a "
 		      "single proc, but not both!\n");
+
+	if (mode == 0)
+		mode = MODE_KERNEL | MODE_USER | MODE_HYPER;
 
 	register_signal(SIGINT, signal_handler);
 	register_signal(SIGHUP, signal_handler);
 
-	if (ffork)
+	if (!pt)
 		pid = fork();
 
-	pd = perf_initialize(pid, cpu, k, u, y);
-	printf("pstat running ...\n");
-	perf_enable_all_counter(pd);
+	pd = initialize(pid, cpu, mode, excl);
+	enable_all_counter(pd);
 
-	if (ffork && !pid) {
-		execvp(argv[1], &argv[1]);
-		die(); /* shouldn't reach this anyways */
+	if (!pt && !pid) {
+		execvp(argv[cmd], &argv[cmd]);
+		die();
 	}
-
-	if (ffork)
+	if (!pt)
 		wait(&status);
-	else
-		while (!sigint)
-			;
-	perf_disable_all_counter(pd);
+	disable_all_counter(pd);
 
 	if (cpu == -1)
 		printf("CPU: all, PID: %d\n", pid);
 	else
 		printf("CPU: %d, PID: %d\n", cpu, pid);
-	printf("Kernel:, User:, Hypervisor:\n");
+	printf("Kernel: %d, User: %d, Hypervisor: %d\n", (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0, (mode & MODE_HYPER) > 0);
 	printf("Software counters:\n");
-	printf("  CPU clock ticks %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_SW_CPU_CLOCK));
-	printf("  task clock ticks %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_SW_TASK_CLOCK));
-	printf("  CPU context switches %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_SW_CONTEXT_SWITCHES));
-	printf("  CPU migrations %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_SW_CPU_MIGRATIONS));
-	printf("  pagefaults/minor/major "
-	       "%" PRIu64 "/%" PRIu64 "/%" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS),
-	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS_MIN),
-	       perf_read_counter(pd, COUNT_SW_PAGE_FAULTS_MAJ));
+	printf("  CPU clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_CPU_CLOCK));
+	printf("  task clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_TASK_CLOCK));
+	printf("  CPU context switches %" PRIu64 "\n", read_counter(pd, COUNT_SW_CONTEXT_SWITCHES));
+	printf("  CPU migrations %" PRIu64 "\n", read_counter(pd, COUNT_SW_CPU_MIGRATIONS));
+	printf("  pagefaults/minor/major %" PRIu64 "/%" PRIu64 "/%" PRIu64 "\n",
+	       read_counter(pd, COUNT_SW_PAGE_FAULTS),
+	       read_counter(pd, COUNT_SW_PAGE_FAULTS_MIN),
+	       read_counter(pd, COUNT_SW_PAGE_FAULTS_MAJ));
 	printf("Hardware counters:\n");
-	printf("  CPU cycles %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CPU_CYCLES));
-	printf("  instructions %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_INSTRUCTIONS));
-	tmp1 = perf_read_counter(pd, COUNT_HW_CACHE_REFERENCES);
-	tmp2 = perf_read_counter(pd, COUNT_HW_CACHE_MISSES);
+	printf("  CPU cycles %" PRIu64 "\n", read_counter(pd, COUNT_HW_CPU_CYCLES));
+	printf("  instructions %" PRIu64 "\n", read_counter(pd, COUNT_HW_INSTRUCTIONS));
+	tmp1 = read_counter(pd, COUNT_HW_CACHE_REFERENCES);
+	tmp2 = read_counter(pd, COUNT_HW_CACHE_MISSES);
 	printf("  cache references %" PRIu64 "\n", tmp1);
-	printf("  cache misses (rate) %" PRIu64 " (%.4lf %%)\n",
-	       tmp2, (1.0 * tmp2 / tmp1) * 100.0);
-	tmp1 = perf_read_counter(pd, COUNT_HW_BRANCH_INSTRUCTIONS);
-	tmp2 = perf_read_counter(pd, COUNT_HW_BRANCH_MISSES);
+	printf("  cache misses (rate) %" PRIu64 " (%.4lf %%)\n", tmp2, (1.0 * tmp2 / tmp1) * 100.0);
+	tmp1 = read_counter(pd, COUNT_HW_BRANCH_INSTRUCTIONS);
+	tmp2 = read_counter(pd, COUNT_HW_BRANCH_MISSES);
 	printf("  branch instructions %" PRIu64 "\n", tmp1);
-	printf("  branch misses (rate) %" PRIu64 " (%.4lf %%)\n",
-	       tmp2, (1.0 * tmp2 / tmp1) * 100.0);
-	printf("  bus cycles %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_BUS_CYCLES));
+	printf("  branch misses (rate) %" PRIu64 " (%.4lf %%)\n", tmp2, (1.0 * tmp2 / tmp1) * 100.0);
+	printf("  bus cycles %" PRIu64 "\n", read_counter(pd, COUNT_HW_BUS_CYCLES));
 	printf("L1D, data cache:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_LOADS_MISSES));
-	printf("  stores %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_STORES));
-	printf("  store misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_STORES_MISSES));
-	printf("  prefetches %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1D_PREFETCHES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1D_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1D_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1D_STORES));
+	printf("  store misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1D_STORES_MISSES));
+	printf("  prefetches %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1D_PREFETCHES));
 	printf("L1I, instruction cache:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1I_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_L1I_LOADS_MISSES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1I_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_L1I_LOADS_MISSES));
 	printf("LL, last level cache:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_LL_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_LL_LOADS_MISSES));
-	printf("  stores %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_LL_STORES));
-	printf("  store misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_LL_STORES_MISSES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_LL_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_LL_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_LL_STORES));
+	printf("  store misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_LL_STORES_MISSES));
 	printf("DTLB, data translation lookaside buffer:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS_MISSES));
-	printf("  stores %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_STORES));
-	printf("  store misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_DTLB_STORES_MISSES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_DTLB_LOADS_MISSES));
+	printf("  stores %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_DTLB_STORES));
+	printf("  store misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_DTLB_STORES_MISSES));
 	printf("ILLB, instruction translation lookaside buffer:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS_MISSES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_ITLB_LOADS_MISSES));
 	printf("BPU, branch prediction unit:\n");
-	printf("  loads %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_BPU_LOADS));
-	printf("  load misses %" PRIu64 "\n",
-	       perf_read_counter(pd, COUNT_HW_CACHE_BPU_LOADS_MISSES));
+	printf("  loads %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_BPU_LOADS));
+	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_BPU_LOADS_MISSES));
 	printf("Wall-clock time elapsed:\n");
-	printf("  msec %" PRIu64 "\n",
-	       perf_read_counter(pd, INTERNAL_SW_WALL_TIME));
+	printf("  usec %" PRIu64 "\n", read_counter(pd, INTERNAL_SW_WALL_TIME));
 
-	perf_cleanup(pd);
+	cleanup(pd);
 	return 0;
 }
