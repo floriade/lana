@@ -24,7 +24,6 @@
  * x86_64. Larger comments refer to tools/perf/design.txt.
  *
  * Compile: gcc pstat.c -o pstat -lrt -O2
- * ToDo: mmap + epoll?
  * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
  */
 
@@ -462,10 +461,6 @@ struct perf_data {
 	unsigned long long wall_start;
 };
 
-struct perf_stats {
-	double n, mean, M2;
-};
-
 static void signal_handler(int number)
 {
 	switch (number) {
@@ -523,21 +518,6 @@ static inline void whine(char *msg, ...)
 	va_end(vl);
 }
 
-static void *xmalloc(size_t size)
-{
-	void *ptr;
-
-	if (unlikely(size == 0))
-		panic("xmalloc: zero size\n");
-
-	ptr = malloc(size);
-	if (unlikely(ptr == NULL))
-		panic("xmalloc: out of memory (allocating %lu bytes)\n",
-		      (u_long) size);
-
-	return ptr;
-}
-
 static void *xzmalloc(size_t size)
 {
 	void *ptr;
@@ -554,44 +534,11 @@ static void *xzmalloc(size_t size)
 	return ptr;
 }
 
-static void *xmalloc_aligned(size_t size, size_t alignment)
-{
-	int ret;
-	void *ptr;
-
-	if (unlikely(size == 0))
-		panic("xmalloc_aligned: zero size\n");
-
-	ret = posix_memalign(&ptr, alignment, size);
-	if (unlikely(ret != 0))
-		panic("xmalloc_aligned: out of memory (allocating %lu bytes)\n",
-		      (u_long) size);
-
-	return ptr;
-}
-
 static void xfree(void *ptr)
 {
 	if (unlikely(ptr == NULL))
 		panic("xfree: NULL pointer given as argument\n");
 	free(ptr);
-}
-
-static void update_stats(struct perf_stats *stats, uint64_t val)
-{
-	double delta;
-
-	stats->n++;
-
-	delta = val - stats->mean;
-
-	stats->mean += delta / stats->n;
-	stats->M2 += delta * (val - stats->mean);
-}
-
-static double avg_stats(struct perf_stats *stats)
-{
-	return stats->mean;
 }
 
 /*
