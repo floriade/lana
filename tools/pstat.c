@@ -7,10 +7,6 @@
  * Copyright 2010 Karl Naden <kbn@cs.cmu.edu>
  * Subject to the GPL.
  *
- * strlcpy has been written by
- * Copyright 1991, 1992 Linus Torvalds <torvalds@transmeta.com>
- * Subject to the GPL.
- *
  * Performance events, data type definitions, declarations by
  * Copyright 2008-2009 Thomas Gleixner <tglx@linutronix.de>
  * Copyright 2008-2009 Ingo Molnar <mingo@redhat.com>
@@ -29,6 +25,9 @@
  *
  * Compile: gcc pstat.c -o pstat -lrt -O2
  * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
+ * Fixme: Tracing another already running pid not yet working! CPU goes up
+ *        to 100% and the program never returns, at least on 2.6.35. Wrong
+ *        API usage? Bug? Hmm?
  */
 
 #include <stdio.h>
@@ -551,12 +550,11 @@ static struct perf_event_attr default_attrs[] = {
 
 static sig_atomic_t sigint = 0;
 
-static const char *short_options = "p:c:n:ekuyvhlx:i";
+static const char *short_options = "p:c:ekuyvhlx:i";
 
 static struct option long_options[] = {
 	{"pid", required_argument, 0, 'p'},
 	{"cpu", required_argument, 0, 'c'},
-	{"num", required_argument, 0, 'n'},
 	{"use", required_argument, 0, 'x'},
 	{"excl", no_argument, 0, 'e'},
 	{"kernel", no_argument, 0, 'k'},
@@ -590,7 +588,6 @@ static void usage(void)
 	printf("Options:\n");
 	printf("  -p|--pid <pid>   Attach to running process/kthread\n");
 	printf("  -c|--cpu <cpu>   Bind counter to cpuid\n");
-	printf("  -n|--num <num>   Number of samples, then exit\n");
 	printf("  -e|--excl        Be exclusive counter group on CPU\n");
 	printf("  -k|--kernel      Count events in kernel mode\n");
 	printf("  -u|--user        Count events in user mode\n");
@@ -683,19 +680,6 @@ static inline void whine(char *msg, ...)
 	va_end(vl);
 }
 
-size_t strlcpy(char *dest, const char *src, size_t size)
-{
-	size_t ret = strlen(src);
-
-	if (size) {
-		size_t len = (ret >= size) ? size - 1 : ret;
-		memcpy(dest, src, len);
-		dest[len] = '\0';
-	}
-
-	return ret;
-}
-
 static void *xzmalloc(size_t size)
 {
 	void *ptr;
@@ -710,33 +694,6 @@ static void *xzmalloc(size_t size)
 	memset(ptr, 0, size);
 
 	return ptr;
-}
-
-static void *xmalloc(size_t size)
-{
-	void *ptr;
-
-	if (unlikely(size == 0))
-		panic("xmalloc: zero size\n");
-
-	ptr = malloc(size);
-	if (unlikely(ptr == NULL))
-		panic("xmalloc: out of memory (allocating %lu bytes)\n",
-		      (u_long) size);
-
-	return ptr;
-}
-
-char *xstrdup(const char *str)
-{
-	size_t len;
-	char *cp;
-
-	len = strlen(str) + 1;
-	cp = xmalloc(len);
-	strlcpy(cp, str, len);
-
-	return cp;
 }
 
 static void xfree(void *ptr)
@@ -763,7 +720,8 @@ static void xfree(void *ptr)
  * executed instructions.
  */
 static inline int sys_perf_event_open(struct perf_event_attr *attr, pid_t pid,
-				      int cpu, int group_fd, unsigned long flags)
+				      int cpu, int group_fd,
+				      unsigned long flags)
 {
 	/*
 	 * PID settings:
@@ -818,7 +776,8 @@ static struct perf_data *initialize(pid_t pid, int cpu, int mode, int excl)
 		attr->exclude_hv = ((mode & MODE_HYPER) == 0);
 		attr->exclude_idle = ((mode & MODE_IDLE) == 0);
 
-		pd->fds[i] = sys_perf_event_open(attr, pid, cpu, GRP_INVALID, 0);
+		pd->fds[i] = sys_perf_event_open(attr, pid, cpu,
+						 GRP_INVALID, 0);
 		if (unlikely(pd->fds[i] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
@@ -867,31 +826,9 @@ static void enable_counter(struct perf_data *pd, int counter)
 	if (unlikely(counter < 0 || counter >= MAX_COUNTERS))
 		panic("bug! invalid counter value!\n");
 	if (pd->fds[counter] == FDS_INVALID) {
-		pd->fds[counter] = sys_perf_event_open(&pd->attrs[counter], pd->pid,
-						       pd->cpu, pd->group, 0);
-		if (unlikely(pd->fds[counter] < 0))
-			panic("sys_perf_event_open failed!\n");
-	}
-
-	ret = ioctl(pd->fds[counter], PERF_EVENT_IOC_ENABLE);
-	if (ret)
-		panic("error enabling perf counter!\n");
-
-	pd->wall_start = rdclock();
-}
-
-/*
- * The counter will be enabled for 'nr' events and the gets disabled again.
- */
-static void enable_counter_nr(struct perf_data *pd, int counter, int nr)
-{
-	int ret;
-
-	if (unlikely(counter < 0 || counter >= MAX_COUNTERS))
-		panic("bug! invalid counter value!\n");
-	if (pd->fds[counter] == FDS_INVALID) {
-		pd->fds[counter] = sys_perf_event_open(&pd->attrs[counter], pd->pid,
-						       pd->cpu, pd->group, 0);
+		pd->fds[counter] = sys_perf_event_open(&pd->attrs[counter],
+						       pd->pid,pd->cpu,
+						       pd->group, 0);
 		if (unlikely(pd->fds[counter] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
@@ -985,130 +922,10 @@ static enum tracepoint lookup_counter(char *name)
 	return INTERNAL_INVALID_TP;
 }
 
-int main(int argc, char **argv)
+static void print_whole_result(struct perf_data *pd)
 {
-	int status, c, opt_index, mode, pt, cpu, excl, ret, cmd = 1;
-	char *event = NULL;
-	unsigned long cpus, samples = 0;
 	uint64_t tmp1, tmp2;
-	pid_t pid = -1;
-	struct perf_data *pd;
 
-	if (argc == 1)
-		usage();
-
-	cpus = system("exit `grep ^processor /proc/cpuinfo  | wc -l`");
-	cpus = WEXITSTATUS(cpus);
-	cpu = -1;
-	mode = excl = pt = 0;
-
-	while ((c = getopt_long(argc, argv, short_options, long_options,
-				&opt_index)) != EOF) {
-		switch (c) {
-		case 'h':
-			usage();
-			break;
-		case 'v':
-			version();
-			break;
-		case 'p':
-			pid = atoi(optarg);
-			if (pid < 0)
-				panic("bad pid! either 0 for all procs or x > 0!\n");
-			if (pid == 0)
-				pid = -1;
-			pt = 1;
-			break;
-		case 'c':
-			cpu = atoi(optarg);
-			if (cpu < 0 || cpu >= cpus)
-				panic("bad cpuid! needs to be 0 <= x < %lu!\n", cpus);
-			break;
-		case 'n':
-			samples = atoi(optarg);
-			break;
-		case 'e':
-			excl = 1;
-			break;
-		case 'k':
-			mode |= MODE_KERNEL;
-			break;
-		case 'u':
-			mode |= MODE_USER;
-			break;
-		case 'y':
-			mode |= MODE_HYPER;
-			break;
-		case 'i':
-			mode |= MODE_IDLE;
-			break;
-		case 'l':
-			list_counter();
-			break;
-		case 'x':
-			event = xstrdup(optarg);
-			break;
-		case '?':
-			/*
-			 * We assume that all the other stuff is part of the
-			 * <cmd> the user tries to exec, so we break the loop
-			 * and try our luck!
-			 */
-		default:
-			cmd = opt_index;
-			goto doit;
-		}
-	}
-
-doit:
-	if (pt && pid == -1 && cpu == -1)
-		panic("either all procs on a single core or all cpus on a "
-		      "single proc, but not both!\n");
-
-	if (mode == 0)
-		mode = MODE_KERNEL | MODE_USER | MODE_HYPER;
-
-	register_signal(SIGINT, shandler);
-	register_signal(SIGHUP, shandler);
-	register_signal(SIGCHLD, reaper);
-
-	if (!pt)
-		pid = fork();
-	else {
-		/* We make ourself the new parent of the process */
-		ret = ptrace(PT_ATTACH, pid, (char *) 1, 0);
-		if (ret < 0) {
-			panic("cannot attach to process!\n");
-			perror("");
-		}
-		fprintf(stderr, "Process %u attached - interrupt to quit\n", pid);
-	}
-
-	pd = initialize(pid, cpu, mode, excl);
-	enable_all_counter(pd);
-
-	if (!pt && !pid) {
-		execvp(argv[cmd], &argv[cmd]);
-		die();
-	}
-	wait(&status);
-	disable_all_counter(pd);
-
-	if (pt) {
-		ret = ptrace(PT_DETACH, pid, (char *) 1, SIGCONT);
-		if (ret < 0) {
-			panic("cannot detach from process!\n");
-			perror("");
-		}
-		fprintf(stderr, "Process %u detached\n", pid);
-	}
-
-	if (cpu == -1)
-		printf("CPU: all, PID: %d\n", pid);
-	else
-		printf("CPU: %d, PID: %d\n", cpu, pid);
-	printf("Kernel: %d, User: %d, Hypervisor: %d\n",
-	       (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0, (mode & MODE_HYPER) > 0);
 	printf("Software counters:\n");
 	printf("  CPU clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_CPU_CLOCK));
 	printf("  task clock ticks %" PRIu64 "\n", read_counter(pd, COUNT_SW_TASK_CLOCK));
@@ -1157,7 +974,146 @@ doit:
 	printf("  load misses %" PRIu64 "\n", read_counter(pd, COUNT_HW_CACHE_BPU_LOADS_MISSES));
 	printf("Wall-clock time elapsed:\n");
 	printf("  usec %" PRIu64 "\n", read_counter(pd, INTERNAL_SW_WALL_TIME));
+}
 
+int main(int argc, char **argv)
+{
+	int status, c, opt_index, mode, pt, cpu, excl, ret, cmd = 1;
+	unsigned long cpus;
+	pid_t pid = -1;
+	struct perf_data *pd;
+	enum tracepoint tp;
+
+	if (argc == 1)
+		usage();
+
+	cpus = system("exit `grep ^processor /proc/cpuinfo  | wc -l`");
+	cpus = WEXITSTATUS(cpus);
+	cpu = -1;
+	mode = excl = pt = 0;
+	tp = INTERNAL_INVALID_TP;
+
+	while ((c = getopt_long(argc, argv, short_options, long_options,
+				&opt_index)) != EOF) {
+		switch (c) {
+		case 'h':
+			usage();
+			break;
+		case 'v':
+			version();
+			break;
+		case 'p':
+			pid = atoi(optarg);
+			if (pid < 0)
+				panic("bad pid! either 0 for all procs "
+				      "or x > 0!\n");
+			if (pid == 0)
+				pid = -1;
+			pt = 1;
+			break;
+		case 'c':
+			cpu = atoi(optarg);
+			if (cpu < 0 || cpu >= cpus)
+				panic("bad cpuid! needs to be 0 <= x < "
+				      "%lu!\n", cpus);
+			break;
+		case 'e':
+			excl = 1;
+			break;
+		case 'k':
+			mode |= MODE_KERNEL;
+			break;
+		case 'u':
+			mode |= MODE_USER;
+			break;
+		case 'y':
+			mode |= MODE_HYPER;
+			break;
+		case 'i':
+			mode |= MODE_IDLE;
+			break;
+		case 'l':
+			list_counter();
+			break;
+		case 'x':
+			tp = lookup_counter(optarg);
+			break;
+		case '?':
+			/*
+			 * We assume that all the other stuff is part of the
+			 * <cmd> the user tries to exec, so we break the loop
+			 * and try our luck!
+			 */
+		default:
+			cmd = opt_index;
+			goto doit;
+		}
+	}
+
+doit:
+	if (pt && pid == -1 && cpu == -1)
+		panic("either all procs on a single core or all cpus on a "
+		      "single proc, but not both!\n");
+
+	if (mode == 0)
+		mode = MODE_KERNEL | MODE_USER | MODE_HYPER;
+
+	register_signal(SIGINT, shandler);
+	register_signal(SIGHUP, shandler);
+	register_signal(SIGCHLD, reaper);
+
+	if (!pt)
+		pid = fork();
+	else {
+		ret = ptrace(PT_ATTACH, pid, (char *) 1, 0);
+		if (ret < 0) {
+			panic("cannot attach to process!\n");
+			perror("");
+		}
+		fprintf(stderr, "Process %u attached - interrupt to quit\n",
+			pid);
+	}
+
+	pd = initialize(pid, cpu, mode, excl);
+	if (tp == INTERNAL_INVALID_TP)
+		enable_all_counter(pd);
+	else
+		enable_counter(pd, tp);
+
+	if (!pt && !pid) {
+		execvp(argv[cmd], &argv[cmd]);
+		die();
+	}
+	wait(&status);
+	if (tp == INTERNAL_INVALID_TP)
+		disable_all_counter(pd);
+	else
+		disable_counter(pd, tp);
+
+	if (pt) {
+		ret = ptrace(PT_DETACH, pid, (char *) 1, SIGCONT);
+		if (ret < 0) {
+			panic("cannot detach from process!\n");
+			perror("");
+		}
+		fprintf(stderr, "Process %u detached\n", pid);
+	}
+
+	if (cpu == -1)
+		printf("CPU: all, PID: %d\n", pid);
+	else
+		printf("CPU: %d, PID: %d\n", cpu, pid);
+	printf("Kernel: %d, User: %d, Hypervisor: %d\n",
+	       (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0,
+	       (mode & MODE_HYPER) > 0);
+
+	if (tp == INTERNAL_INVALID_TP)
+		print_whole_result(pd);
+	else
+		printf("%" PRIu64 " in %" PRIu64 " usec\n",
+		       read_counter(pd, tp),
+		       read_counter(pd, INTERNAL_SW_WALL_TIME));
 	cleanup(pd);
+
 	return 0;
 }
