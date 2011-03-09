@@ -28,6 +28,8 @@
  * Fixme: Tracing another already running pid not yet working! CPU goes up
  *        to 100% and the program never returns, at least on 2.6.35. Wrong
  *        API usage? Bug? Hmm?
+ *        The code from the libperf's perf_event.h is heavily different than
+ *        the spec from tools/perf/design.txt. WTF???
  */
 
 #include <stdio.h>
@@ -169,7 +171,7 @@ struct perf_event_attr {
 	__u32 type;
 	/*
 	 * Size of the attr structure, for fwd/bwd compat.
-	 */
+	*/
 	__u32 size;
 	/*
 	 * Type specific configuration information.
@@ -181,46 +183,30 @@ struct perf_event_attr {
 	};
 	__u64 sample_type;
 	__u64 read_format;
-	__u64 disabled:1,       /* off by default */
-	      inherit:1,        /* children inherit it */
-	      pinned:1,         /* must always be on PMU */
-	      exclusive:1,      /* only group on PMU */
-	      exclude_user:1,   /* don't count usermode events */
+	__u64 disabled:1, /* off by default */
+	      inherit:1, /* children inherit it */
+	      pinned:1, /* must always be on PMU */
+	      exclusive:1, /* only group on PMU */
+	      exclude_user:1, /* don't count user */
 	      exclude_kernel:1, /* ditto kernel */
-	      exclude_hv:1,     /* ditto hypervisor */
-	      exclude_idle:1,   /* don't count when idle */
-	      mmap:1,           /* include mmap data */
-	      comm:1,           /* include comm data */
-	      freq:1,           /* use freq, not period */
-	      inherit_stat:1,   /* per task counts */
+	      exclude_hv:1, /* ditto hypervisor */
+	      exclude_idle:1, /* don't count when idle */
+	      mmap:1, /* include mmap data */
+	      comm:1, /* include comm data */
+	      freq:1, /* use freq, not period */
+	      inherit_stat:1, /* per task counts */
 	      enable_on_exec:1, /* next exec enables */
-	      task:1,           /* trace fork/exit */
-	      watermark:1,      /* wakeup_watermark */
-	      /*
-	       * precise_ip:
-	       * 0 - SAMPLE_IP can have arbitrary skid
-	       * 1 - SAMPLE_IP must have constant skid
-	       * 2 - SAMPLE_IP requested to have 0 skid
-	       * 3 - SAMPLE_IP must have 0 skid
-	       * See also PERF_RECORD_MISC_EXACT_IP
-	       */
-	      precise_ip:2,      /* skid constraint */
-	      __reserved_1:47;
+	      task:1, /* trace fork/exit */
+	      watermark:1, /* wakeup_watermark */
+	      precise_ip:2, /* skid constraint */
+	      __reserved_1 : 47;
 	union {
-		__u32 wakeup_events;    /* wakeup every n events */
+		__u32 wakeup_events; /* wakeup every n events */
 		__u32 wakeup_watermark; /* bytes before wakeup */
 	};
 	__u32 bp_type;
 	__u64 bp_addr;
 	__u64 bp_len;
-};
-
-/*
- * For the __u64 read_format above.
- */
-enum perf_event_read_format {
-	PERF_FORMAT_TOTAL_TIME_ENABLED = 1,
-	PERF_FORMAT_TOTAL_TIME_RUNNING = 2,
 };
 
 /*
@@ -548,7 +534,7 @@ static struct perf_event_attr default_attrs[] = {
 	},
 };
 
-static sig_atomic_t sigint = 0;
+extern int optind;
 
 static const char *short_options = "p:c:ekuyvhlx:i";
 
@@ -594,7 +580,7 @@ static void usage(void)
 	printf("  -y|--hyper       Count events in hypervisor mode\n");
 	printf("  -i|--idle        Do also count when idle\n");
 	printf("  -l|--list        List possible events\n");
-	printf("  -x|--use <event> Count only certain event\n");
+	printf("  -x|--use <event> Count only a certain event\n");
 	printf("  -v|--version     Print version\n");
 	printf("  -h|--help        Print this help\n");
 	printf("\n");
@@ -619,23 +605,9 @@ static void version(void)
 	die();
 }
 
-static void shandler(int number)
-{
-	switch (number) {
-	case SIGINT:
-		sigint = 1;
-		break;
-	case SIGHUP:
-		break;
-	default:
-		break;
-	}
-}
-
 static void reaper(int sig)
 {
-	int pid;
-	int status;
+	int pid, status;
 
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
 		;
@@ -734,6 +706,7 @@ static inline int sys_perf_event_open(struct perf_event_attr *attr, pid_t pid,
 	 * User/kernel/hypervisor modes:
 	 *   See attr bits for excluding stuff!
 	 * Note: pid == -1 && cpu == -1 is invalid!
+	 * flags must be 0!
 	 */
 	attr->size = sizeof(*attr);
 	return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
@@ -775,13 +748,14 @@ static struct perf_data *initialize(pid_t pid, int cpu, int mode, int excl)
 		attr->exclude_kernel = ((mode & MODE_KERNEL) == 0);
 		attr->exclude_hv = ((mode & MODE_HYPER) == 0);
 		attr->exclude_idle = ((mode & MODE_IDLE) == 0);
-
+		/* pd->fds[0] is counter group leader! */
 		pd->fds[i] = sys_perf_event_open(attr, pid, cpu,
-						 GRP_INVALID, 0);
+						 i == 0 ? GRP_INVALID : pd->fds[0], 0);
 		if (unlikely(pd->fds[i] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
 
+	pd->group = pd->fds[0];
 	return pd;
 }
 
@@ -854,11 +828,11 @@ static void enable_all_counter(struct perf_data *pd)
 	}
 
 	/* XXX: Only group leader? */
-	for (i = 0; i < MAX_COUNTERS; i++) {
-		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_ENABLE);
+//	for (i = 0; i < MAX_COUNTERS; i++) {
+		ret = ioctl(pd->group, PERF_EVENT_IOC_ENABLE);
 		if (ret)
 			panic("error enabling perf counter!\n");
-	}
+//	}
 
 	pd->wall_start = rdclock();
 }
@@ -879,16 +853,15 @@ static void disable_counter(struct perf_data *pd, int counter)
 
 static void disable_all_counter(struct perf_data *pd)
 {
-	int ret, i;
+//	int ret, i;
 
-	/* XXX: Only group leader? */
-	for (i = 0; i < MAX_COUNTERS; i++) {
-		if (pd->fds[i] == FDS_INVALID)
-			continue;
-		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_DISABLE);
+//	for (i = 0; i < MAX_COUNTERS; i++) {
+//		if (pd->fds[i] == FDS_INVALID)
+//			continue;
+		ret = ioctl(pd->group, PERF_EVENT_IOC_DISABLE);
 		if (ret)
 			panic("error disabling perf counter!\n");
-	}
+//	}
 }
 
 static void cleanup(struct perf_data *pd)
@@ -978,7 +951,7 @@ static void print_whole_result(struct perf_data *pd)
 
 int main(int argc, char **argv)
 {
-	int status, c, opt_index, mode, pt, cpu, excl, ret, cmd = 1;
+	int status, c, opt_index, mode, pt, cpu, excl, ret;
 	unsigned long cpus;
 	pid_t pid = -1;
 	struct perf_data *pd;
@@ -1009,7 +982,9 @@ int main(int argc, char **argv)
 				      "or x > 0!\n");
 			if (pid == 0)
 				pid = -1;
-			pt = 1;
+			else
+				pt = 1;
+			whine("not yet working correctly!\n");
 			break;
 		case 'c':
 			cpu = atoi(optarg);
@@ -1037,20 +1012,14 @@ int main(int argc, char **argv)
 			break;
 		case 'x':
 			tp = lookup_counter(optarg);
+			printf("found: %d\n", tp);
 			break;
-		case '?':
-			/*
-			 * We assume that all the other stuff is part of the
-			 * <cmd> the user tries to exec, so we break the loop
-			 * and try our luck!
-			 */
 		default:
-			cmd = opt_index;
-			goto doit;
+			usage();
+			break;
 		}
 	}
 
-doit:
 	if (pt && pid == -1 && cpu == -1)
 		panic("either all procs on a single core or all cpus on a "
 		      "single proc, but not both!\n");
@@ -1058,13 +1027,10 @@ doit:
 	if (mode == 0)
 		mode = MODE_KERNEL | MODE_USER | MODE_HYPER;
 
-	register_signal(SIGINT, shandler);
-	register_signal(SIGHUP, shandler);
-	register_signal(SIGCHLD, reaper);
-
 	if (!pt)
 		pid = fork();
 	else {
+		register_signal(SIGCHLD, reaper);
 		ret = ptrace(PT_ATTACH, pid, (char *) 1, 0);
 		if (ret < 0) {
 			panic("cannot attach to process!\n");
@@ -1081,7 +1047,7 @@ doit:
 		enable_counter(pd, tp);
 
 	if (!pt && !pid) {
-		execvp(argv[cmd], &argv[cmd]);
+		execvp(argv[optind], &argv[optind]);
 		die();
 	}
 	wait(&status);
