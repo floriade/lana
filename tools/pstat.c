@@ -853,7 +853,7 @@ static void disable_counter(struct perf_data *pd, int counter)
 
 static void disable_all_counter(struct perf_data *pd)
 {
-//	int ret, i;
+	int ret, i;
 
 //	for (i = 0; i < MAX_COUNTERS; i++) {
 //		if (pd->fds[i] == FDS_INVALID)
