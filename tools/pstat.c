@@ -544,6 +544,8 @@ static struct perf_event_attr default_attrs[] = {
 
 extern int optind;
 
+static sig_atomic_t sigint = 0;
+
 static const char *short_options = "p:c:ekuyvhlx:i";
 
 static struct option long_options[] = {
@@ -619,6 +621,11 @@ static void reaper(int sig)
 
 	while ((pid = waitpid(-1, &status, WNOHANG)) > 0)
 		;
+}
+
+static void intr(int sig)
+{
+	sigint = 1;
 }
 
 static inline void register_signal(int signal, void (*handler)(int))
@@ -1063,6 +1070,7 @@ int main(int argc, char **argv)
 		execvp(argv[optind], &argv[optind]);
 		die();
 	}
+	register_signal(SIGINT, intr);
 	wait(&status);
 	if (tp == INTERNAL_INVALID_TP)
 		disable_all_counter(pd);
