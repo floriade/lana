@@ -21,15 +21,17 @@
  *
  * Needs Linux kernel >= 2.6.32. For more detailed information have a look at 
  * tools/perf/design.txt and http://lkml.org/lkml/2009/6/6/149. Tested on 
- * x86_64. Larger comments refer to tools/perf/design.txt.
+ * x86_64. Larger comments refer to tools/perf/design.txt. Be warned, the stuff
+ * from design.txt, especially data structures are heavily deprecated!
  *
  * Compile: gcc pstat.c -o pstat -lrt -O2
  * Patches are welcome! Mail them to <dborkma@tik.ee.ethz.ch>.
- * Fixme: Tracing another already running pid not yet working! CPU goes up
- *        to 100% and the program never returns, at least on 2.6.35. Wrong
- *        API usage? Bug? Hmm?
- *        The code from the libperf's perf_event.h is heavily different than
- *        the spec from tools/perf/design.txt. WTF???
+ *
+ * Not yet working:
+ *  - Tracing another already running pid not yet working! CPU goes up
+ *    to 100% and the program never returns.
+ *  - Tracing a single event returns in strange numbers! May be because
+ *    of group leader settings?
  */
 
 #include <stdio.h>
@@ -199,7 +201,8 @@ struct perf_event_attr {
 	      task:1, /* trace fork/exit */
 	      watermark:1, /* wakeup_watermark */
 	      precise_ip:2, /* skid constraint */
-	      __reserved_1 : 47;
+	      mmap_data:1, /* non-exec mmap data */
+	      __reserved_1:46;
 	union {
 		__u32 wakeup_events; /* wakeup every n events */
 		__u32 wakeup_watermark; /* bytes before wakeup */
@@ -209,11 +212,16 @@ struct perf_event_attr {
 	__u64 bp_len;
 };
 
+enum perf_event_ioc_flags {
+	PERF_IOC_FLAG_GROUP = 1U << 0,
+};
+
 /*
  * Ioctls that can be done on a perf event fd:
  */
 #define PERF_EVENT_IOC_ENABLE _IO ('$', 0)
 #define PERF_EVENT_IOC_DISABLE _IO ('$', 1)
+#define PERF_EVENT_IOC_REFRESH _IO ('$', 2)
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define MAX_COUNTERS 32
@@ -750,7 +758,8 @@ static struct perf_data *initialize(pid_t pid, int cpu, int mode, int excl)
 		attr->exclude_idle = ((mode & MODE_IDLE) == 0);
 		/* pd->fds[0] is counter group leader! */
 		pd->fds[i] = sys_perf_event_open(attr, pid, cpu,
-						 i == 0 ? GRP_INVALID : pd->fds[0], 0);
+						 i == 0 ? GRP_INVALID : pd->fds[0],
+						 PERF_IOC_FLAG_GROUP);
 		if (unlikely(pd->fds[i] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
@@ -802,7 +811,8 @@ static void enable_counter(struct perf_data *pd, int counter)
 	if (pd->fds[counter] == FDS_INVALID) {
 		pd->fds[counter] = sys_perf_event_open(&pd->attrs[counter],
 						       pd->pid,pd->cpu,
-						       pd->group, 0);
+						       pd->group,
+						       PERF_IOC_FLAG_GROUP);
 		if (unlikely(pd->fds[counter] < 0))
 			panic("sys_perf_event_open failed!\n");
 	}
@@ -821,18 +831,20 @@ static void enable_all_counter(struct perf_data *pd)
 	for (i = 0; i < MAX_COUNTERS; i++) {
 		if (pd->fds[i] == FDS_INVALID) {
 			pd->fds[i] = sys_perf_event_open(&pd->attrs[i], pd->pid,
-							 pd->cpu, pd->group, 0);
+							 pd->cpu, pd->group,
+							 PERF_IOC_FLAG_GROUP);
 			if (unlikely(pd->fds[i] < 0))
 				panic("sys_perf_event_open failed!\n");
 		}
 	}
 
 	/* XXX: Only group leader? */
-//	for (i = 0; i < MAX_COUNTERS; i++) {
-		ret = ioctl(pd->group, PERF_EVENT_IOC_ENABLE);
+	for (i = 0; i < MAX_COUNTERS; i++) {
+		/* ret = ioctl(pd->group, PERF_EVENT_IOC_ENABLE); */
+		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_ENABLE);
 		if (ret)
 			panic("error enabling perf counter!\n");
-//	}
+	}
 
 	pd->wall_start = rdclock();
 }
@@ -855,13 +867,14 @@ static void disable_all_counter(struct perf_data *pd)
 {
 	int ret, i;
 
-//	for (i = 0; i < MAX_COUNTERS; i++) {
-//		if (pd->fds[i] == FDS_INVALID)
-//			continue;
-		ret = ioctl(pd->group, PERF_EVENT_IOC_DISABLE);
+	for (i = 0; i < MAX_COUNTERS; i++) {
+		if (pd->fds[i] == FDS_INVALID)
+			continue;
+		/* ret = ioctl(pd->group, PERF_EVENT_IOC_DISABLE); */
+		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_DISABLE);
 		if (ret)
 			panic("error disabling perf counter!\n");
-//	}
+	}
 }
 
 static void cleanup(struct perf_data *pd)
