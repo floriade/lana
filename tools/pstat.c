@@ -779,13 +779,7 @@ static void enable_all_counter(struct perf_data *pd)
 	int ret, i;
 
 	for (i = 0; i < MAX_COUNTERS; i++) {
-		if (pd->fds[i] == FDS_INVALID) {
-			pd->fds[i] = sys_perf_event_open(&pd->attrs[i], pd->pid,
-							 pd->cpu, pd->group,
-							 PERF_IOC_FLAG_GROUP);
-			if (unlikely(pd->fds[i] < 0))
-				panic("sys_perf_event_open failed!\n");
-		}
+		enable_counter(pd, i);
 	}
 
 	/* XXX: Only group leader? */
@@ -818,12 +812,7 @@ static void disable_all_counter(struct perf_data *pd)
 	int ret, i;
 
 	for (i = 0; i < MAX_COUNTERS; i++) {
-		if (pd->fds[i] == FDS_INVALID)
-			continue;
-		/* ret = ioctl(pd->group, PERF_EVENT_IOC_DISABLE); */
-		ret = ioctl(pd->fds[i], PERF_EVENT_IOC_DISABLE);
-		if (ret)
-			panic("error disabling perf counter!\n");
+		disable_counter(pd, i);
 	}
 }
 
