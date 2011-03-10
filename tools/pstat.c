@@ -48,6 +48,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <signal.h>
+#include <errno.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -768,7 +769,7 @@ static struct perf_data *initialize(pid_t pid, int cpu, int mode, int excl)
 						 i == 0 ? GRP_INVALID : pd->fds[0],
 						 PERF_IOC_FLAG_GROUP);
 		if (unlikely(pd->fds[i] < 0))
-			panic("sys_perf_event_open failed!\n");
+			panic("sys_perf_event_open failed: %s\n", strerror(errno));
 	}
 
 	pd->group = pd->fds[0];
