@@ -1032,9 +1032,10 @@ int main(int argc, char **argv)
 		printf("CPU: all, PID: %d\n", pid);
 	else
 		printf("CPU: %d, PID: %d\n", cpu, pid);
-	printf("Kernel: %d, User: %d, Hypervisor: %d\n",
-	       (mode & MODE_KERNEL) > 0, (mode & MODE_USER) > 0,
-	       (mode & MODE_HYPER) > 0);
+	printf("Kernel: %s, User: %s, Hypervisor: %s\n",
+	       (mode & MODE_KERNEL) == MODE_KERNEL ? "on" : "off", 
+	       (mode & MODE_USER) == MODE_USER ? "on" : "off", 
+	       (mode & MODE_HYPER) == MODE_HYPER ? "on" : "off");
 
 	if (tp == INTERNAL_INVALID_TP)
 		print_whole_result(pd);
