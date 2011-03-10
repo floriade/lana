@@ -842,7 +842,7 @@ static enum tracepoint lookup_counter(char *name)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(whole_map); i++) 
-		if (!strncmp(whole_map[i].name, name, strlen(whole_map[i].name)))
+		if (!strncmp(whole_map[i].name, name, sizeof(whole_map[i].name) - 1))
 			return whole_map[i].tracepoint;
 	return INTERNAL_INVALID_TP;
 }
