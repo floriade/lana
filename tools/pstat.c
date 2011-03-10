@@ -923,8 +923,7 @@ int main(int argc, char **argv)
 	if (argc == 1)
 		usage();
 
-	cpus = system("exit `grep ^processor /proc/cpuinfo  | wc -l`");
-	cpus = WEXITSTATUS(cpus);
+	cpus = sysconf(_SC_NPROCESSORS_ONLN);
 	cpu = -1;
 	mode = excl = pt = 0;
 	tp = INTERNAL_INVALID_TP;
