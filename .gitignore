@@ -24,4 +24,5 @@
 \#*#
 
 !.gitignore
+!.mailmap
 
