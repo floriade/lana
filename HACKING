@@ -1,37 +1,84 @@
 Guide for potential hackers on Lightweight Autonomic Network Architecture
 -------------------------------------------------------------------------
 
-Git repository:
-	git clone git://repo.or.cz/ana-net.git
+There's a public Git repository where you can check out the latest
+Lightweight Autonomic Network Architecture sources:
 
-Kernel:
-	Currently developed against the bleeding edge linus Git tree. Check
-	it out via:
+$ git clone git://repo.or.cz/ana-net.git
 
-	git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
+For hacking the source you definately need a bleeding-edge kernel since LANA
+is currently developed against the latest linus Git tree. Check	it out via
 
-File naming conventions:
-	fb_*: is a functional block, ideally you place all the neccessary
-	      code that is related to the fb into this file
-        else: all other file are regarded as ANA core files, which are
-	      mandatory for the network stack to operate
+$ git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
 
-Function naming conventions for functional blocks:
-	- Always have a prefix of 'fb_', even static functions
-	- Internal functions can be prefixed with a number of '__'
-	  strings before the 'fb_' prefix
+and read the INSTALL file for compiling and running the kernel, but you
+probably already know how to do this. ;-)
 
-For vim hackers:
-	tools/vim80warn.vim is a tiny plugin that warns you if more than
-	80 chars have been used on a single line. Install it with by 
-	creating a directory ~/.vim/plugin directory and copy this plugin
-	into this directory, restart vim and you're good to go.
+Also, using a serial console for testing and debugging purpose is quite
+useful, especially when you get a panic or Ooops within interrupt context!
+Assuming you are using GRUB2 (there's really no magic for other versions),
+simply add 'console=/dev/ttyS0,9600n8' to the kernel cmdline parameters,
+e.g.:
 
-Please send your ideas or patches for ANA mainline inclusion to:
-	ariane.keller@tik.ee.ethz.ch   and
-	dborkma@tik.ee.ethz.ch
+menuentry 'Debian/Linux 2.6.38-rc8+' --class debian --class gnu-linux --class gnu --class os {
+        insmod part_msdos
+        insmod ext2
+        set root='(hd0,msdos6)'
+        search --no-floppy --fs-uuid --set 7184959b-9a3d-43ac-9649-35c4040807ed
+        linux   /boot/vmlinuz-2.6.38-rc8+ root=UUID=7184959b-9a3d-43ac-9649-35c4040807ed ro console=/dev/ttyS0,9600n8
+        initrd  /boot/initrd.img-2.6.38-rc8+
+}
 
-Website:
-	http://www.ana-project.org/
-	http://repo.or.cz/w/ana-net.git
+If you also want to redirect tty output of your guest os to the serial port,
+add to the /etc/inittab in the guest system:
+
+co:2345:respawn:/sbin/agetty ttyS0 9600 vt100-nav
+
+Then reboot that machine. If you're using this kernel within qemu, the map
+the serial device to your host os with qemu <...> -serial /dev/ttyS0 <...>.
+You then can use minicom to connect and see relevant stack traces if your
+kernel crashes within interrupt mode for instance. This gives you at least 
+a stack trace via serial console, so that you are at least able to see the
+whole stack printout.
+
+You can obtain minicom on Debian via: # apt-get install minicom
+minicom's configuration on your local machine should look like this:
+
+  Serial Device         : /dev/ttyS0
+  Lockfile Location     : /var/lock
+  Callin Program        :
+  Callout Program       :
+  Bps/Par/Bits          : 9600 8N1
+  Hardware Flow Control : No
+  Software Flow Control : No
+
+For vim hackers there's also a tiny plugin in tools/vim80warn.vim that
+warns you if more than 80 chars have been used on a single line. Install
+it by creating a directory ~/.vim/plugin directory and copy this plugin
+into this directory, restart vim and you're good to go.
+
+Note that there are also some file naming conventions! fb_*.c|h is a
+functional block. Ideally you place all the neccessary code that is related
+to the fb into this file, so that the src directory stays clean.
+All the other non-fb_* files are regarded as LANA core files, which are
+mandatory for the network stack to operate.
+
+Function naming conventions for functional blocks are similar. Always have
+a prefix of 'fb_', even for static functions. All the rest follows Linux
+kernel coding conventions as described in CODING. You can use the kernels
+check_patch.pl script for style errors, trailing whitespaces and so on
+before submitting a patch.
+
+Please send your ideas or patches for LANA mainline inclusion to:
+ariane.keller@tik.ee.ethz.ch, wolfgang.muehlbauer@tik.ee.ethz.ch or 
+dborkma@tik.ee.ethz.ch
+
+There's a public website about the Autonomic Network Architecture project
+with previous prototypes and further documentation:
+
+http://www.ana-project.org/
+http://repo.or.cz/w/ana-net.git
+
+LANA is developed at the Communication Systems Group of Swiss federal
+institute of technology (ETH Zurich).
 
