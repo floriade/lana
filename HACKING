@@ -20,13 +20,14 @@ Assuming you are using GRUB2 (there's really no magic for other versions),
 simply add 'console=/dev/ttyS0,9600n8' to the kernel cmdline parameters,
 e.g.:
 
-menuentry 'Debian/Linux 2.6.38-rc8+' --class debian --class gnu-linux --class gnu --class os {
-        insmod part_msdos
-        insmod ext2
-        set root='(hd0,msdos6)'
-        search --no-floppy --fs-uuid --set 7184959b-9a3d-43ac-9649-35c4040807ed
-        linux   /boot/vmlinuz-2.6.38-rc8+ root=UUID=7184959b-9a3d-43ac-9649-35c4040807ed ro console=/dev/ttyS0,9600n8
-        initrd  /boot/initrd.img-2.6.38-rc8+
+menuentry 'Debian/Linux 2.6.38-rc8+' --class debian --class gnu-linux
+				     --class gnu --class os {
+  insmod part_msdos
+  insmod ext2
+  set root='(hd0,msdos6)'
+  search --no-floppy --fs-uuid --set <bla>
+  linux /boot/vmlinuz-2.6.38-rc8+ root=UUID=<bla> ro console=/dev/ttyS0,9600n8
+  initrd  /boot/initrd.img-2.6.38-rc8+
 }
 
 If you also want to redirect tty output of your guest os to the serial port,
