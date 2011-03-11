@@ -1,0 +1,10 @@
+Installation guideline
+----------------------
+
+$ cd src/
+$ make
+# make install
+
+Now have a look at 'dmesg' whether modules have been loaded correctly.
+
+
