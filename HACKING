@@ -4,6 +4,12 @@ Guide for potential hackers on Lightweight Autonomic Network Architecture
 Git repository:
 	git clone git://repo.or.cz/ana-net.git
 
+Kernel:
+	Currently developed against the bleeding edge linus Git tree. Check
+	it out via:
+
+	git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
+
 File naming conventions:
 	fb_*: is a functional block, ideally you place all the neccessary
 	      code that is related to the fb into this file
