@@ -1,0 +1,26 @@
+Guide for potential hackers on Lightweight Autonomic Network Architecture
+-------------------------------------------------------------------------
+
+Git repository:
+	git clone git://repo.or.cz/ana-net.git
+
+File naming conventions:
+	fb_*: is a functional block, ideally you place all the neccessary
+	      code that is related to the fb into this file
+        else: all other file are regarded as ANA core files, which are
+	      mandatory for the network stack to operate
+
+For vim hackers:
+	tools/vim80warn.vim is a tiny plugin that warns you if more than
+	80 chars have been used on a single line. Install it with by 
+	creating a directory ~/.vim/plugin directory and copy this plugin
+	into this directory, restart vim and you're good to go.
+
+Please send your ideas or patches for ANA mainline inclusion to:
+	ariane.keller@tik.ee.ethz.ch   and
+	dborkma@tik.ee.ethz.ch
+
+Website:
+	http://www.ana-project.org/
+	http://repo.or.cz/w/ana-net.git
+
