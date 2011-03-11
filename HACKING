@@ -30,22 +30,23 @@ menuentry 'Debian/Linux 2.6.38-rc8+' --class debian --class gnu-linux
   initrd  /boot/initrd.img-2.6.38-rc8+
 }
 
-If you also want to redirect tty output of your guest os to the serial port,
-add to the /etc/inittab in the guest system:
+If you also want to redirect tty output of your devel os to the serial port,
+add to the /etc/inittab in the development system:
 
 co:2345:respawn:/sbin/agetty ttyS0 9600 vt100-nav
 
 Then reboot that machine. If you're using this kernel within qemu, the map
-the serial device to your host os with qemu <...> -serial /dev/ttyS0 <...>.
-You then can use minicom to connect and see relevant stack traces if your
-kernel crashes within interrupt mode for instance. This gives you at least 
-a stack trace via serial console, so that you are at least able to see the
-whole stack printout.
+the serial device to your host os with qemu <...> -serial /dev/ttyX <...>
+(where X is a number for instance) or map it to a file as qemu 
+<...> -serial file:serial.log <...>. For ttys you can use minicom to connect
+and see relevant stack traces if your kernel crashes within interrupt mode
+for instance. This gives you at least a stack trace via serial console, so
+that you are at least able to see the whole stack printout.
 
 You can obtain minicom on Debian via: # apt-get install minicom
 minicom's configuration on your local machine should look like this:
 
-  Serial Device         : /dev/ttyS0
+  Serial Device         : /dev/ttyXY
   Lockfile Location     : /var/lock
   Callin Program        :
   Callout Program       :
