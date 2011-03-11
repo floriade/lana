@@ -1,10 +1,23 @@
 Installation guideline
 ----------------------
 
+If you don't have a current kernel, try:
+
+$ git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
+$ cd linux-2.6/
+$ make menuconfig
+$ make -j4 && make modules -j4
+# make install && make modules_install
+$ cd /boot/
+# mkinitramfs -o initrd.img-2.6<whatever> 2.6<whatever>
+# update-grub
+# reboot
+
+Once you've set it up, simple do:
+
 $ cd src/
 $ make
 # make install
 
 Now have a look at 'dmesg' whether modules have been loaded correctly.
-
 
