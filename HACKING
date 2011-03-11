@@ -10,6 +10,11 @@ File naming conventions:
         else: all other file are regarded as ANA core files, which are
 	      mandatory for the network stack to operate
 
+Function naming conventions for functional blocks:
+	- Always have a prefix of 'fb_', even static functions
+	- Internal functions can be prefixed with a number of '__'
+	  strings before the 'fb_' prefix
+
 For vim hackers:
 	tools/vim80warn.vim is a tiny plugin that warns you if more than
 	80 chars have been used on a single line. Install it with by 
