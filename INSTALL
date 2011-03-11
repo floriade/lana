@@ -9,13 +9,55 @@ $ make menuconfig
 $ make -j4 && make modules -j4
 # make install && make modules_install
 $ cd /boot/
-# mkinitramfs -o initrd.img-2.6<whatever> 2.6<whatever>
+# mkinitramfs -o initrd.img-2.6.<whatever> 2.6.<whatever>
 # update-grub
 # reboot
 
-Once you've set it up, simple do:
+You might want to deactivate 'quiet' from the kernel cmdline, in order to
+see what is going on. Edit /etc/default/grub and remove it from your cmdline
+GRUB_CMDLINE_LINUX_DEFAULT="".
 
-$ cd src/
+Also, for using a remote serial console, do the following:
+
+Assuming you are using GRUB2 (there's really no magic for other versions),
+simply add 'console=/dev/ttyS0,9600n8' to the kernel cmdline
+parameters, e.g.:
+
+menuentry 'Debian/Linux 2.6.38-rc8+' --class debian --class gnu-linux --class gnu --class os {
+        insmod part_msdos
+        insmod ext2
+        set root='(hd0,msdos6)'
+        search --no-floppy --fs-uuid --set 7184959b-9a3d-43ac-9649-35c4040807ed
+        linux   /boot/vmlinuz-2.6.38-rc8+ root=UUID=7184959b-9a3d-43ac-9649-35c4040807ed ro console=/dev/ttyS0,9600n8
+        initrd  /boot/initrd.img-2.6.38-rc8+
+}
+
+If you also want to redirect tty output of your guest os to the serial port,
+add to the /etc/inittab in the guest system:
+
+co:2345:respawn:/sbin/agetty ttyS0 9600 vt100-nav
+
+Then reboot that machine. If you're using this kernel within qemu, the map
+the serial device to your host os with qemu <...> -serial /dev/ttyS0 <...>.
+You then can use minicom to connect and see relevant stack traces if your
+kernel crashes within interrupt mode for instance.
+This gives you at least a stack trace via serial console, so that you are
+at least able to see the whole stack.
+
+You can obtain minicom on Debian via: # apt-get install minicom
+minicom's configuration should look like this:
+
+Serial Device         : /dev/ttyS0
+Lockfile Location     : /var/lock
+Callin Program        :
+Callout Program       :
+Bps/Par/Bits          : 9600 8N1
+Hardware Flow Control : No
+Software Flow Control : No
+
+Once you've set it up, simply compile ANA with:
+
+$ cd <path-to-ana>/src/
 $ make
 # make install
 
