@@ -1,4 +1,4 @@
-obj-m += ana_eth_vlink.o
+obj-m += fb_eth_vlink.o
 
 all:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules

@@ -10,7 +10,7 @@
 #include <linux/notifier.h>
 #include <linux/netdevice.h>
 
-struct ana_eth_dev {
+struct fb_eth_dev {
 	struct net_device *dev;
 	struct net_device *real_dev;
 };
@@ -18,35 +18,36 @@ struct ana_eth_dev {
 /*
  * The virtual device ingress path to the upper ANA layer.
  */
-static struct sk_buff *ana_eth_vlink_handle_frame(struct sk_buff *skb)
+static struct sk_buff *fb_eth_vlink_handle_frame(struct sk_buff *skb)
 {
+	return NULL;
 }
 
-static int ana_eth_vlink_device_event(struct notifier_block *this,
+static int fb_eth_vlink_device_event(struct notifier_block *this,
 				      unsigned long event, void *ptr)
 {
 	return NOTIFY_DONE;
 }
 
-static struct notifier_block ana_eth_vlink_notifier __read_mostly = {
-	.notifier_call	= ana_eth_vlink_device_event,
+static struct notifier_block fb_eth_vlink_notifier __read_mostly = {
+	.notifier_call	= fb_eth_vlink_device_event,
 };
 
-static int __init init_ana_eth_vlink_module(void)
+static int __init init_fb_eth_vlink_module(void)
 {
-	register_netdevice_notifier(&ana_eth_vlink_notifier);
-	printk(KERN_INFO "ANA eth vlink init done!\n");
+	register_netdevice_notifier(&fb_eth_vlink_notifier);
+	printk(KERN_INFO "eth vlink init done\n");
 	return 0;
 }
 
-static void __exit cleanup_ana_eth_vlink_module(void)
+static void __exit cleanup_fb_eth_vlink_module(void)
 {
-	unregister_netdevice_notifier(&ana_eth_vlink_notifier);
-	printk(KERN_INFO "ANA eth vlink cleanup done!\n");
+	unregister_netdevice_notifier(&fb_eth_vlink_notifier);
+	printk(KERN_INFO "eth vlink cleanup done\n");
 }
 
-module_init(init_ana_eth_vlink_module);
-module_exit(cleanup_ana_eth_vlink_module);
+module_init(init_fb_eth_vlink_module);
+module_exit(cleanup_fb_eth_vlink_module);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
