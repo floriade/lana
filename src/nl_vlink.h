@@ -40,26 +40,26 @@ struct nl_vlink_callback {
 	struct nl_vlink_callback *next;
 };
 
-#define NL_VLINK_CALLBACK_INIT(fct, prio) {			\
-	.rx = (fct),						\
-	.priority = (prio),					\
+#define NL_VLINK_CALLBACK_INIT(fct, prio) {		\
+	.rx = (fct),					\
+	.priority = (prio),				\
 	.next = NULL, }
 
 struct nl_vlink_subsys {
 	char *name;
-	u16 type;
-	u8 __id;
-	u8 __count;
-	struct rw_semaphore __rwsem;
-	struct nl_vlink_callback *__head;
+	u32 type:16,
+	    id:8,
+	    count:8;
+	struct rw_semaphore rwsem;
+	struct nl_vlink_callback *head;
 };
 
-#define NL_VLINK_SUBSYS_INIT(varname, sysname, type) {		\
-	.name = (sysname),					\
-	.type = (type),						\
-	.__count = 0,						\
-	.__rwsem = __RWSEM_INITIALIZER((varname).__rwsem),	\
-	.__head = NULL, }
+#define NL_VLINK_SUBSYS_INIT(varname, sysname, type) {	\
+	.name = (sysname),				\
+	.type = (type),					\
+	.count = 0,					\
+	.rwsem = __RWSEM_INITIALIZER((varname).rwsem),	\
+	.head = NULL, }
 
 extern void nl_vlink_lock(void);
 extern void nl_vlink_unlock(void);
