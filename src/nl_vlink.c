@@ -121,8 +121,9 @@ static int __init init_nl_vlink_module(void)
 	if (!vlink_subsystem_table)
 		return -ENOMEM;
 
-	nl_vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK, 0,
-					      nl_vlink_rcv, NULL, THIS_MODULE);
+	nl_vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK,
+					      VLINKNLGRP_MAX, nl_vlink_rcv,
+					      NULL, THIS_MODULE);
 	if (!nl_vlink_sock) {
 		ret = -ENOMEM;
 		goto err;

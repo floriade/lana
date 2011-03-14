@@ -26,11 +26,20 @@
 
 #define NETLINK_VLINK           0xCAFE /* This is what holds us together! */
 
-#define VLINK_ALL               0  /* To all vlink types                 */
-#define VLINK_ETHERNET          1  /* To vlink Ethernet type             */
-#define VLINK_BLUETOOTH         2  /* To vlink Bluetooth type            */
-#define VLINK_INFINIBAND        3  /* To vlink InfiniBand type           */
-#define VLINK_I2C               4  /* To vlink I^2C type                 */
+enum nl_vlink_groups {
+	VLINKNLGRP_ALL,            /* To all vlink types                 */
+#define VLINKNLGRP_ALL          VLINKNLGRP_ALL
+	VLINKNLGRP_ETHERNET,       /* To vlink Ethernet type             */
+#define VLINKNLGRP_ETHERNET     VLINKNLGRP_ETHERNET
+	VLINKNLGRP_BLUETOOTH,      /* To vlink Bluetooth type            */
+#define VLINKNLGRP_BLUETOOTH    VLINKNLGRP_BLUETOOTH
+	VLINKNLGRP_INFINIBAND,     /* To vlink InfiniBand type           */
+#define VLINKNLGRP_INFINIBAND   VLINKNLGRP_INFINIBAND
+	VLINKNLGRP_I2C,            /* To vlink I^2C type                 */
+#define VLINKNLGRP_I2C          VLINKNLGRP_I2C
+	__VLINKNLGRP_MAX
+};
+#define VLINKNLGRP_MAX          (__VLINKNLGRP_MAX - 1)
 
 #ifdef __KERNEL__
 
