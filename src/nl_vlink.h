@@ -6,9 +6,9 @@
  * Subject to the GPL.
  */
 
-#ifndef NLVLINK
-#define NLVLINK
+#ifndef NL_VLINK
+#define NL_VLINK
 
 #define NETLINK_VLINK 0xCAFE /* This is what holds us together! ;-) */
 
-#endif /* NLVLINK */
+#endif /* NL_VLINK */
