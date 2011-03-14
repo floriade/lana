@@ -24,6 +24,8 @@
 #include <linux/u64_stats_sync.h>
 #include <net/rtnetlink.h>
 
+#include "nl_vlink.h"
+
 static struct net_device_ops fb_eth_vlink_netdev_ops __read_mostly;
 static struct rtnl_link_ops fb_eth_vlink_rtnl_ops __read_mostly;
 
