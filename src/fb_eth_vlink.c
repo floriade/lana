@@ -147,7 +147,7 @@ static int __init init_fb_eth_vlink_module(void)
 	if (ret)	
 		return ret;
 
-	dev = alloc_netdev(0, "ana", fb_eth_vlink_dev_setup);
+	dev = alloc_netdev(0, "ana%d", fb_eth_vlink_dev_setup);
 	if (!dev) {
 		ret = -ENOMEM;
 		goto err;
@@ -161,8 +161,7 @@ static int __init init_fb_eth_vlink_module(void)
 	if (ret)
 		goto err_free;
 
-
-	printk(KERN_INFO "eth vlink init done\n");
+	printk(KERN_INFO "ANA eth vlink layer loaded!\n");
 	return 0;
 
 err_free:
@@ -175,7 +174,7 @@ err:
 static void __exit cleanup_fb_eth_vlink_module(void)
 {
 	rtnl_link_unregister(&fb_eth_vlink_rtnl_ops);
-	printk(KERN_INFO "eth vlink cleanup done\n");
+	printk(KERN_INFO "ANA eth vlink layer removed!\n");
 }
 
 module_init(init_fb_eth_vlink_module);
