@@ -1,5 +1,12 @@
 /*
  * Lightweight Autonomic Network Architecture
+ *
+ * Ethernet vlink layer. This module allows to operate virtual LANA Ethernet
+ * devices which are configurable via ifconfig et. al. and bound to a real
+ * underlying device. Similar to VLANs, multiple virtual devices can be
+ * bound to a real network device. Multiplexing and demultiplexing happens
+ * within this driver.
+ *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
@@ -21,9 +28,22 @@ static struct net_device_ops fb_eth_vlink_netdev_ops __read_mostly;
 static struct rtnl_link_ops fb_eth_vlink_rtnl_ops __read_mostly;
 
 struct pcpu_dstats {
+	u64                   rx_packets;
+	u64                   rx_bytes;
+	u64                   rx_multicast;
 	u64                   tx_packets;
 	u64                   tx_bytes;
-	struct u64_stats_sync syncp;
+	struct u64_stats_sync syncp; /* sync point for 64bit counters */
+	u32                   rx_errors;
+	u32                   tx_dropped;
+};
+
+struct fb_eth_vlink_dev {
+	struct net_device *dev;
+	struct net_device *realdev;
+	struct pcpu_dstats __percpu *pcpu_stats;
+	int (*process_rx)(struct sk_buff *skb);
+	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
 };
 
 static int fb_eth_vlink_init(struct net_device *dev)
