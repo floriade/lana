@@ -14,25 +14,27 @@
 #include <linux/types.h>
 #include <linux/rwsem.h>
 
-#define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next */
-#define NETLINK_VLINK_RX_BAD    1  /* Receive failed, notify next */
+#define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next     */
+#define NETLINK_VLINK_RX_BAD    1  /* Receive failed, notify next        */
 #define NETLINK_VLINK_RX_EMERG  2  /* Receive failed, do not notify next */
 
-#define NETLINK_VLINK_PRIO_LOW  0  /* Low priority callbacks */
-#define NETLINK_VLINK_PRIO_NORM 1  /* Normal priority callbacks */
-#define NETLINK_VLINK_PRIO_HIGH 2  /* High priority callbacks */
+#define NETLINK_VLINK_PRIO_LOW  0  /* Low priority callbacks             */
+#define NETLINK_VLINK_PRIO_NORM 1  /* Normal priority callbacks          */
+#define NETLINK_VLINK_PRIO_HIGH 2  /* High priority callbacks            */
 
 #endif /* __KERNEL__ */
 
 #define NETLINK_VLINK           0xCAFE /* This is what holds us together! */
 
-/* Can be OR'ed from userspace for addressing several subsystems */
-#define VLINK_ETHERNET          1  /* Vlink Ethernet type */
-#define VLINK_BLUETOOTH         2  /* Vlink Bluetooth type */
-#define VLINK_INFINIBAND        4  /* Vlink InfiniBand type */
-#define VLINK_I2C               8  /* Vlink I^2C type */
+#define VLINK_ALL               0  /* To all vlink types                 */
+#define VLINK_ETHERNET          1  /* To vlink Ethernet type             */
+#define VLINK_BLUETOOTH         2  /* To vlink Bluetooth type            */
+#define VLINK_INFINIBAND        3  /* To vlink InfiniBand type           */
+#define VLINK_I2C               4  /* To vlink I^2C type                 */
 
 #ifdef __KERNEL__
+
+#define MAX_VLINK_SUBSYSTEMS  256
 
 struct nl_vlink_callback {
 	int priority;
@@ -64,8 +66,8 @@ struct nl_vlink_subsys {
 extern void nl_vlink_lock(void);
 extern void nl_vlink_unlock(void);
 
-extern int nl_vlink_subsys_register(const struct nl_vlink_subsys *n);
-extern int nl_vlink_subsys_unregister(const struct nl_vlink_subsys *n);
+extern int nl_vlink_subsys_register(struct nl_vlink_subsys *n);
+extern int nl_vlink_subsys_unregister(struct nl_vlink_subsys *n);
 
 #endif /* __KERNEL__ */
 #endif /* NL_VLINK */
