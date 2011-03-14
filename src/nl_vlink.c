@@ -12,6 +12,8 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 
+#include "nl_vlink.h"
+
 static int __init init_nlvlink_module(void)
 {
 	printk(KERN_INFO "LANA netlink vlink layer loaded!\n");

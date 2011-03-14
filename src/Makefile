@@ -1,5 +1,6 @@
 # LANA core files
-obj-m += nlvlink.o
+obj-m += nl_vlink.o
+
 # LANA optional modules
 obj-m += fb_eth_vlink.o
 
