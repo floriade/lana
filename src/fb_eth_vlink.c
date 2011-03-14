@@ -181,7 +181,7 @@ static int __init init_fb_eth_vlink_module(void)
 	if (ret)
 		goto err_free;
 
-	printk(KERN_INFO "ANA eth vlink layer loaded!\n");
+	printk(KERN_INFO "LANA eth vlink layer loaded!\n");
 	return 0;
 
 err_free:
@@ -194,7 +194,7 @@ err:
 static void __exit cleanup_fb_eth_vlink_module(void)
 {
 	rtnl_link_unregister(&fb_eth_vlink_rtnl_ops);
-	printk(KERN_INFO "ANA eth vlink layer removed!\n");
+	printk(KERN_INFO "LANA eth vlink layer removed!\n");
 }
 
 module_init(init_fb_eth_vlink_module);
@@ -203,5 +203,5 @@ module_exit(cleanup_fb_eth_vlink_module);
 MODULE_ALIAS_RTNL_LINK("ana");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
-MODULE_DESCRIPTION("ANA Ethernet virtual link layer driver");
+MODULE_DESCRIPTION("Ethernet virtual link layer driver for LANA");
 
