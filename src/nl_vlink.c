@@ -4,7 +4,8 @@
  * LANA vlink control messages via netlink socket. This allows userspace
  * applications like 'vlink' to control the whole LANA vlink layer. Each
  * vlink type (e.g. Ethernet, Bluetooth, ...) gets its own subsystem with
- * its operations. Access via a single socket type (NETLINK_VLINK).
+ * its operations. Access via a single socket type (NETLINK_VLINK). We are
+ * furthermore not in fast-path here.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -13,11 +14,19 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/init.h>
+#include <linux/socket.h>
+#include <linux/slab.h>
+#include <linux/net.h>
+#include <linux/skbuff.h>
+#include <net/netlink.h>
+#include <net/sock.h>
 
 #include "nl_vlink.h"
 
 static DEFINE_MUTEX(nl_vlink_mutex);
-static struct sock *nl_vlink_sock; /* Fixme! */
+static struct sock *nl_vlink_sock = NULL;
+static struct nl_vlink_subsys **vlink_subsystem_table = NULL;
 
 void nl_vlink_lock(void)
 {
@@ -31,28 +40,69 @@ void nl_vlink_unlock(void)
 }
 EXPORT_SYMBOL_GPL(nl_vlink_unlock);
 
-int nl_vlink_subsys_register(const struct nl_vlink_subsys *n)
+int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
 {
+	int i, slot;
+	struct nl_vlink_subsys *vs;
+
+	if (!n)
+		return -EINVAL;
+
 	nl_vlink_lock();
-	/* Link in */
+
+	for (i = 0, slot = -1; i < MAX_VLINK_SUBSYSTEMS; ++i) {
+		if (!vlink_subsystem_table[i] && slot == -1)
+			slot = i;
+		else if (!vlink_subsystem_table[i])
+			continue;
+		else {
+			vs = vlink_subsystem_table[i];
+			if (n->type == vs->type) {
+				nl_vlink_unlock();
+				/* We already have this subsystem loaded! */
+				return -EBUSY;
+			}
+		}
+	}
+
+	if (slot != -1) {
+		n->id = slot;
+		vlink_subsystem_table[slot] = n;
+	}
+
 	nl_vlink_unlock();
 
-	return 0;
+	return slot == -1 ? -ENOMEM : 0;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_register);
 
-int nl_vlink_subsys_unregister(const struct nl_vlink_subsys *n)
+int nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
 {
+	int i, gotit;
+
+	if (!n)
+		return -EINVAL;
+
 	nl_vlink_lock();
-	/* Link out */
+
+	for (i = gotit = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
+		if (vlink_subsystem_table[i] == n && i == n->id) {
+			vlink_subsystem_table[i] = NULL;
+			n->id = 0;
+			gotit = 1;
+		}
+	}
+
 	nl_vlink_unlock();
 
-	return 0;
+	return gotit ? 0 : -ENOENT;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister);
 
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
+	printk("hello tiny world\n");
+	return 0;
 }
 
 static void nl_vlink_rcv(struct sk_buff *skb)
@@ -62,37 +112,35 @@ static void nl_vlink_rcv(struct sk_buff *skb)
 	nl_vlink_unlock();
 }
 
-static int __net_init nl_vlink_net_init(struct net *net)
-{
-	nl_vlink_sock = netlink_kernel_create(net, NETLINK_VLINK, 0,
-					      nl_vlink_rcv, NULL, THIS_MODULE);
-	if (!nl_vlink_sock)
-		return -ENOMEM;
-	return 0;
-}
-
-static void __net_exit nl_vlink_net_exit_batch(struct list_head *net_exit_list)
-{
-	struct net *net;
-
-	list_for_each_entry(net, net_exit_list, exit_list)
-		netlink_kernel_release(net->nfnl_stash);
-}
-
-static struct pernet_operations nl_vlink_net_ops = {
-	.init       = nl_vlink_net_init,
-	.exit_batch = nl_vlink_net_exit_batch,
-};
-
 static int __init init_nl_vlink_module(void)
 {
+	int ret;
+
+	vlink_subsystem_table = kzalloc(sizeof(*vlink_subsystem_table) *
+					MAX_VLINK_SUBSYSTEMS, GFP_KERNEL);
+	if (!vlink_subsystem_table)
+		return -ENOMEM;
+
+	nl_vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK, 0,
+					      nl_vlink_rcv, NULL, THIS_MODULE);
+	if (!nl_vlink_sock) {
+		ret = -ENOMEM;
+		goto err;
+	}
+
 	printk(KERN_INFO "LANA netlink vlink layer loaded!\n");
-	return register_pernet_subsys(&nl_vlink_net_ops);
+	return 0;
+
+err:
+	kfree(vlink_subsystem_table);
+	return ret;
 }
 
 static void __exit cleanup_nl_vlink_module(void)
 {
-	unregister_pernet_subsys(&nl_vlink_net_ops);
+	netlink_kernel_release(nl_vlink_sock);
+	kfree(vlink_subsystem_table);
+
 	printk(KERN_INFO "LANA netlink vlink layer removed!\n");
 }
 
