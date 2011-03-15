@@ -54,11 +54,12 @@ void main(int argc, char **argv)
 	/* Fill the netlink message header */
 	nlh->nlmsg_len = NLMSG_SPACE(sizeof(*vmsg));
 	nlh->nlmsg_pid = getpid();  /* self pid */
-	nlh->nlmsg_type = VLINKNLGRP_BLUETOOTH;//VLINKNLGRP_ETHERNET;
+	nlh->nlmsg_type = VLINKNLGRP_ETHERNET;
 	nlh->nlmsg_flags = NLM_F_REQUEST;
 
 	/* Fill in the netlink message payload */
-	strcpy(NLMSG_DATA(nlh), "Hello you!");
+	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
+	vmsg->cmd = VLINKNLCMD_RM_DEVICE;
 
 	iov.iov_base = nlh;
 	iov.iov_len = nlh->nlmsg_len;

@@ -144,14 +144,20 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 
 static int rxtest1(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	if (vhdr->cmd != VLINKNLCMD_ADD_DEVICE)
+		return NETLINK_VLINK_RX_NXT;
+
 	printk("hello world1!\n");
-	return NETLINK_VLINK_RX_OK;
+	return NETLINK_VLINK_RX_STOP;
 }
 
 static int rxtest2(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
+		return NETLINK_VLINK_RX_NXT;
+
 	printk("hello world2!\n");
-	return NETLINK_VLINK_RX_OK;
+	return NETLINK_VLINK_RX_STOP;
 }
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
