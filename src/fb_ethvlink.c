@@ -142,6 +142,18 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 	return stats;
 }
 
+static int rxtest1(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+{
+	printk("hello world1!\n");
+	return NETLINK_VLINK_RX_OK;
+}
+
+static int rxtest2(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+{
+	printk("hello world2!\n");
+	return NETLINK_VLINK_RX_OK;
+}
+
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 	.ndo_init            = fb_ethvlink_init,
 //	.ndo_uninit          = fb_ethvlink_uninit,
@@ -160,15 +172,63 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 	.validate            = fb_ethvlink_validate,
 };
 
+static struct nl_vlink_subsys fb_ethvlink_sys = {
+	.name = "ethvlink",
+	.type = VLINKNLGRP_ETHERNET,
+	.rwsem = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
+};
+
+static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
+		NL_VLINK_CALLBACK_INIT(rxtest1, NETLINK_VLINK_PRIO_HIGH);
+static struct nl_vlink_callback fb_ethvlink_rm_dev_cb =
+		NL_VLINK_CALLBACK_INIT(rxtest2, NETLINK_VLINK_PRIO_HIGH);
+
 static int __init init_fb_ethvlink_module(void)
 {
 	int ret = 0;
-	struct net_device *dev;
 
 	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
 		return ret;
 
+	ret = nl_vlink_subsys_register(&fb_ethvlink_sys);
+	if (ret)
+		goto err;
+
+	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
+				     &fb_ethvlink_add_dev_cb,
+				     &fb_ethvlink_rm_dev_cb);
+	if (ret)
+		goto err_unr;
+
+	printk(KERN_INFO "LANA eth vlink layer loaded!\n");
+	return 0;
+
+err_unr:
+	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
+err:
+	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
+	return ret;
+}
+
+static void __exit cleanup_fb_ethvlink_module(void)
+{
+	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
+	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
+
+	printk(KERN_INFO "LANA eth vlink layer removed!\n");
+}
+
+module_init(init_fb_ethvlink_module);
+module_exit(cleanup_fb_ethvlink_module);
+
+MODULE_ALIAS_RTNL_LINK("ana");
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
+MODULE_DESCRIPTION("Ethernet virtual link layer driver");
+
+#if 0
+	struct net_device *dev;
 	dev = alloc_netdev(0, "ana%d", fb_ethvlink_dev_setup);
 	if (!dev) {
 		ret = -ENOMEM;
@@ -182,28 +242,5 @@ static int __init init_fb_ethvlink_module(void)
 	ret = register_netdev(dev);
 	if (ret)
 		goto err_free;
-
-	printk(KERN_INFO "LANA eth vlink layer loaded!\n");
-	return 0;
-
-err_free:
-	free_netdev(dev);
-err:
-	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
-	return ret;
-}
-
-static void __exit cleanup_fb_ethvlink_module(void)
-{
-	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
-	printk(KERN_INFO "LANA eth vlink layer removed!\n");
-}
-
-module_init(init_fb_ethvlink_module);
-module_exit(cleanup_fb_ethvlink_module);
-
-MODULE_ALIAS_RTNL_LINK("ana");
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
-MODULE_DESCRIPTION("Ethernet virtual link layer driver for LANA");
+#endif
 
