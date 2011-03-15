@@ -13,6 +13,8 @@
 
 #include <linux/types.h>
 #include <linux/rwsem.h>
+#include <linux/netlink.h>
+#include <linux/if.h>
 
 #define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next     */
 #define NETLINK_VLINK_RX_BAD    1  /* Receive failed, notify next        */
@@ -80,9 +82,9 @@ struct nl_vlink_subsys {
 	struct nl_vlink_callback *head;
 };
 
-#define NL_VLINK_SUBSYS_INIT(varname, sysname, type) {	\
+#define NL_VLINK_SUBSYS_INIT(varname, sysname, gtype) {	\
 	.name = (sysname),				\
-	.type = (type),					\
+	.type = (gtype),				\
 	.rwsem = __RWSEM_INITIALIZER((varname).rwsem),	\
 	.head = NULL, }
 
