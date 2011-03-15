@@ -37,7 +37,10 @@ all: $(cocc-objs)
 
 $(cocc-objs): %.cocc: %.cocci
 	@echo "++++++ Applying $< ++++++"
-	@for f in $(chk-objs) ; do                                          \
-		spatch -outplace -include_headers -sp_file $< $$f || true ; \
+	@for f in $(chk-objs) ; do                         \
+		spatch -outplace -sp_file $< $$f || true ; \
 	done
+
+clean:
+	@rm *.cocci_res
 
