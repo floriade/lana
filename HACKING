@@ -79,7 +79,8 @@ Coccinelle with ...
 
 ... and run make within sem/. Possible patches are saved within this folder
 after the run. For hacking own Coccinelle scripts, have a look at their
-website for documentation: http://coccinelle.lip6.fr/
+website for documentation http://coccinelle.lip6.fr/ and for usage examples
+http://coccinelle.lip6.fr/rules/.
 
 Please send your ideas or patches for LANA mainline inclusion to:
 ariane.keller@tik.ee.ethz.ch, wolfgang.muehlbauer@tik.ee.ethz.ch or 
