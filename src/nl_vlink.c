@@ -269,7 +269,9 @@ static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
 
 		ret = hb->rx(vmsg, nlh);
 		if ((ret & NETLINK_VLINK_RX_EMERG) ==
-		    NETLINK_VLINK_RX_EMERG)
+		    NETLINK_VLINK_RX_EMERG ||
+		    (ret & NETLINK_VLINK_RX_STOP) ==
+		    NETLINK_VLINK_RX_STOP)
 			break;
 		hb = hn;
 	}
