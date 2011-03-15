@@ -200,7 +200,24 @@ static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
 			     struct vlinknlmsg *vmsg,
 			     struct nlmsghdr *nlh)
 {
-	return 0;
+	int ret;
+	struct nl_vlink_callback *hb, *hn;
+
+	smp_read_barrier_depends();
+	hb = n->head;
+
+	while (hb) {
+		smp_read_barrier_depends();
+		hn = hb->next;
+
+		ret = hb->rx(vmsg, nlh);
+		if ((ret & NETLINK_VLINK_RX_EMERG) ==
+		    NETLINK_VLINK_RX_EMERG)
+			break;
+		hb = hn;
+	}
+
+	return ret;
 }
 
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
@@ -214,8 +231,6 @@ static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(struct vlinknlmsg)))
 		return 0;
-
-	/* XXX: handle all type */
 
 	sys = __nl_vlink_subsys_find(nlh->nlmsg_type);
 	if (!sys)
