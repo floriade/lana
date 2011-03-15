@@ -195,8 +195,17 @@ int nl_vlink_rm_callback(struct nl_vlink_subsys *n,
 }
 EXPORT_SYMBOL_GPL(nl_vlink_rm_callback);
 
+static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
+			     struct vlinknlmsg *vmsg,
+			     struct nlmsghdr *nlh)
+{
+	return 0;
+}
+
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
+	int ret;
+	struct vlinknlmsg *vmsg;
 	struct nl_vlink_subsys *sys;
 
 	if (security_netlink_recv(skb, CAP_NET_ADMIN))
@@ -205,14 +214,19 @@ static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(struct vlinknlmsg)))
 		return 0;
 
-	printk("hello tiny world\n");
+	/* XXX: handle all type */
 
 	sys = __nl_vlink_subsys_find(nlh->nlmsg_type);
 	if (!sys)
 		return -EINVAL;
 
-	printk("hello tiny world2\n");
-	return 0;
+	vmsg = NLMSG_DATA(nlh);
+
+	down_read(&sys->rwsem);
+	ret = __nl_vlink_invoke(sys, vmsg, nlh);
+	up_read(&sys->rwsem);
+
+	return ret;
 }
 
 static void nl_vlink_rcv(struct sk_buff *skb)
