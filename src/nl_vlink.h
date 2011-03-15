@@ -27,8 +27,8 @@
 #define NETLINK_VLINK          23  /* Netlink hook type                  */
 
 enum nl_vlink_groups {
-	VLINKNLGRP_ALL = NLMSG_MIN_TYPE, /* To all vlink types           */
-#define VLINKNLGRP_ALL          VLINKNLGRP_ALL
+	VLINKNLGRP_NONE = NLMSG_MIN_TYPE, /* Reserved                    */
+#define VLINKNLGRP_NONE         VLINKNLGRP_NONE
 	VLINKNLGRP_ETHERNET,       /* To vlink Ethernet type             */
 #define VLINKNLGRP_ETHERNET     VLINKNLGRP_ETHERNET
 	VLINKNLGRP_BLUETOOTH,      /* To vlink Bluetooth type            */
@@ -75,8 +75,7 @@ struct nl_vlink_callback {
 struct nl_vlink_subsys {
 	char *name;
 	u32 type:16,
-	    id:8,
-	    count:8;
+	    id:16;
 	struct rw_semaphore rwsem;
 	struct nl_vlink_callback *head;
 };
@@ -84,7 +83,6 @@ struct nl_vlink_subsys {
 #define NL_VLINK_SUBSYS_INIT(varname, sysname, type) {	\
 	.name = (sysname),				\
 	.type = (type),					\
-	.count = 0,					\
 	.rwsem = __RWSEM_INITIALIZER((varname).rwsem),	\
 	.head = NULL, }
 
