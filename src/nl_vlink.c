@@ -159,6 +159,38 @@ int nl_vlink_add_callback(struct nl_vlink_subsys *n,
 }
 EXPORT_SYMBOL_GPL(nl_vlink_add_callback);
 
+int nl_vlink_add_callbacks_va(struct nl_vlink_subsys *n,
+			      struct nl_vlink_callback *cb, va_list ap)
+{
+	int ret = 0;
+	struct nl_vlink_callback *arg;
+
+	arg = cb;
+	while (arg) {
+		ret = nl_vlink_add_callback(n, arg);
+		if (ret)
+			break;
+		arg = va_arg(ap, struct nl_vlink_callback *);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nl_vlink_add_callbacks_va);
+
+int nl_vlink_add_callbacks(struct nl_vlink_subsys *n,
+			   struct nl_vlink_callback *cb, ...)
+{
+	int ret;
+	va_list vl;
+
+	va_start(vl, cb);
+	ret = nl_vlink_add_callbacks_va(n, cb, vl);
+	va_end(vl);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nl_vlink_add_callbacks);
+
 static int __nl_vlink_rm_callback(struct nl_vlink_subsys *n,
 				  struct nl_vlink_callback *cb)
 {
