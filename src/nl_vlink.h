@@ -93,6 +93,7 @@ extern void nl_vlink_unlock(void);
 
 extern int nl_vlink_subsys_register(struct nl_vlink_subsys *n);
 extern void nl_vlink_subsys_unregister(struct nl_vlink_subsys *n);
+extern void nl_vlink_subsys_unregister_batch(struct nl_vlink_subsys *n);
 extern struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type);
 extern int nl_vlink_add_callback(struct nl_vlink_subsys *n,
 				 struct nl_vlink_callback *cb);
