@@ -10,7 +10,7 @@
 obj-m += nl_vlink.o
 
 # LANA optional modules
-obj-m += fb_eth_vlink.o
+obj-m += fb_ethvlink.o
 
 MDIR := /lib/modules/$(shell uname -r)
 KDIR := $(MDIR)/build
