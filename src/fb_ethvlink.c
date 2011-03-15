@@ -26,8 +26,8 @@
 
 #include "nl_vlink.h"
 
-static struct net_device_ops fb_eth_vlink_netdev_ops __read_mostly;
-static struct rtnl_link_ops fb_eth_vlink_rtnl_ops __read_mostly;
+static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly;
+static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly;
 
 struct pcpu_dstats {
 	u64                   rx_packets;
@@ -40,7 +40,7 @@ struct pcpu_dstats {
 	u32                   tx_dropped;
 };
 
-struct fb_eth_vlink_dev {
+struct fb_ethvlink_dev {
 	struct net_device *dev;
 	struct net_device *realdev;
 	struct pcpu_dstats __percpu *pcpu_stats;
@@ -48,7 +48,7 @@ struct fb_eth_vlink_dev {
 	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
 };
 
-static int fb_eth_vlink_init(struct net_device *dev)
+static int fb_ethvlink_init(struct net_device *dev)
 {
 	dev->dstats = alloc_percpu(struct pcpu_dstats);
 	if (!dev->dstats)
@@ -56,25 +56,25 @@ static int fb_eth_vlink_init(struct net_device *dev)
 	return 0;
 }
 
-static void fb_eth_vlink_uninit(struct net_device *dev)
+static void fb_ethvlink_uninit(struct net_device *dev)
 {
 	free_percpu(dev->dstats);
 	free_netdev(dev);
 }
 
-static int fb_eth_vlink_open(struct net_device *dev)
+static int fb_ethvlink_open(struct net_device *dev)
 {
 	netif_start_queue(dev);
 	return 0;
 }
 
-static int fb_eth_vlink_stop(struct net_device *dev)
+static int fb_ethvlink_stop(struct net_device *dev)
 {
 	netif_stop_queue(dev);
 	return 0;
 }
 
-static int fb_eth_vlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
+static int fb_ethvlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	struct pcpu_dstats *dstats = this_cpu_ptr(dev->dstats);
 
@@ -87,15 +87,15 @@ static int fb_eth_vlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	return NETDEV_TX_OK;
 }
 
-static void fb_eth_vlink_dev_setup(struct net_device *dev)
+static void fb_ethvlink_dev_setup(struct net_device *dev)
 {
 	ether_setup(dev);
 
-//	dev->ethtool_ops = &fb_eth_vlink_ethtool_ops;
-//	dev->header_ops = &fb_eth_vlink_header_ops;
-	dev->netdev_ops = &fb_eth_vlink_netdev_ops;
-	dev->destructor = fb_eth_vlink_uninit;
-	dev->rtnl_link_ops = &fb_eth_vlink_rtnl_ops;
+//	dev->ethtool_ops = &fb_ethvlink_ethtool_ops;
+//	dev->header_ops = &fb_ethvlink_header_ops;
+	dev->netdev_ops = &fb_ethvlink_netdev_ops;
+	dev->destructor = fb_ethvlink_uninit;
+	dev->rtnl_link_ops = &fb_ethvlink_rtnl_ops;
 
 	dev->tx_queue_len = 0;
 	dev->priv_flags	&= ~IFF_XMIT_DST_RELEASE;
@@ -104,7 +104,7 @@ static void fb_eth_vlink_dev_setup(struct net_device *dev)
 	random_ether_addr(dev->dev_addr);
 }
 
-static int fb_eth_vlink_validate(struct nlattr **tb, struct nlattr **data)
+static int fb_ethvlink_validate(struct nlattr **tb, struct nlattr **data)
 {
 	if (tb[IFLA_ADDRESS]) {
 		if (nla_len(tb[IFLA_ADDRESS]) != ETH_ALEN)
@@ -117,7 +117,7 @@ static int fb_eth_vlink_validate(struct nlattr **tb, struct nlattr **data)
 }
 
 static struct rtnl_link_stats64 *
-fb_eth_vlink_get_stats64(struct net_device *dev,
+fb_ethvlink_get_stats64(struct net_device *dev,
 			 struct rtnl_link_stats64 *stats)
 {
 	int i;
@@ -142,34 +142,34 @@ fb_eth_vlink_get_stats64(struct net_device *dev,
 	return stats;
 }
 
-static struct net_device_ops fb_eth_vlink_netdev_ops __read_mostly = {
-	.ndo_init            = fb_eth_vlink_init,
-//	.ndo_uninit          = fb_eth_vlink_uninit,
-	.ndo_open            = fb_eth_vlink_open,
-	.ndo_stop            = fb_eth_vlink_stop,
-	.ndo_start_xmit      = fb_eth_vlink_start_xmit,
-	.ndo_get_stats64     = fb_eth_vlink_get_stats64,
+static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
+	.ndo_init            = fb_ethvlink_init,
+//	.ndo_uninit          = fb_ethvlink_uninit,
+	.ndo_open            = fb_ethvlink_open,
+	.ndo_stop            = fb_ethvlink_stop,
+	.ndo_start_xmit      = fb_ethvlink_start_xmit,
+	.ndo_get_stats64     = fb_ethvlink_get_stats64,
 	.ndo_change_mtu      = eth_change_mtu,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_validate_addr   = eth_validate_addr,
 };
 
-static struct rtnl_link_ops fb_eth_vlink_rtnl_ops __read_mostly = {
+static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 	.kind                = "ana",
-	.setup               = fb_eth_vlink_dev_setup,
-	.validate            = fb_eth_vlink_validate,
+	.setup               = fb_ethvlink_dev_setup,
+	.validate            = fb_ethvlink_validate,
 };
 
-static int __init init_fb_eth_vlink_module(void)
+static int __init init_fb_ethvlink_module(void)
 {
 	int ret = 0;
 	struct net_device *dev;
 
-	ret = rtnl_link_register(&fb_eth_vlink_rtnl_ops);
+	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
 		return ret;
 
-	dev = alloc_netdev(0, "ana%d", fb_eth_vlink_dev_setup);
+	dev = alloc_netdev(0, "ana%d", fb_ethvlink_dev_setup);
 	if (!dev) {
 		ret = -ENOMEM;
 		goto err;
@@ -189,18 +189,18 @@ static int __init init_fb_eth_vlink_module(void)
 err_free:
 	free_netdev(dev);
 err:
-	rtnl_link_unregister(&fb_eth_vlink_rtnl_ops);
+	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	return ret;
 }
 
-static void __exit cleanup_fb_eth_vlink_module(void)
+static void __exit cleanup_fb_ethvlink_module(void)
 {
-	rtnl_link_unregister(&fb_eth_vlink_rtnl_ops);
+	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	printk(KERN_INFO "LANA eth vlink layer removed!\n");
 }
 
-module_init(init_fb_eth_vlink_module);
-module_exit(cleanup_fb_eth_vlink_module);
+module_init(init_fb_ethvlink_module);
+module_exit(cleanup_fb_ethvlink_module);
 
 MODULE_ALIAS_RTNL_LINK("ana");
 MODULE_LICENSE("GPL");
