@@ -71,6 +71,16 @@ kernel coding conventions as described in CODING. You can use the kernels
 check_patch.pl script for style errors, trailing whitespaces and so on
 before submitting a patch.
 
+There's a sem/ folder with Coccinelle scripts that performs semantic
+patching on the lana kernelspace code. If you are using Debian, install
+Coccinelle with ...
+
+  # apt-get install coccinelle
+
+... and run make within sem/. Possible patches are saved within this folder
+after the run. For hacking own Coccinelle scripts, have a look at their
+website for documentation: http://coccinelle.lip6.fr/
+
 Please send your ideas or patches for LANA mainline inclusion to:
 ariane.keller@tik.ee.ethz.ch, wolfgang.muehlbauer@tik.ee.ethz.ch or 
 dborkma@tik.ee.ethz.ch
