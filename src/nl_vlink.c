@@ -120,16 +120,78 @@ struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type)
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_find);
 
+static int __nl_vlink_add_callback(struct nl_vlink_subsys *n,
+				   struct nl_vlink_callback *cb)
+{
+	struct nl_vlink_callback **hb;
+
+	if (!cb)
+		return -EINVAL;
+
+	hb = &n->head;
+	while (*hb != NULL) {
+		if (cb->priority > (*hb)->priority)
+			break;
+		hb = &((*hb)->next);
+	}
+
+	cb->next = *hb;
+	smp_wmb();
+	*hb = cb;
+
+	return 0;
+}
+
 int nl_vlink_add_callback(struct nl_vlink_subsys *n,
 			  struct nl_vlink_callback *cb)
 {
-	return 0;
+	int ret;
+
+	if (!n)
+		return -EINVAL;
+
+	down_write(&n->rwsem);
+	ret = __nl_vlink_add_callback(n, cb);
+	up_write(&n->rwsem);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_add_callback);
 
-void nl_vlink_rm_callback(struct nl_vlink_subsys *n,
-			  struct nl_vlink_callback *cb)
+static int __nl_vlink_rm_callback(struct nl_vlink_subsys *n,
+				  struct nl_vlink_callback *cb)
 {
+	struct nl_vlink_callback **hb;
+
+	if (!cb)
+		return -EINVAL;
+
+	hb = &n->head;
+	while (*hb != NULL) {
+		if (*hb == cb) {
+			smp_wmb();
+			*hb = cb->next;
+			return 0;
+		}
+		hb = &((*hb)->next);
+	}
+
+	return -ENOENT;
+}
+
+int nl_vlink_rm_callback(struct nl_vlink_subsys *n,
+			 struct nl_vlink_callback *cb)
+{
+	int ret;
+
+	if (!n)
+		return -EINVAL;
+
+	down_write(&n->rwsem);
+	ret = __nl_vlink_rm_callback(n, cb);
+	up_write(&n->rwsem);
+
+	return ret;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_rm_callback);
 
