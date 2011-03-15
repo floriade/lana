@@ -24,10 +24,10 @@
 
 #endif /* __KERNEL__ */
 
-#define NETLINK_VLINK           23
+#define NETLINK_VLINK          23  /* Netlink hook type                  */
 
 enum nl_vlink_groups {
-	VLINKNLGRP_ALL,            /* To all vlink types                 */
+	VLINKNLGRP_ALL = NLMSG_MIN_TYPE, /* To all vlink types           */
 #define VLINKNLGRP_ALL          VLINKNLGRP_ALL
 	VLINKNLGRP_ETHERNET,       /* To vlink Ethernet type             */
 #define VLINKNLGRP_ETHERNET     VLINKNLGRP_ETHERNET
@@ -41,13 +41,30 @@ enum nl_vlink_groups {
 };
 #define VLINKNLGRP_MAX          (__VLINKNLGRP_MAX - 1)
 
+enum nl_vlink_cmd {
+	VLINKNLCMD_ADD_DEVICE,
+	VLINKNLCMD_RM_DEVICE,
+	VLINKNLCMD_BIND_DEVICE,
+	/* ... */
+};
+
+struct vlinknlmsg {
+	uint8_t cmd;
+	uint8_t flags;
+	uint8_t type;
+	uint8_t virt_name[IFNAMSIZ];
+	uint8_t real_name[IFNAMSIZ];
+	/* ... */
+};
+
 #ifdef __KERNEL__
 
 #define MAX_VLINK_SUBSYSTEMS  256
 
 struct nl_vlink_callback {
 	int priority;
-	int (*rx)(struct sk_buff *skb, int cmd, struct nlmsghdr *nlh);
+	int (*rx)(struct sk_buff *skb, struct vlinknlmsg *vhdr,
+		  struct nlmsghdr *nlh);
 	struct nl_vlink_callback *next;
 };
 
@@ -77,6 +94,7 @@ extern void nl_vlink_unlock(void);
 
 extern int nl_vlink_subsys_register(struct nl_vlink_subsys *n);
 extern int nl_vlink_subsys_unregister(struct nl_vlink_subsys *n);
+extern struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type);
 
 #endif /* __KERNEL__ */
 #endif /* NL_VLINK */

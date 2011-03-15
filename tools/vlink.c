@@ -14,14 +14,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <linux/netlink.h>
+#include <linux/if.h>
 
 #include "nl_vlink.h"
-
-#define MAX_PAYLOAD 2048
 
 void main(int argc, char **argv)
 {
@@ -30,6 +30,7 @@ void main(int argc, char **argv)
 	struct nlmsghdr *nlh = NULL;
 	struct iovec iov;
 	struct msghdr msg;
+	struct vlinknlmsg *vmsg;
 
 	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_VLINK);
 
@@ -37,7 +38,7 @@ void main(int argc, char **argv)
 	src_addr.nl_family = AF_NETLINK;
 	src_addr.nl_pad = 0;
 	src_addr.nl_pid = getpid();  /* self pid */
-	src_addr.nl_groups = VLINKNLGRP_ALL;
+	src_addr.nl_groups = 0;
 
 	bind(sock, (struct sockaddr *) &src_addr, sizeof(src_addr));
 
@@ -45,15 +46,15 @@ void main(int argc, char **argv)
 	dest_addr.nl_family = AF_NETLINK;
 	dest_addr.nl_pad = 0;
 	dest_addr.nl_pid = 0; /* For Linux Kernel */
-	dest_addr.nl_groups = VLINKNLGRP_ALL;
+	dest_addr.nl_groups = 0;
 
-	nlh = malloc(NLMSG_SPACE(MAX_PAYLOAD));
-	memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
+	nlh = malloc(NLMSG_SPACE(sizeof(*vmsg)));
+	memset(nlh, 0, NLMSG_SPACE(sizeof(*vmsg)));
 
 	/* Fill the netlink message header */
-	nlh->nlmsg_len = NLMSG_SPACE(MAX_PAYLOAD);
+	nlh->nlmsg_len = NLMSG_SPACE(sizeof(*vmsg));
 	nlh->nlmsg_pid = getpid();  /* self pid */
-	nlh->nlmsg_type = 0x12;
+	nlh->nlmsg_type = VLINKNLGRP_ETHERNET;
 	nlh->nlmsg_flags = NLM_F_REQUEST;
 
 	/* Fill in the netlink message payload */

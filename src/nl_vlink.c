@@ -99,12 +99,46 @@ int nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister);
 
+static struct nl_vlink_subsys *__nl_vlink_subsys_find(u16 type)
+{
+	int i;
+
+	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i)
+		if (vlink_subsystem_table[i])
+			if (vlink_subsystem_table[i]->type == type)
+				return vlink_subsystem_table[i];
+	return NULL;
+}
+
+struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type)
+{
+	struct nl_vlink_subsys *ret;
+
+	nl_vlink_lock();
+	ret = __nl_vlink_subsys_find(type);
+	nl_vlink_unlock();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nl_vlink_subsys_find);
+
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
+	struct nl_vlink_subsys *sys;
+
 	if (security_netlink_recv(skb, CAP_NET_ADMIN))
 		return -EPERM;
 
+	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(struct vlinknlmsg)))
+		return 0;
+
 	printk("hello tiny world\n");
+
+	sys = __nl_vlink_subsys_find(nlh->nlmsg_type);
+	if (!sys)
+		return -EINVAL;
+
+	printk("hello tiny world2\n");
 	return 0;
 }
 
