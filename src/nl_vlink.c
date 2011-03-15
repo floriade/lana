@@ -67,6 +67,7 @@ int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
 
 	if (slot != -1) {
 		n->id = slot;
+		smp_wmb();
 		vlink_subsystem_table[slot] = n;
 	}
 
