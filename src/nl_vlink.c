@@ -76,26 +76,24 @@ int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_register);
 
-int nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
+void nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
 {
-	int i, gotit;
+	int i;
 
 	if (!n)
-		return -EINVAL;
+		return;
 
 	nl_vlink_lock();
 
-	for (i = gotit = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
+	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (vlink_subsystem_table[i] == n && i == n->id) {
 			vlink_subsystem_table[i] = NULL;
 			n->id = 0;
-			gotit = 1;
+			break;
 		}
 	}
 
 	nl_vlink_unlock();
-
-	return gotit ? 0 : -ENOENT;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister);
 
@@ -121,6 +119,19 @@ struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(nl_vlink_subsys_find);
+
+int nl_vlink_add_callback(struct nl_vlink_subsys *n,
+			  struct nl_vlink_callback *cb)
+{
+	return 0;
+}
+EXPORT_SYMBOL_GPL(nl_vlink_add_callback);
+
+void nl_vlink_rm_callback(struct nl_vlink_subsys *n,
+			  struct nl_vlink_callback *cb)
+{
+}
+EXPORT_SYMBOL_GPL(nl_vlink_rm_callback);
 
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
