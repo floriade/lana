@@ -179,9 +179,9 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 };
 
 static struct nl_vlink_subsys fb_ethvlink_sys = {
-	.name = "ethvlink",
-	.type = VLINKNLGRP_ETHERNET,
-	.rwsem = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
+	.name                = "ethvlink",
+	.type                = VLINKNLGRP_ETHERNET,
+	.rwsem               = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
 };
 
 static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
