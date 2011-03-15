@@ -196,6 +196,31 @@ int nl_vlink_rm_callback(struct nl_vlink_subsys *n,
 }
 EXPORT_SYMBOL_GPL(nl_vlink_rm_callback);
 
+void nl_vlink_subsys_unregister_batch(struct nl_vlink_subsys *n)
+{
+	int i;
+
+	if (!n)
+		return;
+
+	nl_vlink_lock();
+
+	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
+		if (vlink_subsystem_table[i] == n && i == n->id) {
+			vlink_subsystem_table[i] = NULL;
+			n->id = 0;
+			break;
+		}
+	}
+
+	nl_vlink_unlock();
+
+	/* Now, we cannot be invoked anymore */
+	while (n-> head != NULL)
+		nl_vlink_rm_callback(n, n->head);
+}
+EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister_batch);
+
 static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
 			     struct vlinknlmsg *vmsg,
 			     struct nlmsghdr *nlh)
