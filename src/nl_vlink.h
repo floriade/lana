@@ -24,7 +24,7 @@
 
 #endif /* __KERNEL__ */
 
-#define NETLINK_VLINK           0xCAFE /* This is what holds us together! */
+#define NETLINK_VLINK           23
 
 enum nl_vlink_groups {
 	VLINKNLGRP_ALL,            /* To all vlink types                 */
