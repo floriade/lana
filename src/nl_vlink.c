@@ -101,6 +101,9 @@ EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister);
 
 static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
+	if (security_netlink_recv(skb, CAP_NET_ADMIN))
+		return -EPERM;
+
 	printk("hello tiny world\n");
 	return 0;
 }
