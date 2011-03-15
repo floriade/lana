@@ -63,8 +63,7 @@ struct vlinknlmsg {
 
 struct nl_vlink_callback {
 	int priority;
-	int (*rx)(struct sk_buff *skb, struct vlinknlmsg *vhdr,
-		  struct nlmsghdr *nlh);
+	int (*rx)(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh);
 	struct nl_vlink_callback *next;
 };
 
