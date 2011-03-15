@@ -19,6 +19,7 @@
 #define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next     */
 #define NETLINK_VLINK_RX_BAD    1  /* Receive failed, notify next        */
 #define NETLINK_VLINK_RX_EMERG  2  /* Receive failed, do not notify next */
+#define NETLINK_VLINK_RX_STOP   3  /* Receive went okay, but still stop  */
 
 #define NETLINK_VLINK_PRIO_LOW  0  /* Low priority callbacks             */
 #define NETLINK_VLINK_PRIO_NORM 1  /* Normal priority callbacks          */
