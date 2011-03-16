@@ -112,7 +112,7 @@ static void usage(void)
 	printf("Linktypes:\n");
 	printf("  ethernet\n");
 	printf("Commands:\n");
-	printf("  add <name> <rootdev>\n");
+	printf("  add <name> <rootdev> <port>\n");
 	printf("  rm  <name>\n");
 	printf("\n");
 	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
@@ -139,13 +139,26 @@ static void version(void)
 void do_ethernet(int argc, char **argv)
 {
 	int sock, ret;
+	uint8_t cmd = 0;
 	struct sockaddr_nl src_addr, dest_addr;
 	struct nlmsghdr *nlh;
 	struct iovec iov;
 	struct msghdr msg;
 	struct vlinknlmsg *vmsg;
 
+	if (argc == 0)
+		usage();
+	if (!strncmp("add", argv[0], strlen("add")) && argc == 4)
+		cmd = VLINKNLCMD_ADD_DEVICE;
+	else if (!strncmp("rm", argv[0], strlen("rm")) && argc == 2)
+		cmd = VLINKNLCMD_RM_DEVICE;
+	else
+		usage();
+
 	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_VLINK);
+	if (sock < 0)
+		panic("Cannot get NETLINK_VLINK socket from kernel! "
+		      "Modules not loaded?!\n");
 
 	memset(&src_addr, 0, sizeof(src_addr));
 	src_addr.nl_family = AF_NETLINK;
@@ -168,11 +181,11 @@ void do_ethernet(int argc, char **argv)
 	nlh->nlmsg_flags = NLM_F_REQUEST;
 
 	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
-	vmsg->cmd = VLINKNLCMD_RM_DEVICE;
-	vmsg->port = 1;
+	vmsg->cmd = cmd;
+	vmsg->port = (uint16_t) (0xFFFF & atoi(argv[3]));
 	vmsg->flags = 0;
-	strlcpy((char *) vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
-	strlcpy((char *) vmsg->real_name, "eth10", sizeof(vmsg->real_name));
+	strlcpy((char *) vmsg->virt_name, argv[1], sizeof(vmsg->virt_name));
+	strlcpy((char *) vmsg->real_name, argv[2], sizeof(vmsg->real_name));
 
 	iov.iov_base = nlh;
 	iov.iov_len = nlh->nlmsg_len;
@@ -186,11 +199,6 @@ void do_ethernet(int argc, char **argv)
 	ret = sendmsg(sock, &msg, 0);
 	if (ret < 0)
 		panic("Cannot send NETLINK message to the kernel!\n");
-
-	/* Read message from kernel */
-//	memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
-//	recvmsg(sock, &msg, 0);
-//	printf(" Received message payload: %s\n", (char *) NLMSG_DATA(nlh));
 
 	close(sock);
 	xfree(nlh);
