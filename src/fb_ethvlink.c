@@ -110,7 +110,6 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
 
-	netdev_printk(KERN_DEBUG, dev, "got pkg!\n");
 	return skb;
 }
 
