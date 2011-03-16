@@ -27,6 +27,9 @@
 
 #include "nl_vlink.h"
 
+#define IFF_VLINK_MAS 0x20000 /* Master device */
+#define IFF_VLINK_DEV 0x40000 /* Slave device */
+
 struct pcpu_dstats {
 	u64 rx_packets;
 	u64 rx_bytes;
@@ -50,9 +53,22 @@ struct fb_ethvlink_private {
 
 static int fb_ethvlink_init(struct net_device *dev)
 {
+	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
+
+//	dev->state = (dev->state &
+//		      ~((1 << __LINK_STATE_NOCARRIER) |
+//			(1 << __LINK_STATE_DORMANT))) |
+//		     (dev_priv->real_dev->state &
+//		      ~((1 << __LINK_STATE_NOCARRIER) |
+//                      (1 << __LINK_STATE_DORMANT)));
+//	dev->features = dev_priv->real_dev->features;
+//	dev->gso_max_size = dev_priv->real_dev->gso_max_size;
+//	dev->iflink = dev_priv->real_dev->ifindex;
+//	dev->hard_header_len = dev_priv->real_dev->hard_header_len;
 	dev->dstats = alloc_percpu(struct pcpu_dstats);
 	if (!dev->dstats)
 		return -ENOMEM;
+
 	return 0;
 }
 
@@ -187,10 +203,24 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 {
 	int ret;
 	struct net_device *dev;
+	struct net_device *root;
 	struct fb_ethvlink_private *dev_priv;
 
 	if (vhdr->cmd != VLINKNLCMD_ADD_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
+
+	root = dev_get_by_name(&init_net, vhdr->virt_name);
+	if (root) {
+		dev_put(root);
+		goto err;
+	}
+
+	root = dev_get_by_name(&init_net, vhdr->real_name);
+	if (root && (root->priv_flags & IFF_VLINK_DEV) == IFF_VLINK_DEV) {
+		dev_put(root);
+		goto err;
+	} else if (!root)
+		goto err;
 
 	dev = alloc_netdev(sizeof(struct fb_ethvlink_private),
 			   vhdr->virt_name, fb_ethvlink_dev_setup);
@@ -206,11 +236,10 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 		goto err_free;
 
 	dev->priv_flags |= vhdr->flags;
+	dev->priv_flags |= IFF_VLINK_DEV;
 	dev_priv = netdev_priv(dev);
 	dev_priv->port = vhdr->port;
-	dev_priv->real_dev = dev_get_by_name(&init_net, vhdr->real_name);
-	if (!dev_priv->real_dev)
-		goto err_free;
+	dev_priv->real_dev = root;
 
 //	rtnl_lock();
 //	ret = netdev_rx_handler_register(dev_priv->real_dev,
@@ -226,11 +255,9 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	netif_tx_unlock_bh(dev);
 
 	dev_put(dev_priv->real_dev);
-
+	printk("good\n");
 	return NETLINK_VLINK_RX_STOP;
 
-err_put:
-	dev_put(dev_priv->real_dev);
 err_free:
 	free_netdev(dev);
 err:
