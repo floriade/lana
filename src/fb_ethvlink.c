@@ -58,7 +58,6 @@ static int fb_ethvlink_init(struct net_device *dev)
 
 static void fb_ethvlink_uninit(struct net_device *dev)
 {
-	netdev_rx_handler_unregister(dev);
 	free_percpu(dev->dstats);
 }
 
@@ -178,29 +177,41 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 			   vhdr->virt_name, fb_ethvlink_dev_setup);
 	if (!dev)
 		goto err;
+
 	ret = dev_alloc_name(dev, dev->name);
 	if (ret)
 		goto err_free;
+
 	ret = register_netdev(dev);
 	if (ret)
 		goto err_free;
+
 	dev->priv_flags |= vhdr->flags;
 	dev_priv = netdev_priv(dev);
 	dev_priv->port = vhdr->port;
 	dev_priv->real_dev = dev_get_by_name(&init_net, vhdr->real_name);
 	if (!dev_priv->real_dev)
 		goto err_free;
+
 	rtnl_lock();
 	ret = netdev_rx_handler_register(dev_priv->real_dev,
 					 fb_ethvlink_handle_frame, NULL);
 	rtnl_unlock();
 	if (ret)
-		goto err_free;
+		goto err_put;
+
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
+
+	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
+	netif_tx_unlock_bh(dev);
+
+	dev_put(dev_priv->real_dev);
 
 	return NETLINK_VLINK_RX_STOP;
 
+err_put:
+	dev_put(dev_priv->real_dev);
 err_free:
 	free_netdev(dev);
 err:
@@ -218,8 +229,16 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	if (!dev)
 		return NETLINK_VLINK_RX_EMERG;
 
+	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
-	unregister_netdev(dev);
+	netif_tx_unlock_bh(dev);
+
+	dev_put(dev);
+
+	rtnl_lock();
+	netdev_rx_handler_unregister(dev);
+	unregister_netdevice(dev);
+	rtnl_unlock();
 
 	return NETLINK_VLINK_RX_STOP;
 }
