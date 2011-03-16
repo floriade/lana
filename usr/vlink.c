@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <linux/netlink.h>
@@ -39,7 +40,7 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 	return ret;
 }
 
-void main(int argc, char **argv)
+int main(int argc, char **argv)
 {
 	int sock;
 	struct sockaddr_nl src_addr, dest_addr;
@@ -76,8 +77,8 @@ void main(int argc, char **argv)
 	/* Fill in the netlink message payload */
 	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
 	vmsg->cmd = VLINKNLCMD_RM_DEVICE;
-	strlcpy(vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
-	strlcpy(vmsg->real_name, "eth10", sizeof(vmsg->real_name));
+	strlcpy((char *) vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
+	strlcpy((char *) vmsg->real_name, "eth10", sizeof(vmsg->real_name));
 	vmsg->port = 1;
 	vmsg->flags = 0;
 
@@ -98,5 +99,6 @@ void main(int argc, char **argv)
 //	printf(" Received message payload: %s\n", (char *) NLMSG_DATA(nlh));
 
 	close(sock);
+	return 0;
 }
 
