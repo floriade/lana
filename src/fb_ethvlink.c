@@ -53,8 +53,6 @@ struct fb_ethvlink_private {
 
 static int fb_ethvlink_init(struct net_device *dev)
 {
-	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
-
 //	dev->state = (dev->state &
 //		      ~((1 << __LINK_STATE_NOCARRIER) |
 //			(1 << __LINK_STATE_DORMANT))) |
@@ -89,6 +87,16 @@ static int fb_ethvlink_stop(struct net_device *dev)
 	return 0;
 }
 
+static inline int fb_ethvlink_real_dev_is_hooked(struct net_device *dev)
+{
+	return (dev->priv_flags & IFF_VLINK_MAS) == IFF_VLINK_MAS;
+}
+
+static inline void fb_ethvlink_make_real_dev_hooked(struct net_device *dev)
+{
+	dev->priv_flags |= IFF_VLINK_MAS;
+}
+
 static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 				  struct net_device *dev)
 {
@@ -118,18 +126,31 @@ netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 	return ret;
 }
 
-/* Origin netif_receive_skb */
+/*
+ * Origin __netif_receive_skb, with rcu_read_lock!
+ * Furthermore we're in fast-path and we're on the real dev!
+ */
 static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 {
 	struct net_device *dev;
 	struct pcpu_dstats *dstats;
 
 	dev = skb->dev;
-	if (unlikely(!(dev->flags & IFF_UP))) {
-		kfree_skb(skb);
-		return NULL;
-	}
+	if (unlikely(!(dev->flags & IFF_UP)))
+		goto drop;
 
+	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
+		goto normstack;
+
+	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
+		goto drop;
+
+	skb = skb_share_check(skb, GFP_ATOMIC);
+	if (unlikely(!skb))
+		return NULL;
+
+	goto normstack; /* For the moment! */
+#if 0
 	dstats = this_cpu_ptr(dev->dstats);
 
 	u64_stats_update_begin(&dstats->syncp);
@@ -137,7 +158,16 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
 //todo !!!
+#endif
+
+lanastack: /* Unlocks rcu and done! */
+	kfree_skb(skb); /* XXX */
+	return NULL;
+normstack: /* Continues with deliver_skb to the protos */
 	return skb;
+drop:
+	kfree_skb(skb);
+	return NULL;
 }
 
 static void fb_ethvlink_dev_setup(struct net_device *dev)
@@ -241,12 +271,16 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	dev_priv->port = vhdr->port;
 	dev_priv->real_dev = root;
 
-//	rtnl_lock();
-//	ret = netdev_rx_handler_register(dev_priv->real_dev,
-//					 fb_ethvlink_handle_frame, NULL);
-//	rtnl_unlock();
-//	if (ret)
-//		goto err_put;
+	if (!fb_ethvlink_real_dev_is_hooked(dev_priv->real_dev)) {
+		rtnl_lock();
+		ret = netdev_rx_handler_register(dev_priv->real_dev,
+						 fb_ethvlink_handle_frame,
+						 NULL);
+		rtnl_unlock();
+		if (ret)
+			goto err_put;
+		fb_ethvlink_make_real_dev_hooked(dev_priv->real_dev);
+	}
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
 
@@ -255,9 +289,10 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	netif_tx_unlock_bh(dev);
 
 	dev_put(dev_priv->real_dev);
-	printk("good\n");
-	return NETLINK_VLINK_RX_STOP;
 
+	return NETLINK_VLINK_RX_STOP;
+err_put:
+	dev_put(dev_priv->real_dev);
 err_free:
 	free_netdev(dev);
 err:
@@ -274,6 +309,10 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	dev = dev_get_by_name(&init_net, vhdr->virt_name);
 	if (!dev)
 		return NETLINK_VLINK_RX_EMERG;
+	if ((dev->priv_flags & IFF_VLINK_DEV) != IFF_VLINK_DEV)
+		goto err_put;
+	if ((dev->flags & IFF_RUNNING) == IFF_RUNNING)
+		goto err_put;
 
 	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
@@ -282,11 +321,16 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	dev_put(dev);
 
 	rtnl_lock();
-//	netdev_rx_handler_unregister(dev);
+// Well when to release? Todo
+//	netdev_rx_handler_unregister(dev_priv->real_dev);
+// if never our kernel fucks up! ;-)
 	unregister_netdevice(dev);
 	rtnl_unlock();
 
 	return NETLINK_VLINK_RX_STOP;
+err_put:
+	dev_put(dev);
+	return NETLINK_VLINK_RX_EMERG;
 }
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
