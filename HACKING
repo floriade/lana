@@ -54,7 +54,7 @@ minicom's configuration on your local machine should look like this:
   Hardware Flow Control : No
   Software Flow Control : No
 
-For vim hackers there's also a tiny plugin in tools/vim80warn.vim that
+For vim hackers there's also a tiny plugin in opt/vim80warn.vim that
 warns you if more than 80 chars have been used on a single line. Install
 it by creating a directory ~/.vim/plugin directory and copy this plugin
 into this directory, restart vim and you're good to go.
