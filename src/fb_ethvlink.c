@@ -27,25 +27,25 @@
 
 #include "nl_vlink.h"
 
+struct pcpu_dstats {
+	u64 rx_packets;
+	u64 rx_bytes;
+	u64 rx_multicast;
+	u64 tx_packets;
+	u64 tx_bytes;
+	struct u64_stats_sync syncp;
+	u32 rx_errors;
+	u32 tx_dropped;
+};
+
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly;
 static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly;
-
-struct pcpu_dstats {
-	u64                   rx_packets;
-	u64                   rx_bytes;
-	u64                   rx_multicast;
-	u64                   tx_packets;
-	u64                   tx_bytes;
-	struct u64_stats_sync syncp; /* sync point for 64bit counters */
-	u32                   rx_errors;
-	u32                   tx_dropped;
-};
 
 struct fb_ethvlink_private {
 	u16 port;
 	struct net_device *real_dev;
-//	int (*process_rx)(struct sk_buff *skb);
-//	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
+	int (*net_rx)(struct sk_buff *skb);
+	int (*net_tx)(struct net_device *dev, struct sk_buff *skb);
 };
 
 static int fb_ethvlink_init(struct net_device *dev)
@@ -73,34 +73,54 @@ static int fb_ethvlink_stop(struct net_device *dev)
 	return 0;
 }
 
-static int fb_ethvlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
+static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
+				  struct net_device *dev)
 {
+	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
+
+	skb_set_dev(skb, dev_priv->real_dev);
+	return dev_queue_xmit(skb);
+}
+
+netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
+				   struct net_device *dev)
+{
+	int ret;
 	struct pcpu_dstats *dstats;
 
 	dstats = this_cpu_ptr(dev->dstats);
+	ret = fb_ethvlink_queue_xmit(skb, dev);
+	if (likely(ret == NET_XMIT_SUCCESS || ret == NET_XMIT_CN)) {
+		u64_stats_update_begin(&dstats->syncp);
+		dstats->tx_packets++;
+		dstats->tx_bytes += skb->len;
+		u64_stats_update_end(&dstats->syncp);
+	} else {
+		this_cpu_inc(dstats->tx_dropped);
+	}
 
-	u64_stats_update_begin(&dstats->syncp);
-	dstats->tx_packets++;
-	dstats->tx_bytes += skb->len;
-	u64_stats_update_end(&dstats->syncp);
-
-	dev_kfree_skb(skb);
-	return NETDEV_TX_OK;
+	return ret;
 }
 
+/* Origin netif_receive_skb */
 static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 {
 	struct net_device *dev;
 	struct pcpu_dstats *dstats;
 
 	dev = skb->dev;
+	if (unlikely(!(dev->flags & IFF_UP))) {
+		kfree_skb(skb);
+		return NULL;
+	}
+
 	dstats = this_cpu_ptr(dev->dstats);
 
 	u64_stats_update_begin(&dstats->syncp);
 	dstats->rx_packets++;
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
-
+//todo !!!
 	return skb;
 }
 
@@ -147,7 +167,6 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 
 		do {
 			start = u64_stats_fetch_begin(&dstats->syncp);
-
 			tbytes = dstats->tx_bytes;
 			tpackets = dstats->tx_packets;
 			rbytes = dstats->rx_bytes;
@@ -193,12 +212,12 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	if (!dev_priv->real_dev)
 		goto err_free;
 
-	rtnl_lock();
-	ret = netdev_rx_handler_register(dev_priv->real_dev,
-					 fb_ethvlink_handle_frame, NULL);
-	rtnl_unlock();
-	if (ret)
-		goto err_put;
+//	rtnl_lock();
+//	ret = netdev_rx_handler_register(dev_priv->real_dev,
+//					 fb_ethvlink_handle_frame, NULL);
+//	rtnl_unlock();
+//	if (ret)
+//		goto err_put;
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
 
@@ -236,7 +255,7 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	dev_put(dev);
 
 	rtnl_lock();
-	netdev_rx_handler_unregister(dev);
+//	netdev_rx_handler_unregister(dev);
 	unregister_netdevice(dev);
 	rtnl_unlock();
 
