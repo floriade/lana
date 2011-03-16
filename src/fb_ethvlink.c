@@ -192,8 +192,10 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	dev_priv->real_dev = dev_get_by_name(&init_net, vhdr->real_name);
 	if (!dev_priv->real_dev)
 		goto err_free;
+	rtnl_lock();
 	ret = netdev_rx_handler_register(dev_priv->real_dev,
 					 fb_ethvlink_handle_frame, NULL);
+	rtnl_unlock();
 	if (ret)
 		goto err_free;
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
