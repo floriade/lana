@@ -18,12 +18,26 @@
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdarg.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <linux/netlink.h>
 #include <linux/if.h>
 
 #include "nl_vlink.h"
+
+#ifndef likely
+# define likely(x) __builtin_expect(!!(x), 1)
+#endif
+#ifndef unlikely
+# define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+#ifndef bug
+# define bug() __builtin_trap()
+#endif
+
+#define PROGNAME "vlink"
+#define VERSNAME "0.9"
 
 size_t strlcpy(char *dest, const char *src, size_t size)
 {
@@ -36,6 +50,84 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 	}
 
 	return ret;
+}
+
+static inline void die(void)
+{
+	exit(EXIT_FAILURE);
+}
+
+static inline void panic(char *msg, ...)
+{
+	va_list vl;
+	va_start(vl, msg);
+	vfprintf(stderr, msg, vl);
+	va_end(vl);
+
+	die();
+}
+
+static inline void whine(char *msg, ...)
+{
+	va_list vl;
+	va_start(vl, msg);
+	vfprintf(stderr, msg, vl);
+	va_end(vl);
+}
+
+static void *xzmalloc(size_t size)
+{
+	void *ptr;
+
+	if (unlikely(size == 0))
+		panic("xzmalloc: zero size\n");
+
+	ptr = malloc(size);
+	if (unlikely(ptr == NULL))
+		panic("xzmalloc: out of memory (allocating %lu bytes)\n",
+		      (u_long) size);
+	memset(ptr, 0, size);
+
+	return ptr;
+}
+
+static void xfree(void *ptr)
+{
+	if (unlikely(ptr == NULL))
+		panic("xfree: NULL pointer given as argument\n");
+	free(ptr);
+}
+
+static void usage(void)
+{
+	printf("\n%s %s\n", PROGNAME, VERSNAME);
+	printf("Usage: %s <linktype> <cmd> [<args> ...]\n", PROGNAME);
+	printf("Linktypes:\n");
+	printf("  ethernet\n");
+	printf("\n");
+	printf("Commands:\n");
+	printf("  add <name> <rootdev>\n");
+	printf("  rm  <name>\n");
+	printf("\n");
+	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
+	printf("Copyright (C) 2011 Daniel Borkmann\n");
+	printf("License: GNU GPL version 2\n");
+	printf("This is free software: you are free to change and redistribute it.\n");
+	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+
+	die();
+}
+
+static void version(void)
+{
+	printf("\n%s %s\n", PROGNAME, VERSNAME);
+	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
+	printf("Copyright (C) 2011 Daniel Borkmann\n");
+	printf("License: GNU GPL version 2\n");
+	printf("This is free software: you are free to change and redistribute it.\n");
+	printf("There is NO WARRANTY, to the extent permitted by law.\n\n");
+
+	die();
 }
 
 int main(int argc, char **argv)
