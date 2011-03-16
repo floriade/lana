@@ -42,9 +42,8 @@ struct pcpu_dstats {
 };
 
 struct fb_ethvlink_private {
-	struct net_device *real_dev;
-	struct pcpu_dstats __percpu *pcpu_stats;
 	u16 port;
+	struct net_device *real_dev;
 //	int (*process_rx)(struct sk_buff *skb);
 //	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
 };
@@ -59,6 +58,14 @@ static int fb_ethvlink_init(struct net_device *dev)
 
 static void fb_ethvlink_uninit(struct net_device *dev)
 {
+	struct fb_ethvlink_private *dev_priv;
+
+	dev_priv = netdev_priv(dev);
+
+	rtnl_lock();
+	netdev_rx_handler_unregister(dev_priv->real_dev);
+	rtnl_unlock();
+
 	free_percpu(dev->dstats);
 	free_netdev(dev);
 }
@@ -114,7 +121,6 @@ static void fb_ethvlink_dev_setup(struct net_device *dev)
 //	dev->ethtool_ops = &fb_ethvlink_ethtool_ops;
 //	dev->header_ops = &fb_ethvlink_header_ops;
 	dev->netdev_ops = &fb_ethvlink_netdev_ops;
-	dev->destructor = fb_ethvlink_uninit;
 	dev->rtnl_link_ops = &fb_ethvlink_rtnl_ops;
 
 	dev->tx_queue_len = 0;
@@ -200,6 +206,7 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	if (ret)
 		goto err_free;
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
+	netif_carrier_off(dev);
 
 	return NETLINK_VLINK_RX_STOP;
 
@@ -212,7 +219,6 @@ err:
 static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
 	struct net_device *dev;
-	struct fb_ethvlink_private *dev_priv;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
@@ -221,21 +227,15 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	if (!dev)
 		return NETLINK_VLINK_RX_EMERG;
 
-	dev_priv = netdev_priv(dev);
-
-	synchronize_net();
-	rtnl_lock();
-	netdev_rx_handler_unregister(dev_priv->real_dev);
-	rtnl_unlock();
-	fb_ethvlink_stop(dev);
+	netif_carrier_off(dev);
 	unregister_netdev(dev);
-	fb_ethvlink_uninit(dev);
 
 	return NETLINK_VLINK_RX_STOP;
 }
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 	.ndo_init            = fb_ethvlink_init,
+	.ndo_uninit          = fb_ethvlink_uninit,
 	.ndo_open            = fb_ethvlink_open,
 	.ndo_stop            = fb_ethvlink_stop,
 	.ndo_start_xmit      = fb_ethvlink_start_xmit,
