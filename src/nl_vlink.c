@@ -328,7 +328,7 @@ static int __init init_nl_vlink_module(void)
 		goto err;
 	}
 
-	printk(KERN_INFO "LANA netlink vlink layer loaded!\n");
+	printk(KERN_INFO "[lana] NETLINK vlink layer loaded!\n");
 	return 0;
 
 err:
@@ -341,7 +341,7 @@ static void __exit cleanup_nl_vlink_module(void)
 	netlink_kernel_release(nl_vlink_sock);
 	kfree(vlink_subsystem_table);
 
-	printk(KERN_INFO "LANA netlink vlink layer removed!\n");
+	printk(KERN_INFO "[lana] NETLINK vlink layer removed!\n");
 }
 
 module_init(init_nl_vlink_module);

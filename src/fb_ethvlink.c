@@ -238,7 +238,7 @@ static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 };
 
 static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
-	.kind                = "ana",
+	.kind                = "lana",
 	.priv_size           = sizeof(struct fb_ethvlink_private),
 	.setup               = fb_ethvlink_dev_setup,
 	.validate            = fb_ethvlink_validate,
@@ -271,7 +271,7 @@ static int __init init_fb_ethvlink_module(void)
 	if (ret)
 		goto err_unr;
 
-	printk(KERN_INFO "Ethernet vlink layer loaded!\n");
+	printk(KERN_INFO "[lana] Ethernet vlink layer loaded!\n");
 	return 0;
 
 err_unr:
@@ -286,13 +286,13 @@ static void __exit cleanup_fb_ethvlink_module(void)
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
-	printk(KERN_INFO "Ethernet vlink layer removed!\n");
+	printk(KERN_INFO "[lana] Ethernet vlink layer removed!\n");
 }
 
 module_init(init_fb_ethvlink_module);
 module_exit(cleanup_fb_ethvlink_module);
 
-MODULE_ALIAS_RTNL_LINK("ana");
+MODULE_ALIAS_RTNL_LINK("lana");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
 MODULE_DESCRIPTION("Ethernet virtual link layer driver");
