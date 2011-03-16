@@ -21,6 +21,7 @@
 #include <linux/ethtool.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
+#include <linux/if.h>
 #include <linux/u64_stats_sync.h>
 #include <net/rtnetlink.h>
 
@@ -76,7 +77,9 @@ static int fb_ethvlink_stop(struct net_device *dev)
 
 static int fb_ethvlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	struct pcpu_dstats *dstats = this_cpu_ptr(dev->dstats);
+	struct pcpu_dstats *dstats;
+
+	dstats = this_cpu_ptr(dev->dstats);
 
 	u64_stats_update_begin(&dstats->syncp);
 	dstats->tx_packets++;
@@ -85,6 +88,22 @@ static int fb_ethvlink_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	dev_kfree_skb(skb);
 	return NETDEV_TX_OK;
+}
+
+static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
+{
+	struct net_device *dev;
+	struct pcpu_dstats *dstats;
+
+	dev = skb->dev;
+	dstats = this_cpu_ptr(dev->dstats);
+
+	u64_stats_update_begin(&dstats->syncp);
+	dstats->rx_packets++;
+	dstats->rx_bytes += skb->len;
+	u64_stats_update_end(&dstats->syncp);
+
+	return skb;
 }
 
 static void fb_ethvlink_dev_setup(struct net_device *dev)
@@ -123,7 +142,7 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 	int i;
 
 	for_each_possible_cpu(i) {
-		u64 tbytes, tpackets;
+		u64 tbytes, tpackets, rbytes, rpackets;
 		unsigned int start;
 		const struct pcpu_dstats *dstats;
 
@@ -131,18 +150,24 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 
 		do {
 			start = u64_stats_fetch_begin(&dstats->syncp);
+
 			tbytes = dstats->tx_bytes;
 			tpackets = dstats->tx_packets;
+			rbytes = dstats->rx_bytes;
+			rpackets = dstats->rx_packets;
 		} while (u64_stats_fetch_retry(&dstats->syncp, start));
 
 		stats->tx_bytes += tbytes;
 		stats->tx_packets += tpackets;
+		stats->rx_bytes += rbytes;
+		stats->rx_packets += rpackets;
 	}
 
 	return stats;
 }
 
-static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
+			       struct nlmsghdr *nlh)
 {
 	int ret;
 	struct net_device *dev;
@@ -161,11 +186,17 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	ret = register_netdev(dev);
 	if (ret)
 		goto err_free;
+	dev->priv_flags |= vhdr->flags;
 	dev_priv = netdev_priv(dev);
 	dev_priv->port = vhdr->port;
 	dev_priv->real_dev = dev_get_by_name(&init_net, vhdr->real_name);
 	if (!dev_priv->real_dev)
 		goto err_free;
+	ret = netdev_rx_handler_register(dev_priv->real_dev,
+					 fb_ethvlink_handle_frame, NULL);
+	if (ret)
+		goto err_free;
+	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
 
 	return NETLINK_VLINK_RX_STOP;
 
@@ -185,6 +216,9 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	dev = dev_get_by_name(&init_net, vhdr->virt_name);
 	if (!dev)
 		return NETLINK_VLINK_RX_EMERG;
+
+	synchronize_net();
+	unregister_netdev(dev);
 	fb_ethvlink_uninit(dev);
 
 	return NETLINK_VLINK_RX_STOP;
