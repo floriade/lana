@@ -58,16 +58,8 @@ static int fb_ethvlink_init(struct net_device *dev)
 
 static void fb_ethvlink_uninit(struct net_device *dev)
 {
-	struct fb_ethvlink_private *dev_priv;
-
-	dev_priv = netdev_priv(dev);
-
-	rtnl_lock();
-	netdev_rx_handler_unregister(dev_priv->real_dev);
-	rtnl_unlock();
-
+	netdev_rx_handler_unregister(dev);
 	free_percpu(dev->dstats);
-	free_netdev(dev);
 }
 
 static int fb_ethvlink_open(struct net_device *dev)
@@ -121,7 +113,7 @@ static void fb_ethvlink_dev_setup(struct net_device *dev)
 //	dev->header_ops = &fb_ethvlink_header_ops;
 	dev->netdev_ops = &fb_ethvlink_netdev_ops;
 	dev->rtnl_link_ops = &fb_ethvlink_rtnl_ops;
-
+	dev->destructor	= free_netdev;
 	dev->tx_queue_len = 0;
 	dev->priv_flags	&= ~IFF_XMIT_DST_RELEASE;
 	dev->destructor = free_netdev;
