@@ -182,10 +182,13 @@ void do_ethernet(int argc, char **argv)
 
 	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
 	vmsg->cmd = cmd;
-	vmsg->port = (uint16_t) (0xFFFF & atoi(argv[3]));
+	if (cmd == VLINKNLCMD_ADD_DEVICE)
+		vmsg->port = (uint16_t) (0xFFFF & atoi(argv[3]));
 	vmsg->flags = 0;
 	strlcpy((char *) vmsg->virt_name, argv[1], sizeof(vmsg->virt_name));
-	strlcpy((char *) vmsg->real_name, argv[2], sizeof(vmsg->real_name));
+	if (cmd == VLINKNLCMD_ADD_DEVICE)
+		strlcpy((char *) vmsg->real_name, argv[2],
+			sizeof(vmsg->real_name));
 
 	iov.iov_base = nlh;
 	iov.iov_len = nlh->nlmsg_len;
