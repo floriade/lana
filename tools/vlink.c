@@ -5,6 +5,9 @@
  * transport layers to LANA, i.e. Ethernet, ATM, Bluetooth, Serial
  * Link, Inifiband and so on.
  *
+ * strlcpy taken from the Linux kernel.
+ * Copyright 1991, 1992 Linus Torvalds <torvalds@linux-foundation.org>
+ *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
@@ -22,6 +25,19 @@
 #include <linux/if.h>
 
 #include "nl_vlink.h"
+
+size_t strlcpy(char *dest, const char *src, size_t size)
+{
+	size_t ret = strlen(src);
+
+	if (size) {
+		size_t len = (ret >= size) ? size - 1 : ret;
+		memcpy(dest, src, len);
+		dest[len] = '\0';
+	}
+
+	return ret;
+}
 
 void main(int argc, char **argv)
 {
@@ -59,7 +75,10 @@ void main(int argc, char **argv)
 
 	/* Fill in the netlink message payload */
 	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
-	vmsg->cmd = VLINKNLCMD_RM_DEVICE;
+	vmsg->cmd = VLINKNLCMD_ADD_DEVICE;
+	strlcpy(vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
+	strlcpy(vmsg->real_name, "eth10", sizeof(vmsg->real_name));
+	vmsg->port = 1;
 
 	iov.iov_base = nlh;
 	iov.iov_len = nlh->nlmsg_len;

@@ -48,17 +48,17 @@ enum nl_vlink_groups {
 enum nl_vlink_cmd {
 	VLINKNLCMD_ADD_DEVICE,
 	VLINKNLCMD_RM_DEVICE,
-	VLINKNLCMD_BIND_DEVICE,
-	/* ... */
 };
 
+/* Generic vlinkmsg header, private data can be appended after the header */
 struct vlinknlmsg {
-	uint8_t cmd;
-	uint8_t flags;
-	uint8_t type;
+	uint32_t cmd:8,
+		 flags:16,
+		 reserved:8;
+	uint32_t type:16,
+		 port:16;
 	uint8_t virt_name[IFNAMSIZ];
 	uint8_t real_name[IFNAMSIZ];
-	/* ... */
 };
 
 #ifdef __KERNEL__

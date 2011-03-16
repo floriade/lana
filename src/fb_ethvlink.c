@@ -40,12 +40,12 @@ struct pcpu_dstats {
 	u32                   tx_dropped;
 };
 
-struct fb_ethvlink_dev {
-	struct net_device *dev;
-	struct net_device *realdev;
+struct fb_ethvlink_private {
+	struct net_device *real_dev;
 	struct pcpu_dstats __percpu *pcpu_stats;
-	int (*process_rx)(struct sk_buff *skb);
-	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
+	u16 port;
+//	int (*process_rx)(struct sk_buff *skb);
+//	int (*process_tx)(struct net_device *dev, struct sk_buff *skb);
 };
 
 static int fb_ethvlink_init(struct net_device *dev)
@@ -142,27 +142,56 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 	return stats;
 }
 
-static int rxtest1(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	int ret;
+	struct net_device *dev;
+	struct fb_ethvlink_private *dev_priv;
+
 	if (vhdr->cmd != VLINKNLCMD_ADD_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
 
-	printk("hello world1!\n");
+	dev = alloc_netdev(sizeof(struct fb_ethvlink_private),
+			   vhdr->virt_name, fb_ethvlink_dev_setup);
+	if (!dev)
+		goto err;
+	ret = dev_alloc_name(dev, dev->name);
+	if (ret)
+		goto err_free;
+	ret = register_netdev(dev);
+	if (ret)
+		goto err_free;
+	dev_priv = netdev_priv(dev);
+	dev_priv->port = vhdr->port;
+	dev_priv->real_dev = dev_get_by_name(&init_net, vhdr->real_name);
+	if (!dev_priv->real_dev)
+		goto err_free;
+
 	return NETLINK_VLINK_RX_STOP;
+
+err_free:
+	free_netdev(dev);
+err:
+	return NETLINK_VLINK_RX_EMERG;
 }
 
-static int rxtest2(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	struct net_device *dev;
+
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
 
-	printk("hello world2!\n");
+	dev = dev_get_by_name(&init_net, vhdr->virt_name);
+	if (!dev)
+		return NETLINK_VLINK_RX_EMERG;
+	fb_ethvlink_uninit(dev);
+
 	return NETLINK_VLINK_RX_STOP;
 }
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 	.ndo_init            = fb_ethvlink_init,
-//	.ndo_uninit          = fb_ethvlink_uninit,
 	.ndo_open            = fb_ethvlink_open,
 	.ndo_stop            = fb_ethvlink_stop,
 	.ndo_start_xmit      = fb_ethvlink_start_xmit,
@@ -174,6 +203,7 @@ static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 
 static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 	.kind                = "ana",
+	.priv_size           = sizeof(struct fb_ethvlink_private),
 	.setup               = fb_ethvlink_dev_setup,
 	.validate            = fb_ethvlink_validate,
 };
@@ -185,9 +215,9 @@ static struct nl_vlink_subsys fb_ethvlink_sys = {
 };
 
 static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
-		NL_VLINK_CALLBACK_INIT(rxtest1, NETLINK_VLINK_PRIO_HIGH);
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_add_dev, NETLINK_VLINK_PRIO_HIGH);
 static struct nl_vlink_callback fb_ethvlink_rm_dev_cb =
-		NL_VLINK_CALLBACK_INIT(rxtest2, NETLINK_VLINK_PRIO_HIGH);
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_rm_dev, NETLINK_VLINK_PRIO_HIGH);
 
 static int __init init_fb_ethvlink_module(void)
 {
@@ -196,18 +226,16 @@ static int __init init_fb_ethvlink_module(void)
 	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
 		return ret;
-
 	ret = nl_vlink_subsys_register(&fb_ethvlink_sys);
 	if (ret)
 		goto err;
-
 	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
 				     &fb_ethvlink_add_dev_cb,
 				     &fb_ethvlink_rm_dev_cb);
 	if (ret)
 		goto err_unr;
 
-	printk(KERN_INFO "LANA eth vlink layer loaded!\n");
+	printk(KERN_INFO "Ethernet vlink layer loaded!\n");
 	return 0;
 
 err_unr:
@@ -222,7 +250,7 @@ static void __exit cleanup_fb_ethvlink_module(void)
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
-	printk(KERN_INFO "LANA eth vlink layer removed!\n");
+	printk(KERN_INFO "Ethernet vlink layer removed!\n");
 }
 
 module_init(init_fb_ethvlink_module);
@@ -232,21 +260,4 @@ MODULE_ALIAS_RTNL_LINK("ana");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
 MODULE_DESCRIPTION("Ethernet virtual link layer driver");
-
-#if 0
-	struct net_device *dev;
-	dev = alloc_netdev(0, "ana%d", fb_ethvlink_dev_setup);
-	if (!dev) {
-		ret = -ENOMEM;
-		goto err;
-	}
-
-	ret = dev_alloc_name(dev, dev->name);
-	if (ret)
-		goto err_free;
-
-	ret = register_netdev(dev);
-	if (ret)
-		goto err_free;
-#endif
 
