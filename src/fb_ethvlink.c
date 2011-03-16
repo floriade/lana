@@ -106,6 +106,11 @@ static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 	return dev_queue_xmit(skb);
 }
 
+/*
+ * Egress path. This is fairly easy, since we enter with our virtual
+ * device and just need to lookup the real networking device, reset the
+ * skb to the real device and enqueue it. Done!
+ */
 netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 				   struct net_device *dev)
 {
@@ -127,8 +132,15 @@ netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 }
 
 /*
- * Origin __netif_receive_skb, with rcu_read_lock!
- * Furthermore we're in fast-path and we're on the real dev!
+ * Origin __netif_receive_skb, with rcu_read_lock! We're at a point
+ * where bridging code and macvlan code is usually invoked, so we're
+ * in fast-path on our real device (not virtual!) before all the usual
+ * stack is being processed by deliver_skb! This means we return NULL
+ * if our lana stack processed the packet, so that the rcu_read_lock
+ * gets unlocked and we're done. On the other hand, if we want packages
+ * to be processed by the kernel network stack, we go out by delivering
+ * the valid pointer to the skb. Basically, here's the point where we
+ * demultiplex the ingress path to registered virtual lana devices.
  */
 static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 {
@@ -149,7 +161,8 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	if (unlikely(!skb))
 		return NULL;
 
-	goto normstack; /* For the moment! */
+	goto normstack;
+
 #if 0
 	dstats = this_cpu_ptr(dev->dstats);
 
@@ -157,13 +170,12 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	dstats->rx_packets++;
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
-//todo !!!
 #endif
 
-lanastack: /* Unlocks rcu and done! */
+lanastack:
 	kfree_skb(skb); /* XXX */
 	return NULL;
-normstack: /* Continues with deliver_skb to the protos */
+normstack:
 	return skb;
 drop:
 	kfree_skb(skb);
