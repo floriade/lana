@@ -11,8 +11,6 @@
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
- *
- * Compile: gcc vlink.c -o vlink -O2 -I../src/
  */
 
 #include <stdio.h>
