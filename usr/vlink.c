@@ -98,13 +98,19 @@ static void xfree(void *ptr)
 	free(ptr);
 }
 
+void check_for_root_maybe_die(void)
+{
+	if (geteuid() != 0)
+		/* Naughty! This incident will be reported to Santa! */
+		panic("Uhhuh, not root?! \n");
+}
+
 static void usage(void)
 {
 	printf("\n%s %s\n", PROGNAME, VERSNAME);
 	printf("Usage: %s <linktype> <cmd> [<args> ...]\n", PROGNAME);
 	printf("Linktypes:\n");
 	printf("  ethernet\n");
-	printf("\n");
 	printf("Commands:\n");
 	printf("  add <name> <rootdev>\n");
 	printf("  rm  <name>\n");
@@ -130,11 +136,11 @@ static void version(void)
 	die();
 }
 
-int main(int argc, char **argv)
+void do_ethernet(int argc, char **argv)
 {
-	int sock;
+	int sock, ret;
 	struct sockaddr_nl src_addr, dest_addr;
-	struct nlmsghdr *nlh = NULL;
+	struct nlmsghdr *nlh;
 	struct iovec iov;
 	struct msghdr msg;
 	struct vlinknlmsg *vmsg;
@@ -144,7 +150,7 @@ int main(int argc, char **argv)
 	memset(&src_addr, 0, sizeof(src_addr));
 	src_addr.nl_family = AF_NETLINK;
 	src_addr.nl_pad = 0;
-	src_addr.nl_pid = getpid();  /* self pid */
+	src_addr.nl_pid = getpid();
 	src_addr.nl_groups = 0;
 
 	bind(sock, (struct sockaddr *) &src_addr, sizeof(src_addr));
@@ -152,25 +158,21 @@ int main(int argc, char **argv)
 	memset(&dest_addr, 0, sizeof(dest_addr));
 	dest_addr.nl_family = AF_NETLINK;
 	dest_addr.nl_pad = 0;
-	dest_addr.nl_pid = 0; /* For Linux Kernel */
+	dest_addr.nl_pid = 0;
 	dest_addr.nl_groups = 0;
 
-	nlh = malloc(NLMSG_SPACE(sizeof(*vmsg)));
-	memset(nlh, 0, NLMSG_SPACE(sizeof(*vmsg)));
-
-	/* Fill the netlink message header */
+	nlh = xzmalloc(NLMSG_SPACE(sizeof(*vmsg)));
 	nlh->nlmsg_len = NLMSG_SPACE(sizeof(*vmsg));
-	nlh->nlmsg_pid = getpid();  /* self pid */
+	nlh->nlmsg_pid = getpid();
 	nlh->nlmsg_type = VLINKNLGRP_ETHERNET;
 	nlh->nlmsg_flags = NLM_F_REQUEST;
 
-	/* Fill in the netlink message payload */
 	vmsg = (struct vlinknlmsg *) NLMSG_DATA(nlh);
 	vmsg->cmd = VLINKNLCMD_RM_DEVICE;
-	strlcpy((char *) vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
-	strlcpy((char *) vmsg->real_name, "eth10", sizeof(vmsg->real_name));
 	vmsg->port = 1;
 	vmsg->flags = 0;
+	strlcpy((char *) vmsg->virt_name, "mgmt", sizeof(vmsg->virt_name));
+	strlcpy((char *) vmsg->real_name, "eth10", sizeof(vmsg->real_name));
 
 	iov.iov_base = nlh;
 	iov.iov_len = nlh->nlmsg_len;
@@ -181,7 +183,9 @@ int main(int argc, char **argv)
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = 1;
 
-	sendmsg(sock, &msg, 0);
+	ret = sendmsg(sock, &msg, 0);
+	if (ret < 0)
+		panic("Cannot send NETLINK message to the kernel!\n");
 
 	/* Read message from kernel */
 //	memset(nlh, 0, NLMSG_SPACE(MAX_PAYLOAD));
@@ -189,6 +193,25 @@ int main(int argc, char **argv)
 //	printf(" Received message payload: %s\n", (char *) NLMSG_DATA(nlh));
 
 	close(sock);
+	xfree(nlh);
+}
+
+int main(int argc, char **argv)
+{
+	check_for_root_maybe_die();
+
+	if (argc <= 1)
+		usage();
+	argc--;	argv++;
+	if (!strncmp("help", argv[0], strlen("help")))
+		usage();
+	else if (!strncmp("version", argv[0], strlen("version")))
+		version();
+	else if (!strncmp("ethernet", argv[0], strlen("ethernet")))
+		do_ethernet(--argc, ++argv);
+	else
+		usage();
+
 	return 0;
 }
 
