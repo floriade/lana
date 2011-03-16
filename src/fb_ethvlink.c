@@ -103,6 +103,7 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
 
+	netdev_printk(KERN_DEBUG, dev, "got pkg!\n");
 	return skb;
 }
 
@@ -211,6 +212,7 @@ err:
 static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
 	struct net_device *dev;
+	struct fb_ethvlink_private *dev_priv;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
@@ -219,7 +221,13 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	if (!dev)
 		return NETLINK_VLINK_RX_EMERG;
 
+	dev_priv = netdev_priv(dev);
+
 	synchronize_net();
+	rtnl_lock();
+	netdev_rx_handler_unregister(dev_priv->real_dev);
+	rtnl_unlock();
+	fb_ethvlink_stop(dev);
 	unregister_netdev(dev);
 	fb_ethvlink_uninit(dev);
 
