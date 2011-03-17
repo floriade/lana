@@ -97,6 +97,11 @@ static inline void fb_ethvlink_make_real_dev_hooked(struct net_device *dev)
 	dev->priv_flags |= IFF_VLINK_MAS;
 }
 
+static inline void fb_ethvlink_make_real_dev_unhooked(struct net_device *dev)
+{
+	dev->priv_flags &= ~IFF_VLINK_MAS;
+}
+
 static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 				  struct net_device *dev)
 {
@@ -252,22 +257,19 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 		return NETLINK_VLINK_RX_NXT;
 
 	root = dev_get_by_name(&init_net, vhdr->virt_name);
-	if (root) {
-		dev_put(root);
-		goto err;
-	}
+	if (root)
+		goto err_put;
 
 	root = dev_get_by_name(&init_net, vhdr->real_name);
-	if (root && (root->priv_flags & IFF_VLINK_DEV) == IFF_VLINK_DEV) {
-		dev_put(root);
-		goto err;
-	} else if (!root)
+	if (root && (root->priv_flags & IFF_VLINK_DEV) == IFF_VLINK_DEV)
+		goto err_put;
+	else if (!root)
 		goto err;
 
 	dev = alloc_netdev(sizeof(struct fb_ethvlink_private),
 			   vhdr->virt_name, fb_ethvlink_dev_setup);
 	if (!dev)
-		goto err;
+		goto err_put;
 
 	ret = dev_alloc_name(dev, dev->name);
 	if (ret)
@@ -283,31 +285,85 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	dev_priv->port = vhdr->port;
 	dev_priv->real_dev = root;
 
-	if (!fb_ethvlink_real_dev_is_hooked(dev_priv->real_dev)) {
-		rtnl_lock();
-		ret = netdev_rx_handler_register(dev_priv->real_dev,
-						 fb_ethvlink_handle_frame,
-						 NULL);
-		rtnl_unlock();
-		if (ret)
-			goto err_put;
-		fb_ethvlink_make_real_dev_hooked(dev_priv->real_dev);
-	}
-
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
+	dev_put(dev_priv->real_dev);
 
 	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
 
-	dev_put(dev_priv->real_dev);
-
 	return NETLINK_VLINK_RX_STOP;
-err_put:
-	dev_put(dev_priv->real_dev);
 err_free:
+	dev_put(root);
 	free_netdev(dev);
 err:
+	return NETLINK_VLINK_RX_EMERG;
+err_put:
+	dev_put(root);
+	goto err;
+}
+
+static int fb_ethvlink_start_hook_dev(struct vlinknlmsg *vhdr,
+				      struct nlmsghdr *nlh)
+{
+	int ret;
+	struct net_device *root;
+
+	if (vhdr->cmd != VLINKNLCMD_START_HOOK_DEVICE)
+		return NETLINK_VLINK_RX_NXT;
+
+	root = dev_get_by_name(&init_net, vhdr->real_name);
+	if (root && (root->priv_flags & IFF_VLINK_DEV) == IFF_VLINK_DEV)
+		goto err;
+	else if (!root)
+		return NETLINK_VLINK_RX_EMERG;
+
+	if (fb_ethvlink_real_dev_is_hooked(root))
+		goto out;
+
+	rtnl_lock();
+	ret = netdev_rx_handler_register(root, fb_ethvlink_handle_frame,
+					 NULL);
+	rtnl_unlock();
+	if (ret)
+		goto err;
+
+	fb_ethvlink_make_real_dev_hooked(root);
+out:
+	dev_put(root);
+	return NETLINK_VLINK_RX_STOP;
+err:
+	dev_put(root);
+	return NETLINK_VLINK_RX_EMERG;
+}
+
+static int fb_ethvlink_stop_hook_dev(struct vlinknlmsg *vhdr,
+				     struct nlmsghdr *nlh)
+{
+	struct net_device *root;
+
+	if (vhdr->cmd != VLINKNLCMD_STOP_HOOK_DEVICE)
+		return NETLINK_VLINK_RX_NXT;
+
+	root = dev_get_by_name(&init_net, vhdr->real_name);
+	if (root && (root->priv_flags & IFF_VLINK_DEV) == IFF_VLINK_DEV)
+		goto err;
+	else if (!root)
+		return NETLINK_VLINK_RX_EMERG;
+
+	if (!fb_ethvlink_real_dev_is_hooked(root))
+		goto out;
+
+	rtnl_lock();
+	netdev_rx_handler_unregister(root);
+	rtnl_unlock();
+
+	fb_ethvlink_make_real_dev_unhooked(root);
+out:
+	dev_put(root);
+	return NETLINK_VLINK_RX_STOP;
+err:
+	dev_put(root);
 	return NETLINK_VLINK_RX_EMERG;
 }
 
@@ -333,9 +389,6 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	dev_put(dev);
 
 	rtnl_lock();
-// Well when to release? Todo
-//	netdev_rx_handler_unregister(dev_priv->real_dev);
-// if never our kernel fucks up! ;-)
 	unregister_netdevice(dev);
 	rtnl_unlock();
 
@@ -371,9 +424,13 @@ static struct nl_vlink_subsys fb_ethvlink_sys = {
 };
 
 static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_add_dev, NETLINK_VLINK_PRIO_HIGH);
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_add_dev, NETLINK_VLINK_PRIO_NORM);
 static struct nl_vlink_callback fb_ethvlink_rm_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_rm_dev, NETLINK_VLINK_PRIO_HIGH);
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_rm_dev, NETLINK_VLINK_PRIO_NORM);
+static struct nl_vlink_callback fb_ethvlink_start_hook_dev_cb =
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_start_hook_dev, NETLINK_VLINK_PRIO_HIGH);
+static struct nl_vlink_callback fb_ethvlink_stop_hook_dev_cb =
+	NL_VLINK_CALLBACK_INIT(fb_ethvlink_stop_hook_dev, NETLINK_VLINK_PRIO_HIGH);
 
 static int __init init_fb_ethvlink_module(void)
 {
@@ -387,7 +444,9 @@ static int __init init_fb_ethvlink_module(void)
 		goto err;
 	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
 				     &fb_ethvlink_add_dev_cb,
-				     &fb_ethvlink_rm_dev_cb);
+				     &fb_ethvlink_rm_dev_cb,
+				     &fb_ethvlink_start_hook_dev_cb,
+				     &fb_ethvlink_stop_hook_dev_cb);
 	if (ret)
 		goto err_unr;
 

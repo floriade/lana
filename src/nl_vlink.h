@@ -48,6 +48,8 @@ enum nl_vlink_groups {
 enum nl_vlink_cmd {
 	VLINKNLCMD_ADD_DEVICE,
 	VLINKNLCMD_RM_DEVICE,
+	VLINKNLCMD_START_HOOK_DEVICE,
+	VLINKNLCMD_STOP_HOOK_DEVICE,
 };
 
 /* Generic vlinkmsg header, private data can be appended after the header */
