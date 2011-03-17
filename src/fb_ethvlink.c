@@ -170,19 +170,15 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	if (unlikely(!skb))
 		return NULL;
 
-	goto normstack;
-
-#if 0
 	dstats = this_cpu_ptr(dev->dstats);
 
 	u64_stats_update_begin(&dstats->syncp);
 	dstats->rx_packets++;
 	dstats->rx_bytes += skb->len;
 	u64_stats_update_end(&dstats->syncp);
-#endif
 
 lanastack:
-	kfree_skb(skb); /* XXX */
+	kfree_skb(skb);
 	return NULL;
 normstack:
 	return skb;
