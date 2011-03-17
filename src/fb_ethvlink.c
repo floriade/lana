@@ -22,6 +22,7 @@
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
 #include <linux/if.h>
+#include <linux/list.h>
 #include <linux/u64_stats_sync.h>
 #include <net/rtnetlink.h>
 
@@ -43,12 +44,15 @@ struct pcpu_dstats {
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly;
 static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly;
+static LIST_HEAD(fb_ethvlink_vdevs);
+static DEFINE_SPINLOCK(fb_ethvlink_vdevs_lock);
 
 struct fb_ethvlink_private {
+	struct list_head list;
 	u16 port;
+	struct net_device *self;
 	struct net_device *real_dev;
-	int (*net_rx)(struct sk_buff *skb);
-	int (*net_tx)(struct net_device *dev, struct sk_buff *skb);
+	int (*net_rx)(struct sk_buff *skb, struct net_device *dev);
 };
 
 static int fb_ethvlink_init(struct net_device *dev)
@@ -74,7 +78,6 @@ static int fb_ethvlink_open(struct net_device *dev)
 		netif_tx_lock_bh(dev);
 		netif_carrier_on(dev);
 		netif_tx_unlock_bh(dev);
-		netdev_printk(KERN_INFO, dev, "carrier turned on\n");
 	}
 
 	return 0;
@@ -87,7 +90,6 @@ static int fb_ethvlink_stop(struct net_device *dev)
 	netif_tx_unlock_bh(dev);
 	netif_stop_queue(dev);
 
-	netdev_printk(KERN_INFO, dev, "carrier turned off\n");
 	return 0;
 }
 
@@ -111,6 +113,7 @@ static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 {
 	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
 
+	/* Exit the lana stack here, egress path */
 	skb_set_dev(skb, dev_priv->real_dev);
 	return dev_queue_xmit(skb);
 }
@@ -133,11 +136,17 @@ netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 		dstats->tx_packets++;
 		dstats->tx_bytes += skb->len;
 		u64_stats_update_end(&dstats->syncp);
-	} else {
+	} else 
 		this_cpu_inc(dstats->tx_dropped);
-	}
 
 	return ret;
+}
+
+int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
+				  struct net_device *dev)
+{
+	/* Enter the lana stack here, ingress path */
+	return NET_RX_SUCCESS;
 }
 
 /*
@@ -153,7 +162,9 @@ netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
  */
 static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 {
+	int ret;
 	struct net_device *dev;
+	struct fb_ethvlink_private *vdev;
 	struct pcpu_dstats *dstats;
 
 	dev = skb->dev;
@@ -170,14 +181,22 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	if (unlikely(!skb))
 		return NULL;
 
-	dstats = this_cpu_ptr(dev->dstats);
+	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
+		/* TODO: lookup port of vdev and then deliver */
+		if (dev == vdev->real_dev) {
+			dstats = this_cpu_ptr(vdev->self->dstats);
+			ret = vdev->net_rx(skb, vdev->self);
+			if (ret == NET_RX_SUCCESS) {
+				u64_stats_update_begin(&dstats->syncp);
+				dstats->rx_packets++;
+				dstats->rx_bytes += skb->len;
+				u64_stats_update_end(&dstats->syncp);
+			} else
+				this_cpu_inc(dstats->rx_errors);
+			break;
+		}
+	}
 
-	u64_stats_update_begin(&dstats->syncp);
-	dstats->rx_packets++;
-	dstats->rx_bytes += skb->len;
-	u64_stats_update_end(&dstats->syncp);
-
-lanastack:
 	kfree_skb(skb);
 	return NULL;
 normstack:
@@ -250,6 +269,7 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 			       struct nlmsghdr *nlh)
 {
 	int ret;
+	unsigned long flags;
 	struct net_device *dev;
 	struct net_device *root;
 	struct fb_ethvlink_private *dev_priv;
@@ -284,10 +304,17 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	dev->priv_flags |= IFF_VLINK_DEV;
 	dev_priv = netdev_priv(dev);
 	dev_priv->port = vhdr->port;
+	dev_priv->self = dev;
 	dev_priv->real_dev = root;
+	dev_priv->net_rx = fb_ethvlink_handle_frame_virt;
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
+
 	dev_put(dev_priv->real_dev);
+
+	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
+	list_add_rcu(&dev_priv->list, &fb_ethvlink_vdevs);
+	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
 
 	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
@@ -374,7 +401,9 @@ err:
 
 static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	unsigned long flags;
 	struct net_device *dev;
+	struct fb_ethvlink_private *dev_priv;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
@@ -387,9 +416,15 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	if ((dev->flags & IFF_RUNNING) == IFF_RUNNING)
 		goto err_put;
 
+	dev_priv = netdev_priv(dev);
+
 	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
+
+	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
+	list_del_rcu(&dev_priv->list);
+	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
 
 	dev_put(dev);
 
