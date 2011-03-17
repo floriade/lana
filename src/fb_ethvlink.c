@@ -53,10 +53,6 @@ struct fb_ethvlink_private {
 
 static int fb_ethvlink_init(struct net_device *dev)
 {
-	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
-
-	dev->gso_max_size = dev_priv->real_dev->gso_max_size;
-	dev->iflink = dev_priv->real_dev->ifindex;
 	dev->dstats = alloc_percpu(struct pcpu_dstats);
 	if (!dev->dstats)
 		return -ENOMEM;
