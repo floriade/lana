@@ -53,16 +53,10 @@ struct fb_ethvlink_private {
 
 static int fb_ethvlink_init(struct net_device *dev)
 {
-//	dev->state = (dev->state &
-//		      ~((1 << __LINK_STATE_NOCARRIER) |
-//			(1 << __LINK_STATE_DORMANT))) |
-//		     (dev_priv->real_dev->state &
-//		      ~((1 << __LINK_STATE_NOCARRIER) |
-//                      (1 << __LINK_STATE_DORMANT)));
-//	dev->features = dev_priv->real_dev->features;
-//	dev->gso_max_size = dev_priv->real_dev->gso_max_size;
-//	dev->iflink = dev_priv->real_dev->ifindex;
-//	dev->hard_header_len = dev_priv->real_dev->hard_header_len;
+	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
+
+	dev->gso_max_size = dev_priv->real_dev->gso_max_size;
+	dev->iflink = dev_priv->real_dev->ifindex;
 	dev->dstats = alloc_percpu(struct pcpu_dstats);
 	if (!dev->dstats)
 		return -ENOMEM;
@@ -77,13 +71,25 @@ static void fb_ethvlink_uninit(struct net_device *dev)
 
 static int fb_ethvlink_open(struct net_device *dev)
 {
+	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
+
 	netif_start_queue(dev);
+	if (netif_carrier_ok(dev_priv->real_dev)) {
+		netif_tx_lock_bh(dev);
+		netif_carrier_on(dev);
+		netif_tx_unlock_bh(dev);
+	}
+
 	return 0;
 }
 
 static int fb_ethvlink_stop(struct net_device *dev)
 {
+	netif_tx_lock_bh(dev);
+	netif_carrier_off(dev);
+	netif_tx_unlock_bh(dev);
 	netif_stop_queue(dev);
+
 	return 0;
 }
 
@@ -201,6 +207,7 @@ static void fb_ethvlink_dev_setup(struct net_device *dev)
 	dev->destructor = free_netdev;
 
 	random_ether_addr(dev->dev_addr);
+	memset(dev->broadcast, 0, ETH_ALEN);
 }
 
 static int fb_ethvlink_validate(struct nlattr **tb, struct nlattr **data)
