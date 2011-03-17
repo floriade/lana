@@ -292,6 +292,8 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
 
+	printk(KERN_INFO "[lana] %s registered to link master %s\n",
+	       vhdr->virt_name, vhdr->real_name);
 	return NETLINK_VLINK_RX_STOP;
 err_free:
 	dev_put(root);
@@ -329,6 +331,7 @@ static int fb_ethvlink_start_hook_dev(struct vlinknlmsg *vhdr,
 		goto err;
 
 	fb_ethvlink_make_real_dev_hooked(root);
+	printk(KERN_INFO "[lana] hook attached to %s\n", vhdr->real_name);
 out:
 	dev_put(root);
 	return NETLINK_VLINK_RX_STOP;
@@ -359,6 +362,7 @@ static int fb_ethvlink_stop_hook_dev(struct vlinknlmsg *vhdr,
 	rtnl_unlock();
 
 	fb_ethvlink_make_real_dev_unhooked(root);
+	printk(KERN_INFO "[lana] hook detached from %s\n", vhdr->real_name);
 out:
 	dev_put(root);
 	return NETLINK_VLINK_RX_STOP;
@@ -392,6 +396,7 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	unregister_netdevice(dev);
 	rtnl_unlock();
 
+	printk(KERN_INFO "[lana] %s unregistered\n", vhdr->virt_name);
 	return NETLINK_VLINK_RX_STOP;
 err_put:
 	dev_put(dev);
