@@ -113,7 +113,9 @@ static void usage(void)
 	printf("  ethernet\n");
 	printf("Commands:\n");
 	printf("  add <name> <rootdev> <port>\n");
-	printf("  rm  <name>\n");
+	printf("  rm <name>\n");
+	printf("  hook <rootdev>\n");
+	printf("  unhook <rootdev>\n");
 	printf("\n");
 	printf("Please report bugs to <dborkma@tik.ee.ethz.ch>\n");
 	printf("Copyright (C) 2011 Daniel Borkmann\n");
@@ -152,6 +154,10 @@ void do_ethernet(int argc, char **argv)
 		cmd = VLINKNLCMD_ADD_DEVICE;
 	else if (!strncmp("rm", argv[0], strlen("rm")) && argc == 2)
 		cmd = VLINKNLCMD_RM_DEVICE;
+	else if (!strncmp("hook", argv[0], strlen("hook")) && argc == 2)
+		cmd = VLINKNLCMD_START_HOOK_DEVICE;
+	else if (!strncmp("unhook", argv[0], strlen("unhook")) && argc == 2)
+		cmd = VLINKNLCMD_STOP_HOOK_DEVICE;
 	else
 		usage();
 
@@ -188,6 +194,10 @@ void do_ethernet(int argc, char **argv)
 	strlcpy((char *) vmsg->virt_name, argv[1], sizeof(vmsg->virt_name));
 	if (cmd == VLINKNLCMD_ADD_DEVICE)
 		strlcpy((char *) vmsg->real_name, argv[2],
+			sizeof(vmsg->real_name));
+	else if (cmd == VLINKNLCMD_START_HOOK_DEVICE ||
+		 cmd == VLINKNLCMD_STOP_HOOK_DEVICE)
+		strlcpy((char *) vmsg->real_name, argv[1],
 			sizeof(vmsg->real_name));
 
 	iov.iov_base = nlh;
