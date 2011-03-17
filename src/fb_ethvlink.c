@@ -74,6 +74,7 @@ static int fb_ethvlink_open(struct net_device *dev)
 		netif_tx_lock_bh(dev);
 		netif_carrier_on(dev);
 		netif_tx_unlock_bh(dev);
+		netdev_printk(KERN_INFO, dev, "carrier turned on\n");
 	}
 
 	return 0;
@@ -86,6 +87,7 @@ static int fb_ethvlink_stop(struct net_device *dev)
 	netif_tx_unlock_bh(dev);
 	netif_stop_queue(dev);
 
+	netdev_printk(KERN_INFO, dev, "carrier turned off\n");
 	return 0;
 }
 
