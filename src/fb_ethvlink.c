@@ -12,8 +12,6 @@
  * Subject to the GPL.
  */
 
-/* todo: netdev notifier + shut links down on module unload */
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
