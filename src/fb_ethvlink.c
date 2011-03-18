@@ -466,11 +466,31 @@ err:
 	return NETLINK_VLINK_RX_EMERG;
 }
 
-static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+static void fb_ethvlink_rm_dev_common(struct net_device *dev)
 {
 	unsigned long flags;
-	struct net_device *dev;
 	struct fb_ethvlink_private *dev_priv;
+
+	dev_priv = netdev_priv(dev);
+
+	netif_tx_lock_bh(dev);
+	netif_carrier_off(dev);
+	netif_tx_unlock_bh(dev);
+
+	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
+	list_del_rcu(&dev_priv->list);
+	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
+
+	printk(KERN_INFO "[lana] unregister %s\n", dev->name);
+
+	rtnl_lock();
+	unregister_netdevice(dev);
+	rtnl_unlock();
+}
+
+static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+{
+	struct net_device *dev;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
@@ -483,27 +503,33 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	if ((dev->flags & IFF_RUNNING) == IFF_RUNNING)
 		goto err_put;
 
-	dev_priv = netdev_priv(dev);
-
-	netif_tx_lock_bh(dev);
-	netif_carrier_off(dev);
-	netif_tx_unlock_bh(dev);
-
-	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
-	list_del_rcu(&dev_priv->list);
-	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
-
 	dev_put(dev);
+	fb_ethvlink_rm_dev_common(dev);
 
-	rtnl_lock();
-	unregister_netdevice(dev);
-	rtnl_unlock();
-
-	printk(KERN_INFO "[lana] %s unregistered\n", vhdr->virt_name);
 	return NETLINK_VLINK_RX_STOP;
+
 err_put:
 	dev_put(dev);
 	return NETLINK_VLINK_RX_EMERG;
+}
+
+static int fb_ethvlink_dev_event(struct notifier_block *unused,
+				 unsigned long event, void *ptr)
+{
+//	struct net_device *dev = ptr;
+
+	switch (event) {
+	case NETDEV_CHANGE:
+		break;
+	case NETDEV_FEAT_CHANGE:
+		break;
+	case NETDEV_UNREGISTER:
+		break;
+	case NETDEV_PRE_TYPE_CHANGE:
+		return NOTIFY_BAD;
+	}
+
+	return NOTIFY_DONE;
 }
 
 static struct ethtool_ops fb_ethvlink_ethtool_ops __read_mostly = {
@@ -526,7 +552,7 @@ static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 	.ndo_validate_addr   = eth_validate_addr,
 };
 
-static struct header_ops fb_ethvlink_header_ops = {
+static struct header_ops fb_ethvlink_header_ops __read_mostly = {
 	.create              = fb_ethvlink_create_header,
 	.rebuild             = eth_rebuild_header,
 	.parse               = eth_header_parse,
@@ -541,10 +567,14 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 	.validate            = fb_ethvlink_validate,
 };
 
-static struct nl_vlink_subsys fb_ethvlink_sys = {
+static struct nl_vlink_subsys fb_ethvlink_sys __read_mostly = {
 	.name                = "ethvlink",
 	.type                = VLINKNLGRP_ETHERNET,
 	.rwsem               = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
+};
+
+static struct notifier_block fb_ethvlink_notifier_block __read_mostly = {
+	.notifier_call       = fb_ethvlink_dev_event,
 };
 
 static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
@@ -563,9 +593,13 @@ static int __init init_fb_ethvlink_module(void)
 	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
 		return ret;
+
+	register_netdevice_notifier(&fb_ethvlink_notifier_block);
+
 	ret = nl_vlink_subsys_register(&fb_ethvlink_sys);
 	if (ret)
 		goto err;
+
 	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
 				     &fb_ethvlink_add_dev_cb,
 				     &fb_ethvlink_rm_dev_cb,
@@ -581,12 +615,22 @@ err_unr:
 	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 err:
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
+	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
 	return ret;
 }
 
 static void __exit cleanup_fb_ethvlink_module(void)
 {
+	unsigned long flags;
+	struct fb_ethvlink_private *vdev;
+
+	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
+	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list)
+		fb_ethvlink_rm_dev_common(vdev->self);
+	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
+
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
+	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
 	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
 	printk(KERN_INFO "[lana] Ethernet vlink layer removed!\n");
