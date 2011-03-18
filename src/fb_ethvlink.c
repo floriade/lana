@@ -481,8 +481,9 @@ static void fb_ethvlink_rm_dev_common(struct net_device *dev)
 
 static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	int count;
 	unsigned long flags;
-	struct fb_ethvlink_private *dev_priv;
+	struct fb_ethvlink_private *dev_priv, *vdev;
 	struct net_device *dev;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
@@ -498,6 +499,26 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 
 	dev_put(dev);
 	dev_priv = netdev_priv(dev);
+
+	count = 0;
+	rcu_read_lock();
+	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list)
+		if (dev_priv->real_dev == vdev->real_dev)
+			count++;
+	rcu_read_unlock();
+
+	if (count == 1) {
+		/* We're last client on carrier! */
+		if (fb_ethvlink_real_dev_is_hooked(dev_priv->real_dev)) {
+			rtnl_lock();
+			netdev_rx_handler_unregister(dev_priv->real_dev);
+			rtnl_unlock();
+
+			fb_ethvlink_make_real_dev_unhooked(dev_priv->real_dev);
+			printk(KERN_INFO "[lana] hook detached from %s\n",
+			       dev_priv->real_dev->name);
+		}
+	}
 
 	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
 	list_del_rcu(&dev_priv->list);
