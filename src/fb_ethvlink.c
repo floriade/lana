@@ -12,6 +12,8 @@
  * Subject to the GPL.
  */
 
+/* todo: netdev notifier + shut links down on module unload */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -67,7 +69,6 @@ static int fb_ethvlink_init(struct net_device *dev)
 	dev->dstats = alloc_percpu(struct pcpu_dstats);
 	if (!dev->dstats)
 		return -ENOMEM;
-
 	return 0;
 }
 
@@ -121,6 +122,7 @@ static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
 
 	/* Exit the lana stack here, egress path */
+	netdev_printk(KERN_DEBUG, dev, "tx'ed packet!\n");
 	skb_set_dev(skb, dev_priv->real_dev);
 	return dev_queue_xmit(skb);
 }
@@ -153,6 +155,7 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
 				  struct net_device *dev)
 {
 	/* Enter the lana stack here, ingress path */
+	netdev_printk(KERN_DEBUG, dev, "rx'ed packet!\n");
 	return NET_RX_SUCCESS;
 }
 
