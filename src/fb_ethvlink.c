@@ -537,14 +537,39 @@ err_put:
 static int fb_ethvlink_dev_event(struct notifier_block *unused,
 				 unsigned long event, void *ptr)
 {
-//	struct net_device *dev = ptr;
+	struct net_device *dev = ptr;
+	struct fb_ethvlink_private *vdev;
+	struct vlinknlmsg vhdr;
 
 	switch (event) {
 	case NETDEV_CHANGE:
+		rcu_read_lock();
+		list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list)
+			if (vdev->real_dev == dev)
+				netif_stacked_transfer_operstate(vdev->real_dev,
+								 vdev->self);
+		rcu_read_unlock();
 		break;
 	case NETDEV_FEAT_CHANGE:
+		/* Nothing right now */
 		break;
 	case NETDEV_UNREGISTER:
+		if (dev->reg_state != NETREG_UNREGISTERING)
+			break;
+
+		memset(&vhdr, 0, sizeof(vhdr));
+		vhdr.cmd = VLINKNLCMD_RM_DEVICE;
+		/* FIXME! */
+		list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
+			if (vdev->real_dev == dev) {
+				memset(vhdr.virt_name, 0,
+				       sizeof(vhdr.virt_name));
+				memcpy(vhdr.virt_name, vdev->self->name,
+				       strlen(vdev->self->name));
+				fb_ethvlink_rm_dev(&vhdr, NULL);
+			}
+		}
+		
 		break;
 	case NETDEV_PRE_TYPE_CHANGE:
 		return NOTIFY_BAD;
