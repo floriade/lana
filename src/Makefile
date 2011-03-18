@@ -7,6 +7,7 @@
 #
 
 # LANA core files
+obj-m += core.o
 obj-m += nl_vlink.o
 
 # LANA optional modules
