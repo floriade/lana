@@ -44,6 +44,8 @@ struct pcpu_dstats {
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly;
 static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly;
+static struct ethtool_ops fb_ethvlink_ethtool_ops __read_mostly;
+
 static LIST_HEAD(fb_ethvlink_vdevs);
 static DEFINE_SPINLOCK(fb_ethvlink_vdevs_lock);
 
@@ -206,12 +208,37 @@ drop:
 	return NULL;
 }
 
+static void fb_ethvlink_ethtool_get_drvinfo(struct net_device *dev,
+					    struct ethtool_drvinfo *drvinfo)
+{
+	snprintf(drvinfo->driver, 32, "ethvlink");
+	snprintf(drvinfo->version, 32, "0.1");
+}
+
+static u32 fb_ethvlink_ethtool_get_rx_csum(struct net_device *dev)
+{
+	const struct fb_ethvlink_private *vdev = netdev_priv(dev);
+	return dev_ethtool_get_rx_csum(vdev->real_dev);
+}
+
+static int fb_ethvlink_ethtool_get_settings(struct net_device *dev,
+					struct ethtool_cmd *cmd)
+{
+	const struct fb_ethvlink_private *vdev = netdev_priv(dev);
+	return dev_ethtool_get_settings(vdev->real_dev, cmd);
+}
+
+static u32 fb_ethvlink_ethtool_get_flags(struct net_device *dev)
+{
+	const struct fb_ethvlink_private *vdev = netdev_priv(dev);
+	return dev_ethtool_get_flags(vdev->real_dev);
+}
+
 static void fb_ethvlink_dev_setup(struct net_device *dev)
 {
 	ether_setup(dev);
 
-//	dev->ethtool_ops = &fb_ethvlink_ethtool_ops;
-//	dev->header_ops = &fb_ethvlink_header_ops;
+	dev->ethtool_ops = &fb_ethvlink_ethtool_ops;
 	dev->netdev_ops = &fb_ethvlink_netdev_ops;
 	dev->rtnl_link_ops = &fb_ethvlink_rtnl_ops;
 	dev->destructor	= free_netdev;
@@ -438,6 +465,14 @@ err_put:
 	dev_put(dev);
 	return NETLINK_VLINK_RX_EMERG;
 }
+
+static struct ethtool_ops fb_ethvlink_ethtool_ops __read_mostly = {
+	.get_link            = ethtool_op_get_link,
+	.get_settings        = fb_ethvlink_ethtool_get_settings,
+	.get_rx_csum         = fb_ethvlink_ethtool_get_rx_csum,
+	.get_drvinfo         = fb_ethvlink_ethtool_get_drvinfo,
+	.get_flags           = fb_ethvlink_ethtool_get_flags,
+};
 
 static struct net_device_ops fb_ethvlink_netdev_ops __read_mostly = {
 	.ndo_init            = fb_ethvlink_init,
