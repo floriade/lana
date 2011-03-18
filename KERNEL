@@ -1,0 +1,9 @@
+Build against Linux kernel commit: 9179746652faf0aba07b8b7f770dcf29892a24c6
+---------------------------------------------------------------------------
+
+Sucessfullt built against this version of the Linus tree. If you don't have
+this version running, try:
+
+$ git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
+$ git checkout 9179746652faf0aba07b8b7f770dcf29892a24c6
+

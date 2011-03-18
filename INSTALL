@@ -1,7 +1,7 @@
 Installation guideline
 ----------------------
 
-If you don't have a current kernel, try:
+If you don't have a current kernel, try (but read KERNEL first!):
 
 $ git clone git://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux-2.6.git
 $ cd linux-2.6/
