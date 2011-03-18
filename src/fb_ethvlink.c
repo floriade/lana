@@ -324,7 +324,7 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	unsigned long flags;
 	struct net_device *dev;
 	struct net_device *root;
-	struct fb_ethvlink_private *dev_priv;
+	struct fb_ethvlink_private *dev_priv, *vdev;
 
 	if (vhdr->cmd != VLINKNLCMD_ADD_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
@@ -338,6 +338,15 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 		goto err_put;
 	else if (!root)
 		goto err;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
+		if (vdev->port == vhdr->port) {
+			rcu_read_unlock();
+			goto err_put;
+		}
+	}
+	rcu_read_unlock();
 
 	dev = alloc_netdev(sizeof(struct fb_ethvlink_private),
 			   vhdr->virt_name, fb_ethvlink_dev_setup);
