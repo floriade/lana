@@ -9,6 +9,8 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 
+#include "fb_glue.h"
+
 static int __init init_lana_core_module(void)
 {
 	printk(KERN_INFO "[lana] core loaded!\n");
