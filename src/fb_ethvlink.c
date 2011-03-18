@@ -468,20 +468,11 @@ err:
 
 static void fb_ethvlink_rm_dev_common(struct net_device *dev)
 {
-	unsigned long flags;
-	struct fb_ethvlink_private *dev_priv;
-
-	dev_priv = netdev_priv(dev);
-
 	netif_tx_lock_bh(dev);
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
 
-	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
-	list_del_rcu(&dev_priv->list);
-	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
-
-	printk(KERN_INFO "[lana] unregister %s\n", dev->name);
+	printk(KERN_INFO "[lana] unregistering %s\n", dev->name);
 
 	rtnl_lock();
 	unregister_netdevice(dev);
@@ -490,6 +481,8 @@ static void fb_ethvlink_rm_dev_common(struct net_device *dev)
 
 static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 {
+	unsigned long flags;
+	struct fb_ethvlink_private *dev_priv;
 	struct net_device *dev;
 
 	if (vhdr->cmd != VLINKNLCMD_RM_DEVICE)
@@ -504,6 +497,12 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 		goto err_put;
 
 	dev_put(dev);
+	dev_priv = netdev_priv(dev);
+
+	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
+	list_del_rcu(&dev_priv->list);
+	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
+
 	fb_ethvlink_rm_dev_common(dev);
 
 	return NETLINK_VLINK_RX_STOP;
@@ -621,13 +620,21 @@ err:
 
 static void __exit cleanup_fb_ethvlink_module(void)
 {
-	unsigned long flags;
 	struct fb_ethvlink_private *vdev;
 
-	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
-	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list)
+	rcu_read_lock();
+	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
+		if (fb_ethvlink_real_dev_is_hooked(vdev->real_dev)) {
+			rtnl_lock();
+			netdev_rx_handler_unregister(vdev->real_dev);
+			rtnl_unlock();
+
+			fb_ethvlink_make_real_dev_unhooked(vdev->real_dev);
+		}
+
 		fb_ethvlink_rm_dev_common(vdev->self);
-	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
+	}
+	rcu_read_unlock();
 
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
