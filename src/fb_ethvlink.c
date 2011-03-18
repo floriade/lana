@@ -470,7 +470,7 @@ static void fb_ethvlink_rm_dev_common(struct net_device *dev)
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
 
-	printk(KERN_INFO "[lana] unregistering %s\n", dev->name);
+	printk(KERN_INFO "[lana] %s unregistered\n", dev->name);
 
 	rtnl_lock();
 	unregister_netdevice(dev);
@@ -628,6 +628,8 @@ static void __exit cleanup_fb_ethvlink_module(void)
 			rtnl_unlock();
 
 			fb_ethvlink_make_real_dev_unhooked(vdev->real_dev);
+			printk(KERN_INFO "[lana] hook detached from %s\n",
+			       vdev->real_dev->name);
 		}
 
 		fb_ethvlink_rm_dev_common(vdev->self);
