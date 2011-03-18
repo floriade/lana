@@ -339,6 +339,8 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	else if (!root)
 		goto err;
 
+	vhdr->port &= 0x3FF;
+
 	rcu_read_lock();
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
 		if (vdev->port == vhdr->port) {
@@ -381,9 +383,10 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	netif_carrier_off(dev);
 	netif_tx_unlock_bh(dev);
 
-	printk(KERN_INFO "[lana] %s registered to link master %s\n",
-	       vhdr->virt_name, vhdr->real_name);
+	printk(KERN_INFO "[lana] %s registered to link master %s:%u\n",
+	       vhdr->virt_name, vhdr->real_name, dev_priv->port);
 	return NETLINK_VLINK_RX_STOP;
+
 err_free:
 	dev_put(root);
 	free_netdev(dev);
