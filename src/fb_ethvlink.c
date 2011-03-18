@@ -198,8 +198,8 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 		      ~htons(ETH_P_LANA));
 
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
-		if (dev == vdev->real_dev) {
-			if (vport == vdev->port) {
+		if (vport == vdev->port) {
+			if (dev == vdev->real_dev) {
 				dstats = this_cpu_ptr(vdev->self->dstats);
 				ret = vdev->netvif_rx(skb, vdev->self);
 				if (ret == NET_RX_SUCCESS) {
