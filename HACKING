@@ -69,7 +69,8 @@ Function naming conventions for functional blocks are similar. Always have
 a prefix of 'fb_', even for static functions. All the rest follows Linux
 kernel coding conventions as described in CODING. You can use the kernels
 check_patch.pl script for style errors, trailing whitespaces and so on
-before submitting a patch.
+before submitting a patch. Next to this, there are xt_* files. These are
+extensions ("xt") that are not standalone and are linked to the core.
 
 There's a sem/ folder with Coccinelle scripts that performs semantic
 patching on the lana kernelspace code. If you are using Debian, install

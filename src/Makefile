@@ -7,11 +7,14 @@
 #
 
 # LANA core files
-obj-m += core.o xt_sched.o
-obj-m += nl_vlink.o
+xcore-y := core.o      \
+	   xt_sched.o  \
+	   xt_user.o
+obj-m   += xcore.o
+obj-m   += nl_vlink.o
 
 # LANA optional modules
-obj-m += fb_ethvlink.o
+obj-m  += fb_ethvlink.o
 
 MDIR := /lib/modules/$(shell uname -r)
 KDIR := $(MDIR)/build
