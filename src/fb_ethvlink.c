@@ -20,6 +20,7 @@
 #include <linux/rtnetlink.h>
 #include <linux/ethtool.h>
 #include <linux/etherdevice.h>
+#include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include <linux/if.h>
 #include <linux/list.h>
@@ -30,6 +31,9 @@
 
 #define IFF_VLINK_MAS 0x20000 /* Master device */
 #define IFF_VLINK_DEV 0x40000 /* Slave device */
+
+/* Ethernet LANA packet with 10 Bit port ID */
+#define ETH_P_LANA    0xAC00
 
 struct pcpu_dstats {
 	u64 rx_packets;
@@ -51,11 +55,11 @@ static LIST_HEAD(fb_ethvlink_vdevs);
 static DEFINE_SPINLOCK(fb_ethvlink_vdevs_lock);
 
 struct fb_ethvlink_private {
-	struct list_head list;
 	u16 port;
+	struct list_head list;
 	struct net_device *self;
 	struct net_device *real_dev;
-	int (*net_rx)(struct sk_buff *skb, struct net_device *dev);
+	int (*netvif_rx)(struct sk_buff *skb, struct net_device *dev);
 };
 
 static int fb_ethvlink_init(struct net_device *dev)
@@ -166,6 +170,7 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
 static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 {
 	int ret;
+	u16 vport;
 	struct net_device *dev;
 	struct fb_ethvlink_private *vdev;
 	struct pcpu_dstats *dstats;
@@ -184,19 +189,27 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	if (unlikely(!skb))
 		return NULL;
 
+	if ((eth_hdr(skb)->h_proto & htons(ETH_P_LANA)) !=
+	    htons(ETH_P_LANA))
+		goto normstack;
+
+	vport = ntohs(eth_hdr(skb)->h_proto &
+		      ~htons(ETH_P_LANA));
+
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
-		/* TODO: lookup port of vdev and then deliver */
 		if (dev == vdev->real_dev) {
-			dstats = this_cpu_ptr(vdev->self->dstats);
-			ret = vdev->net_rx(skb, vdev->self);
-			if (ret == NET_RX_SUCCESS) {
-				u64_stats_update_begin(&dstats->syncp);
-				dstats->rx_packets++;
-				dstats->rx_bytes += skb->len;
-				u64_stats_update_end(&dstats->syncp);
-			} else
-				this_cpu_inc(dstats->rx_errors);
-			break;
+			if (vport == vdev->port) {
+				dstats = this_cpu_ptr(vdev->self->dstats);
+				ret = vdev->netvif_rx(skb, vdev->self);
+				if (ret == NET_RX_SUCCESS) {
+					u64_stats_update_begin(&dstats->syncp);
+					dstats->rx_packets++;
+					dstats->rx_bytes += skb->len;
+					u64_stats_update_end(&dstats->syncp);
+				} else
+					this_cpu_inc(dstats->rx_errors);
+				break;
+			}
 		}
 	}
 
@@ -345,7 +358,7 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	dev_priv->port = vhdr->port;
 	dev_priv->self = dev;
 	dev_priv->real_dev = root;
-	dev_priv->net_rx = fb_ethvlink_handle_frame_virt;
+	dev_priv->netvif_rx = fb_ethvlink_handle_frame_virt;
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
 

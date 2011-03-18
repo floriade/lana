@@ -58,7 +58,7 @@ struct vlinknlmsg {
 		 flags:16,
 		 reserved:8;
 	uint32_t type:16,
-		 port:16;
+		 port:16; /* Actually 8 Bit, but for alignment reasons */
 	uint8_t virt_name[IFNAMSIZ];
 	uint8_t real_name[IFNAMSIZ];
 };
