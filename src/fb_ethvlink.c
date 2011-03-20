@@ -534,12 +534,15 @@ err_put:
 	return NETLINK_VLINK_RX_EMERG;
 }
 
-static int fb_ethvlink_dev_event(struct notifier_block *unused,
+static int fb_ethvlink_dev_event(struct notifier_block *self,
 				 unsigned long event, void *ptr)
 {
 	struct net_device *dev = ptr;
 	struct fb_ethvlink_private *vdev;
 	struct vlinknlmsg vhdr;
+
+	if (!dev)
+		return NOTIFY_DONE;
 
 	switch (event) {
 	case NETDEV_CHANGE:
@@ -573,6 +576,8 @@ static int fb_ethvlink_dev_event(struct notifier_block *unused,
 		break;
 	case NETDEV_PRE_TYPE_CHANGE:
 		return NOTIFY_BAD;
+	default:
+		return NOTIFY_DONE;
 	}
 
 	return NOTIFY_DONE;
@@ -636,15 +641,9 @@ static int __init init_fb_ethvlink_module(void)
 {
 	int ret = 0;
 
-	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
-	if (ret)	
-		return ret;
-
-	register_netdevice_notifier(&fb_ethvlink_notifier_block);
-
 	ret = nl_vlink_subsys_register(&fb_ethvlink_sys);
 	if (ret)
-		goto err;
+		return ret;
 
 	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
 				     &fb_ethvlink_add_dev_cb,
@@ -652,16 +651,19 @@ static int __init init_fb_ethvlink_module(void)
 				     &fb_ethvlink_start_hook_dev_cb,
 				     &fb_ethvlink_stop_hook_dev_cb);
 	if (ret)
-		goto err_unr;
+		goto err;
+
+	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
+	if (ret)	
+		goto err;
+
+	register_netdevice_notifier(&fb_ethvlink_notifier_block);
 
 	printk(KERN_INFO "[lana] Ethernet vlink layer loaded!\n");
 	return 0;
 
-err_unr:
-	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 err:
-	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
-	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
+	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 	return ret;
 }
 
@@ -685,8 +687,8 @@ static void __exit cleanup_fb_ethvlink_module(void)
 	}
 	rcu_read_unlock();
 
-	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
+	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
 	printk(KERN_INFO "[lana] Ethernet vlink layer removed!\n");
