@@ -645,13 +645,10 @@ static int __init init_fb_ethvlink_module(void)
 	if (ret)
 		return ret;
 
-	ret = nl_vlink_add_callbacks(&fb_ethvlink_sys,
-				     &fb_ethvlink_add_dev_cb,
-				     &fb_ethvlink_rm_dev_cb,
-				     &fb_ethvlink_start_hook_dev_cb,
-				     &fb_ethvlink_stop_hook_dev_cb);
-	if (ret)
-		goto err;
+	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_add_dev_cb);
+	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_rm_dev_cb);
+	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_start_hook_dev_cb);
+	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_stop_hook_dev_cb);
 
 	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
