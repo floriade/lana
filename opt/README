@@ -1,0 +1,10 @@
+Network debugging and measurement tools can be found on: http://netsniff-ng.org
+
+ $ git clone git://repo.or.cz/netsniff-ng.git
+
+There you can find:
+  * trafgen: a tool for network packet generation
+  * netsniff-ng: a network packet analyzer
+  * ifpps: top-like displaying of kernel networking statistics
+           with CSV export capabilities
+
