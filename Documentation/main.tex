@@ -1,0 +1,21 @@
+%\documentclass[10pt,final,a4paper,twoside]{book}
+%\documentclass[10pt,draft,a4paper,twoside,openright]{report}
+%\documentclass[10pt,final,a4paper,twoside,openright]{report}
+%\documentclass[10pt,a4paper,twoside]{report}
+% Number title page as page one (notitlepage)
+\documentclass[12pt,a4paper,twoside,notitlepage,openright]{report}
+\input{preamble}
+\begin{document}
+\input{title}
+\include{abstract}
+\input{acknowledgements}
+\include{contents}
+\include{chapter}
+\appendix
+\renewcommand{\thepart}{\Alph{part}}
+\renewcommand\bibname{References}
+\bibliography{bibliography}
+\include{appchapter}
+\end{document}
+
+% EOF
