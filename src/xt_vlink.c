@@ -24,31 +24,31 @@
 
 #include "xt_vlink.h"
 
-static DEFINE_MUTEX(nl_vlink_mutex);
-static struct sock *nl_vlink_sock = NULL;
-static struct nl_vlink_subsys **vlink_subsystem_table = NULL;
+static DEFINE_MUTEX(vlink_mutex);
+static struct sock *vlink_sock = NULL;
+static struct vlink_subsys **vlink_subsystem_table = NULL;
 
-void nl_vlink_lock(void)
+void vlink_lock(void)
 {
-	mutex_lock(&nl_vlink_mutex);
+	mutex_lock(&vlink_mutex);
 }
-EXPORT_SYMBOL_GPL(nl_vlink_lock);
+EXPORT_SYMBOL_GPL(vlink_lock);
 
-void nl_vlink_unlock(void)
+void vlink_unlock(void)
 {
-	mutex_unlock(&nl_vlink_mutex);
+	mutex_unlock(&vlink_mutex);
 }
-EXPORT_SYMBOL_GPL(nl_vlink_unlock);
+EXPORT_SYMBOL_GPL(vlink_unlock);
 
-int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
+int vlink_subsys_register(struct vlink_subsys *n)
 {
 	int i, slot;
-	struct nl_vlink_subsys *vs;
+	struct vlink_subsys *vs;
 
 	if (!n)
 		return -EINVAL;
 
-	nl_vlink_lock();
+	vlink_lock();
 
 	for (i = 0, slot = -1; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (!vlink_subsystem_table[i] && slot == -1)
@@ -58,7 +58,7 @@ int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
 		else {
 			vs = vlink_subsystem_table[i];
 			if (n->type == vs->type) {
-				nl_vlink_unlock();
+				vlink_unlock();
 				/* We already have this subsystem loaded! */
 				return -EBUSY;
 			}
@@ -71,20 +71,20 @@ int nl_vlink_subsys_register(struct nl_vlink_subsys *n)
 		vlink_subsystem_table[slot] = n;
 	}
 
-	nl_vlink_unlock();
+	vlink_unlock();
 
 	return slot == -1 ? -ENOMEM : 0;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_subsys_register);
+EXPORT_SYMBOL_GPL(vlink_subsys_register);
 
-void nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
+void vlink_subsys_unregister(struct vlink_subsys *n)
 {
 	int i;
 
 	if (!n)
 		return;
 
-	nl_vlink_lock();
+	vlink_lock();
 
 	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (vlink_subsystem_table[i] == n && i == n->id) {
@@ -94,11 +94,11 @@ void nl_vlink_subsys_unregister(struct nl_vlink_subsys *n)
 		}
 	}
 
-	nl_vlink_unlock();
+	vlink_unlock();
 }
-EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister);
+EXPORT_SYMBOL_GPL(vlink_subsys_unregister);
 
-static struct nl_vlink_subsys *__nl_vlink_subsys_find(u16 type)
+static struct vlink_subsys *__vlink_subsys_find(u16 type)
 {
 	int i;
 
@@ -109,22 +109,22 @@ static struct nl_vlink_subsys *__nl_vlink_subsys_find(u16 type)
 	return NULL;
 }
 
-struct nl_vlink_subsys *nl_vlink_subsys_find(u16 type)
+struct vlink_subsys *vlink_subsys_find(u16 type)
 {
-	struct nl_vlink_subsys *ret;
+	struct vlink_subsys *ret;
 
-	nl_vlink_lock();
-	ret = __nl_vlink_subsys_find(type);
-	nl_vlink_unlock();
+	vlink_lock();
+	ret = __vlink_subsys_find(type);
+	vlink_unlock();
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_subsys_find);
+EXPORT_SYMBOL_GPL(vlink_subsys_find);
 
-static int __nl_vlink_add_callback(struct nl_vlink_subsys *n,
-				   struct nl_vlink_callback *cb)
+static int __vlink_add_callback(struct vlink_subsys *n,
+				struct vlink_callback *cb)
 {
-	struct nl_vlink_callback **hb;
+	struct vlink_callback **hb;
 
 	if (!cb)
 		return -EINVAL;
@@ -143,8 +143,8 @@ static int __nl_vlink_add_callback(struct nl_vlink_subsys *n,
 	return 0;
 }
 
-int nl_vlink_add_callback(struct nl_vlink_subsys *n,
-			  struct nl_vlink_callback *cb)
+int vlink_add_callback(struct vlink_subsys *n,
+		       struct vlink_callback *cb)
 {
 	int ret;
 
@@ -152,49 +152,49 @@ int nl_vlink_add_callback(struct nl_vlink_subsys *n,
 		return -EINVAL;
 
 	down_write(&n->rwsem);
-	ret = __nl_vlink_add_callback(n, cb);
+	ret = __vlink_add_callback(n, cb);
 	up_write(&n->rwsem);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_add_callback);
+EXPORT_SYMBOL_GPL(vlink_add_callback);
 
-int nl_vlink_add_callbacks_va(struct nl_vlink_subsys *n,
-			      struct nl_vlink_callback *cb, va_list ap)
+int vlink_add_callbacks_va(struct vlink_subsys *n,
+			   struct vlink_callback *cb, va_list ap)
 {
 	int ret = 0;
-	struct nl_vlink_callback *arg;
+	struct vlink_callback *arg;
 
 	arg = cb;
 	while (arg) {
-		ret = nl_vlink_add_callback(n, arg);
+		ret = vlink_add_callback(n, arg);
 		if (ret)
 			break;
-		arg = va_arg(ap, struct nl_vlink_callback *);
+		arg = va_arg(ap, struct vlink_callback *);
 	}
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_add_callbacks_va);
+EXPORT_SYMBOL_GPL(vlink_add_callbacks_va);
 
-int nl_vlink_add_callbacks(struct nl_vlink_subsys *n,
-			   struct nl_vlink_callback *cb, ...)
+int vlink_add_callbacks(struct vlink_subsys *n,
+			struct vlink_callback *cb, ...)
 {
 	int ret;
 	va_list vl;
 
 	va_start(vl, cb);
-	ret = nl_vlink_add_callbacks_va(n, cb, vl);
+	ret = vlink_add_callbacks_va(n, cb, vl);
 	va_end(vl);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_add_callbacks);
+EXPORT_SYMBOL_GPL(vlink_add_callbacks);
 
-static int __nl_vlink_rm_callback(struct nl_vlink_subsys *n,
-				  struct nl_vlink_callback *cb)
+static int __vlink_rm_callback(struct vlink_subsys *n,
+			       struct vlink_callback *cb)
 {
-	struct nl_vlink_callback **hb;
+	struct vlink_callback **hb;
 
 	if (!cb)
 		return -EINVAL;
@@ -212,8 +212,8 @@ static int __nl_vlink_rm_callback(struct nl_vlink_subsys *n,
 	return -ENOENT;
 }
 
-int nl_vlink_rm_callback(struct nl_vlink_subsys *n,
-			 struct nl_vlink_callback *cb)
+int vlink_rm_callback(struct vlink_subsys *n,
+		      struct vlink_callback *cb)
 {
 	int ret;
 
@@ -221,21 +221,21 @@ int nl_vlink_rm_callback(struct nl_vlink_subsys *n,
 		return -EINVAL;
 
 	down_write(&n->rwsem);
-	ret = __nl_vlink_rm_callback(n, cb);
+	ret = __vlink_rm_callback(n, cb);
 	up_write(&n->rwsem);
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(nl_vlink_rm_callback);
+EXPORT_SYMBOL_GPL(vlink_rm_callback);
 
-void nl_vlink_subsys_unregister_batch(struct nl_vlink_subsys *n)
+void vlink_subsys_unregister_batch(struct vlink_subsys *n)
 {
 	int i;
 
 	if (!n)
 		return;
 
-	nl_vlink_lock();
+	vlink_lock();
 
 	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (vlink_subsystem_table[i] == n && i == n->id) {
@@ -245,20 +245,20 @@ void nl_vlink_subsys_unregister_batch(struct nl_vlink_subsys *n)
 		}
 	}
 
-	nl_vlink_unlock();
+	vlink_unlock();
 
 	/* Now, we cannot be invoked anymore */
 	while (n-> head != NULL)
-		nl_vlink_rm_callback(n, n->head);
+		vlink_rm_callback(n, n->head);
 }
-EXPORT_SYMBOL_GPL(nl_vlink_subsys_unregister_batch);
+EXPORT_SYMBOL_GPL(vlink_subsys_unregister_batch);
 
-static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
-			     struct vlinknlmsg *vmsg,
-			     struct nlmsghdr *nlh)
+static int __vlink_invoke(struct vlink_subsys *n,
+			  struct vlinknlmsg *vmsg,
+			  struct nlmsghdr *nlh)
 {
 	int ret;
-	struct nl_vlink_callback *hb, *hn;
+	struct vlink_callback *hb, *hn;
 
 	smp_read_barrier_depends();
 	hb = n->head;
@@ -279,11 +279,11 @@ static int __nl_vlink_invoke(struct nl_vlink_subsys *n,
 	return ret;
 }
 
-static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
+static int __vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	int ret;
 	struct vlinknlmsg *vmsg;
-	struct nl_vlink_subsys *sys;
+	struct vlink_subsys *sys;
 
 	if (security_netlink_recv(skb, CAP_NET_ADMIN))
 		return -EPERM;
@@ -291,27 +291,27 @@ static int __nl_vlink_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 	if (nlh->nlmsg_len < NLMSG_LENGTH(sizeof(struct vlinknlmsg)))
 		return 0;
 
-	sys = __nl_vlink_subsys_find(nlh->nlmsg_type);
+	sys = __vlink_subsys_find(nlh->nlmsg_type);
 	if (!sys)
 		return -EINVAL;
 
 	vmsg = NLMSG_DATA(nlh);
 
 	down_read(&sys->rwsem);
-	ret = __nl_vlink_invoke(sys, vmsg, nlh);
+	ret = __vlink_invoke(sys, vmsg, nlh);
 	up_read(&sys->rwsem);
 
 	return ret;
 }
 
-static void nl_vlink_rcv(struct sk_buff *skb)
+static void vlink_rcv(struct sk_buff *skb)
 {
-	nl_vlink_lock();
-	netlink_rcv_skb(skb, &__nl_vlink_rcv);
-	nl_vlink_unlock();
+	vlink_lock();
+	netlink_rcv_skb(skb, &__vlink_rcv);
+	vlink_unlock();
 }
 
-static int __init init_nl_vlink_module(void)
+int init_vlink_system(void)
 {
 	int ret;
 
@@ -320,10 +320,10 @@ static int __init init_nl_vlink_module(void)
 	if (!vlink_subsystem_table)
 		return -ENOMEM;
 
-	nl_vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK,
-					      VLINKNLGRP_MAX, nl_vlink_rcv,
-					      NULL, THIS_MODULE);
-	if (!nl_vlink_sock) {
+	vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK,
+					   VLINKNLGRP_MAX, vlink_rcv,
+					   NULL, THIS_MODULE);
+	if (!vlink_sock) {
 		ret = -ENOMEM;
 		goto err;
 	}
@@ -336,18 +336,11 @@ err:
 	return ret;
 }
 
-static void __exit cleanup_nl_vlink_module(void)
+void cleanup_vlink_system(void)
 {
-	netlink_kernel_release(nl_vlink_sock);
+	netlink_kernel_release(vlink_sock);
 	kfree(vlink_subsystem_table);
 
 	printk(KERN_INFO "[lana] NETLINK vlink layer removed!\n");
 }
-
-module_init(init_nl_vlink_module);
-module_exit(cleanup_nl_vlink_module);
-
-MODULE_LICENSE("GPL");
-MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
-MODULE_DESCRIPTION("Netlink subsystem for LANA virtual link layer drivers");
 

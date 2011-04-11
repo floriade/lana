@@ -9,9 +9,9 @@
 # LANA core files
 xcore-y := core.o      \
 	   xt_sched.o  \
+	   xt_vlink.o  \
 	   xt_user.o
 obj-m   += xcore.o
-obj-m   += nl_vlink.o
 
 # LANA optional modules
 obj-m  += fb_ethvlink.o
