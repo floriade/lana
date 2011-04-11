@@ -22,7 +22,7 @@
 #include <net/netlink.h>
 #include <net/sock.h>
 
-#include "nl_vlink.h"
+#include "xt_vlink.h"
 
 static DEFINE_MUTEX(nl_vlink_mutex);
 static struct sock *nl_vlink_sock = NULL;
