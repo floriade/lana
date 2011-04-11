@@ -27,7 +27,7 @@
 #include <linux/u64_stats_sync.h>
 #include <net/rtnetlink.h>
 
-#include "nl_vlink.h"
+#include "xt_vlink.h"
 #include "fb_glue.h"
 
 #define IFF_VLINK_MAS 0x20000 /* Master device */
@@ -618,7 +618,7 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 	.validate            = fb_ethvlink_validate,
 };
 
-static struct nl_vlink_subsys fb_ethvlink_sys __read_mostly = {
+static struct vlink_subsys fb_ethvlink_sys __read_mostly = {
 	.name                = "ethvlink",
 	.type                = VLINKNLGRP_ETHERNET,
 	.rwsem               = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
@@ -628,27 +628,27 @@ static struct notifier_block fb_ethvlink_notifier_block __read_mostly = {
 	.notifier_call       = fb_ethvlink_dev_event,
 };
 
-static struct nl_vlink_callback fb_ethvlink_add_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_add_dev, NETLINK_VLINK_PRIO_NORM);
-static struct nl_vlink_callback fb_ethvlink_rm_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_rm_dev, NETLINK_VLINK_PRIO_NORM);
-static struct nl_vlink_callback fb_ethvlink_start_hook_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_start_hook_dev, NETLINK_VLINK_PRIO_HIGH);
-static struct nl_vlink_callback fb_ethvlink_stop_hook_dev_cb =
-	NL_VLINK_CALLBACK_INIT(fb_ethvlink_stop_hook_dev, NETLINK_VLINK_PRIO_HIGH);
+static struct vlink_callback fb_ethvlink_add_dev_cb =
+	VLINK_CALLBACK_INIT(fb_ethvlink_add_dev, NETLINK_VLINK_PRIO_NORM);
+static struct vlink_callback fb_ethvlink_rm_dev_cb =
+	VLINK_CALLBACK_INIT(fb_ethvlink_rm_dev, NETLINK_VLINK_PRIO_NORM);
+static struct vlink_callback fb_ethvlink_start_hook_dev_cb =
+	VLINK_CALLBACK_INIT(fb_ethvlink_start_hook_dev, NETLINK_VLINK_PRIO_HIGH);
+static struct vlink_callback fb_ethvlink_stop_hook_dev_cb =
+	VLINK_CALLBACK_INIT(fb_ethvlink_stop_hook_dev, NETLINK_VLINK_PRIO_HIGH);
 
 static int __init init_fb_ethvlink_module(void)
 {
 	int ret = 0;
 
-	ret = nl_vlink_subsys_register(&fb_ethvlink_sys);
+	ret = vlink_subsys_register(&fb_ethvlink_sys);
 	if (ret)
 		return ret;
 
-	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_add_dev_cb);
-	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_rm_dev_cb);
-	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_start_hook_dev_cb);
-	nl_vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_stop_hook_dev_cb);
+	vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_add_dev_cb);
+	vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_rm_dev_cb);
+	vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_start_hook_dev_cb);
+	vlink_add_callback(&fb_ethvlink_sys, &fb_ethvlink_stop_hook_dev_cb);
 
 	ret = rtnl_link_register(&fb_ethvlink_rtnl_ops);
 	if (ret)	
@@ -660,7 +660,7 @@ static int __init init_fb_ethvlink_module(void)
 	return 0;
 
 err:
-	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
+	vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 	return ret;
 }
 
@@ -686,7 +686,7 @@ static void __exit cleanup_fb_ethvlink_module(void)
 
 	unregister_netdevice_notifier(&fb_ethvlink_notifier_block);
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
-	nl_vlink_subsys_unregister_batch(&fb_ethvlink_sys);
+	vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
 	printk(KERN_INFO "[lana] Ethernet vlink layer removed!\n");
 }

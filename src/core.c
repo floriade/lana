@@ -10,15 +10,24 @@
 #include <linux/kernel.h>
 
 #include "fb_glue.h"
+#include "xt_vlink.h"
 
 static int __init init_lana_core_module(void)
 {
+	int ret;
+
+	ret = init_vlink_system();
+	if (ret)
+		return -ENOMEM;
+
 	printk(KERN_INFO "[lana] core loaded!\n");
 	return 0;
 }
 
 static void __exit cleanup_lana_core_module(void)
 {
+	cleanup_vlink_system();
+
 	printk(KERN_INFO "[lana] core removed!\n");
 }
 
