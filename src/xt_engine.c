@@ -25,10 +25,14 @@
 struct worker_engine __percpu *engines;
 extern struct proc_dir_entry *lana_proc_dir;
 
+void cleanup_worker_engines(void);
+
 static int engine_thread(void *arg)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
+	if (ppe->cpu != smp_processor_id())
+		panic("[lana] Engine scheduled on wrong CPU!\n");
 
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
@@ -83,6 +87,7 @@ int init_worker_engines(void)
 		ppe = per_cpu_ptr(engines, cpu);
 		memset(&ppe->stats, 0, sizeof(ppe->stats));
 		ppe->stats.lock = __RW_LOCK_UNLOCKED(lock);
+		ppe->cpu = cpu;
 
 		skb_queue_head_init(&ppe->ingressq);
 		skb_queue_head_init(&ppe->egressq);
@@ -93,22 +98,18 @@ int init_worker_engines(void)
 		ppe->proc = create_proc_read_entry(name, 0444, lana_proc_dir,
 						   engine_procfs_stats, ppe);
 		if (!ppe->proc) {
-			ret = -ENOMEM; /* TODO */
+			ret = -ENOMEM;
 			break;
 		}
 
 		init_waitqueue_head(&ppe->wq);
-#ifndef kthread_create_on_node
-		ppe->thread = kthread_create(engine_thread, NULL, name);
-#else /* Use NUMA affinity for kthread stack */
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
 						     cpu, name);
-#endif
 		if (IS_ERR(ppe->thread)) {
 			printk(KERN_ERR "[lana] Error creationg thread on "
 			       "node %u!\n", cpu);
 			ret = -EIO;
-			break; /* TODO clean rest up */
+			break;
 		}
 
 		kthread_bind(ppe->thread, cpu);
@@ -116,6 +117,8 @@ int init_worker_engines(void)
 	}
 	put_online_cpus();
 
+	if (ret < 0)
+		cleanup_worker_engines();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(init_worker_engines);
@@ -133,8 +136,10 @@ void cleanup_worker_engines(void)
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 
 		ppe = per_cpu_ptr(engines, cpu);
-		kthread_stop(ppe->thread);
-		remove_proc_entry(name, lana_proc_dir);
+		if (!IS_ERR(ppe->thread))
+			kthread_stop(ppe->thread);
+		if (ppe->proc)
+			remove_proc_entry(name, lana_proc_dir);
 	}
 	put_online_cpus();
 	free_percpu(engines);

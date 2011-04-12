@@ -24,6 +24,7 @@ struct worker_estats {
 };
 
 struct worker_engine {
+	unsigned int cpu;               /* CPU the worker is bound to */
 	struct sk_buff_head ingressq;   /* Incoming from PHY          */
 	struct sk_buff_head egressq;    /* Incoming from Socket       */
 	struct worker_estats stats;     /* Worker statistics          */
