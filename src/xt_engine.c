@@ -104,7 +104,7 @@ int init_worker_engines(void)
 
 		init_waitqueue_head(&ppe->wq);
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
-						     cpu, name);
+						     cpu_to_node(cpu), name);
 		if (IS_ERR(ppe->thread)) {
 			printk(KERN_ERR "[lana] Error creationg thread on "
 			       "node %u!\n", cpu);
