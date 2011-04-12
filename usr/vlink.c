@@ -24,7 +24,7 @@
 #include <linux/netlink.h>
 #include <linux/if.h>
 
-#include "nl_vlink.h"
+#include "xt_vlink.h"
 
 #ifndef likely
 # define likely(x) __builtin_expect(!!(x), 1)
