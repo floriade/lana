@@ -17,15 +17,19 @@
 
 static struct worker_engine __percpu *engines;
 
-int enqueue_egress_on_engine(struct sk_buff *skb, unsigned int cpu)
+void enqueue_egress_on_engine(struct sk_buff *skb, unsigned int cpu)
 {
-	return 0;
+	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+	skb_queue_tail(&ppe->egressq, skb);
 }
+EXPORT_SYMBOL_GPL(enqueue_egress_on_engine);
 
-int enqueue_ingress_on_engine(struct sk_buff *skb, unsigned int cpu)
+void enqueue_ingress_on_engine(struct sk_buff *skb, unsigned int cpu)
 {
-	return 0;
+	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+	skb_queue_tail(&ppe->ingressq, skb);
 }
+EXPORT_SYMBOL_GPL(enqueue_ingress_on_engine);
 
 static int engine_thread(void *arg)
 {

@@ -34,9 +34,8 @@ struct worker_engine {
 	struct task_struct *thread;     /* Task struct of thread      */
 } ____cacheline_aligned_in_smp;
 
-/* TODO: (later) add initial IDP */
-extern int enqueue_egress_on_engine(struct sk_buff *skb, unsigned int cpu);
-extern int enqueue_ingress_on_engine(struct sk_buff *skb, unsigned int cpu);
+extern void enqueue_egress_on_engine(struct sk_buff *skb, unsigned int cpu);
+extern void enqueue_ingress_on_engine(struct sk_buff *skb, unsigned int cpu);
 extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);
 
