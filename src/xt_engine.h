@@ -31,7 +31,7 @@ struct worker_engine {
 	struct sk_buff_head *egressq;   /* Incoming from Socket       */
 	wait_queue_head_t wq;           /* Thread waitqueue           */
 	struct worker_estats stats;     /* Worker statistics          */
-	struct task_struct self;        /* Task struct of thread      */
+	struct task_struct *thread;     /* Task struct of thread      */
 } ____cacheline_aligned_in_smp;
 
 /* TODO: (later) add initial IDP */
