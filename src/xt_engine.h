@@ -27,8 +27,8 @@ struct worker_engine {
 	spinlock_t lock;                /* Engine lock                */
 	unsigned int cpu;               /* CPU the engine is bound to */
 	uint32_t flags;                 /* Engine status flags        */
-	struct sk_buff_head *ingressq;  /* Incoming from PHY          */
-	struct sk_buff_head *egressq;   /* Incoming from Socket       */
+	struct sk_buff_head ingressq;   /* Incoming from PHY          */
+	struct sk_buff_head egressq;    /* Incoming from Socket       */
 	wait_queue_head_t wq;           /* Thread waitqueue           */
 	struct worker_estats stats;     /* Worker statistics          */
 	struct task_struct *thread;     /* Task struct of thread      */

@@ -36,9 +36,13 @@ static int engine_thread(void *arg)
 	       "on CPU%u!\n", smp_processor_id());
 
 	while (1) {
-		wait_event_interruptible(ppe->wq, kthread_should_stop());
+		wait_event_interruptible(ppe->wq, (kthread_should_stop() ||
+					 !skb_queue_empty(&ppe->ingressq) ||
+					 !skb_queue_empty(&ppe->egressq)));
 		if (kthread_should_stop())
 			break;
+		printk(KERN_INFO "[lana] Got work todo on %u!\n",
+		       smp_processor_id());
 	}
 
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "
@@ -63,6 +67,8 @@ int init_worker_engines(void)
 		ppe->lock = __SPIN_LOCK_UNLOCKED(lock);
 		ppe->flags = 0;
 		memset(&ppe->stats, 0, sizeof(ppe->stats));
+		skb_queue_head_init(&ppe->ingressq);
+		skb_queue_head_init(&ppe->egressq);
 		init_waitqueue_head(&ppe->wq);
 #ifndef kthread_create_on_node
 		ppe->thread = kthread_create(engine_thread, NULL,
