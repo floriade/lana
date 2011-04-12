@@ -18,24 +18,12 @@
 #include <linux/skbuff.h>
 #include <linux/wait.h>
 #include <linux/kthread.h>
+#include <linux/proc_fs.h>
 
 #include "xt_engine.h"
 
-static struct worker_engine __percpu *engines;
-
-void enqueue_egress_on_engine(struct sk_buff *skb, unsigned int cpu)
-{
-	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
-	skb_queue_tail(&ppe->egressq, skb);
-}
-EXPORT_SYMBOL_GPL(enqueue_egress_on_engine);
-
-void enqueue_ingress_on_engine(struct sk_buff *skb, unsigned int cpu)
-{
-	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
-	skb_queue_tail(&ppe->ingressq, skb);
-}
-EXPORT_SYMBOL_GPL(enqueue_ingress_on_engine);
+struct worker_engine __percpu *engines;
+extern struct proc_dir_entry *lana_proc_dir;
 
 static int engine_thread(void *arg)
 {
@@ -51,8 +39,10 @@ static int engine_thread(void *arg)
 					 !skb_queue_empty(&ppe->egressq)));
 		if (unlikely(kthread_should_stop()))
 			break;
-		printk(KERN_INFO "[lana] Got work todo on %u!\n",
-		       smp_processor_id());
+
+		write_lock(&ppe->stats.lock);
+		ppe->stats.packets++;
+		write_unlock(&ppe->stats.lock);
 	}
 
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "
@@ -60,10 +50,27 @@ static int engine_thread(void *arg)
 	return 0;
 }
 
+static int engine_procfs_stats(char *page, char **start, off_t offset, 
+			       int count, int *eof, void *data)
+{
+	off_t len = 0;
+	struct worker_engine *ppe = data;
+
+	read_lock(&ppe->stats.lock);
+	len += sprintf(page + len, "packets: %llu\n", ppe->stats.packets);
+	len += sprintf(page + len, "errors:  %u\n", ppe->stats.errors);
+	len += sprintf(page + len, "drops:   %llu\n", ppe->stats.dropped);
+	read_unlock(&ppe->stats.lock);
+	*eof = 1;
+
+	return len;
+}
+
 int init_worker_engines(void)
 {
 	int ret = 0;
 	unsigned int cpu;
+	char name[64];
 
 	engines = alloc_percpu(struct worker_engine);
 	if (!engines)
@@ -72,26 +79,36 @@ int init_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+
 		ppe = per_cpu_ptr(engines, cpu);
-		ppe->cpu = cpu;
-		ppe->lock = __SPIN_LOCK_UNLOCKED(lock);
-		ppe->flags = 0;
 		memset(&ppe->stats, 0, sizeof(ppe->stats));
+		ppe->stats.lock = __RW_LOCK_UNLOCKED(lock);
+
 		skb_queue_head_init(&ppe->ingressq);
 		skb_queue_head_init(&ppe->egressq);
+
+		memset(name, 0, sizeof(name));
+		snprintf(name, sizeof(name), "ppe%u", cpu);
+
+		ppe->proc = create_proc_read_entry(name, 0444, lana_proc_dir,
+						   engine_procfs_stats, ppe);
+		if (!ppe->proc) {
+			ret = -ENOMEM; /* TODO */
+			break;
+		}
+
 		init_waitqueue_head(&ppe->wq);
 #ifndef kthread_create_on_node
-		ppe->thread = kthread_create(engine_thread, NULL,
-					     "ppe%u", cpu);
+		ppe->thread = kthread_create(engine_thread, NULL, name);
 #else /* Use NUMA affinity for kthread stack */
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
-						     cpu, "ppe%u", cpu);
+						     cpu, name);
 #endif
 		if (IS_ERR(ppe->thread)) {
 			printk(KERN_ERR "[lana] Error creationg thread on "
 			       "node %u!\n", cpu);
 			ret = -EIO;
-			break;
+			break; /* TODO clean rest up */
 		}
 
 		kthread_bind(ppe->thread, cpu);
@@ -106,12 +123,18 @@ EXPORT_SYMBOL_GPL(init_worker_engines);
 void cleanup_worker_engines(void)
 {
 	unsigned int cpu;
+	char name[64];
 
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+
+		memset(name, 0, sizeof(name));
+		snprintf(name, sizeof(name), "ppe%u", cpu);
+
 		ppe = per_cpu_ptr(engines, cpu);
 		kthread_stop(ppe->thread);
+		remove_proc_entry(name, lana_proc_dir);
 	}
 	put_online_cpus();
 	free_percpu(engines);
