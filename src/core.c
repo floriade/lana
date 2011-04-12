@@ -11,6 +11,7 @@
 
 #include "fb_glue.h"
 #include "xt_vlink.h"
+#include "xt_engine.h"
 
 static int __init init_lana_core_module(void)
 {
@@ -20,12 +21,21 @@ static int __init init_lana_core_module(void)
 	if (ret)
 		return -ENOMEM;
 
+	ret = init_worker_engines();
+	if (ret)
+		goto err;
+
 	printk(KERN_INFO "[lana] core loaded!\n");
 	return 0;
+
+err:
+	cleanup_vlink_system();
+	return -ENOMEM;
 }
 
 static void __exit cleanup_lana_core_module(void)
 {
+	cleanup_worker_engines();
 	cleanup_vlink_system();
 
 	printk(KERN_INFO "[lana] core removed!\n");

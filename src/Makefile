@@ -6,22 +6,26 @@
 # Subject to the GPL.
 #
 
-# LANA core files
 xcore-y := core.o      \
 	   xt_sched.o  \
 	   xt_vlink.o  \
+	   xt_engine.o \
 	   xt_user.o
 obj-m   += xcore.o
 
-# LANA optional modules
-obj-m  += fb_ethvlink.o
+# Some of the optional modules are packed, so that we have two packages:
+# basic and extra, nevertheless modules can also be developed as a single
+# module.
 
-MDIR := /lib/modules/$(shell uname -r)
-KDIR := $(MDIR)/build
-DEST := $(MDIR)/kernel/drivers/net/lana/
+xbasic-y := fb_ethvlink.o
+obj-m    += xbasic.o
 
-CORE_LD_DEP := 
-CORE_ULD_DEP := 
+#xextra-y := fb_ethvlink.o
+#obj-m    += xextra.o
+
+MDIR     := /lib/modules/$(shell uname -r)
+KDIR     := $(MDIR)/build
+DEST     := $(MDIR)/kernel/drivers/net/lana/
 
 all: build
 
