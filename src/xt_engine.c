@@ -27,22 +27,36 @@ extern struct proc_dir_entry *lana_proc_dir;
 
 void cleanup_worker_engines(void);
 
+static int process_packet(struct sk_buff *skb, enum direction dir)
+{
+	return 0;
+}
+
 static int engine_thread(void *arg)
 {
+	struct sk_buff *skb;
+	struct ppe_queue *ppeq;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
+
 	if (ppe->cpu != smp_processor_id())
 		panic("[lana] Engine scheduled on wrong CPU!\n");
 
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
 
+	ppeq = __first_ppe_queue();
 	while (1) {
-		wait_event_interruptible(ppe->wq, (kthread_should_stop() ||
-					 !skb_queue_empty(&ppe->ingressq) ||
-					 !skb_queue_empty(&ppe->egressq)));
+		wait_event_interruptible(ppe->wait_queue,
+					 (kthread_should_stop() ||
+					  __ppe_queues_have_load(ppe)));
 		if (unlikely(kthread_should_stop()))
 			break;
+
+		ppeq = __next_filled_ppe_queue(ppeq);
+		skb = skb_dequeue(&ppeq->queue);
+		process_packet(skb, ppeq->type);
+		kfree_skb(skb);
 
 		write_lock(&ppe->stats.lock);
 		ppe->stats.packets++;
@@ -85,9 +99,10 @@ int init_worker_engines(void)
 		struct worker_engine *ppe;
 
 		ppe = per_cpu_ptr(engines, cpu);
+		ppe->cpu = cpu;
+
 		memset(&ppe->stats, 0, sizeof(ppe->stats));
 		ppe->stats.lock = __RW_LOCK_UNLOCKED(lock);
-		ppe->cpu = cpu;
 
 		skb_queue_head_init(&ppe->ingressq);
 		skb_queue_head_init(&ppe->egressq);
@@ -102,7 +117,7 @@ int init_worker_engines(void)
 			break;
 		}
 
-		init_waitqueue_head(&ppe->wq);
+		init_waitqueue_head(&ppe->wait_queue);
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
 						     cpu_to_node(cpu), name);
 		if (IS_ERR(ppe->thread)) {
