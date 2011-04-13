@@ -6,8 +6,8 @@
  * Subject to the GPL.
  */
 
-#ifndef FB_GLUE
-#define FB_GLUE
+#ifndef FB_GLUE_H
+#define FB_GLUE_H
 
 #include <linux/if.h>
 #include <linux/skbuff.h>
@@ -27,4 +27,4 @@ struct functional_block {
 	struct functional_block_ops *ops;
 };
 
-#endif /* FB_GLUE */
+#endif /* FB_GLUE_H */

@@ -6,11 +6,8 @@
  * Subject to the GPL.
  */
 
-#ifndef XT_TABLES_H
-#define XT_TABLES_H
+#ifndef XT_USER_H
+#define XT_USER_H
 
-extern int init_tables(void);
-extern void cleanup_tables(void);
-
-#endif /* XT_TABLES_H */
+#endif /* XT_USER_H */
 

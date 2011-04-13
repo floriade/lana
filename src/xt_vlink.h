@@ -6,8 +6,8 @@
  * Subject to the GPL.
  */
 
-#ifndef XT_VLINK
-#define XT_VLINK
+#ifndef XT_VLINK_H
+#define XT_VLINK_H
 
 #ifdef __KERNEL__
 
@@ -111,5 +111,5 @@ extern int vlink_rm_callback(struct vlink_subsys *n,
 			     struct vlink_callback *cb);
 
 #endif /* __KERNEL__ */
-#endif /* XT_VLINK */
+#endif /* XT_VLINK_H */
 

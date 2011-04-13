@@ -6,8 +6,8 @@
  * Subject to the GPL.
  */
 
-#ifndef XT_IDP
-#define XT_IDP
+#ifndef XT_IDP_H
+#define XT_IDP_H
 
 #include <linux/types.h>
 
@@ -16,5 +16,5 @@ typedef __u32 idp_t;
 #define IDP_EXIT_PPE  0
 #define IDP_UNKNOWN   IDP_EXIT_PPE
 
-#endif /* XT_IDP */
+#endif /* XT_IDP_H */
 

@@ -6,8 +6,8 @@
  * Subject to the GPL.
  */
 
-#ifndef XT_SKB
-#define XT_SKB
+#ifndef XT_SKB_H
+#define XT_SKB_H
 
 #include <linux/skbuff.h>
 #include "xt_idp.h"
@@ -34,5 +34,5 @@ static inline idp_t read_next_idp_from_skb(struct sk_buff *skb)
 	return SKB_LANA_INF(skb)->idp_dst;
 }
 
-#endif /* XT_SKB */
+#endif /* XT_SKB_H */
 
