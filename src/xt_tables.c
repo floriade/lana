@@ -9,6 +9,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/seqlock.h>
 
 int init_tables(void)
 {

@@ -13,6 +13,7 @@
 #include <linux/wait.h>
 #include <linux/cpu.h>
 #include <linux/sched.h>
+#include <linux/u64_stats_sync.h>
 #include <linux/atomic.h>
 
 enum path_type {
@@ -32,9 +33,10 @@ enum path_type {
 
 struct worker_estats {
 	u64 packets;
-	u32 errors;
+	u64 bytes;
 	u64 dropped;
-	rwlock_t lock;
+	struct u64_stats_sync syncp;
+	u32 errors;
 };
 
 struct ppe_queue {

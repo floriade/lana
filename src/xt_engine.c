@@ -19,6 +19,8 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/proc_fs.h>
+#include <linux/u64_stats_sync.h>
+#include <linux/prefetch.h>
 #include <linux/sched.h>
 
 #include "xt_engine.h"
@@ -37,8 +39,10 @@ static inline struct ppe_queue *__first_ppe_queue(struct worker_engine *ppe)
 static inline struct ppe_queue
 *__next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
-	do ppeq = ppeq->next;
-	while (skb_queue_empty(&ppeq->queue));
+	do {
+		ppeq = ppeq->next;
+		prefetch(ppeq->next);
+	} while (skb_queue_empty(&ppeq->queue));
 	return ppeq;
 }
 
@@ -79,21 +83,20 @@ static int engine_thread(void *arg)
 			break;
 
 		ppeq = __next_filled_ppe_queue(ppeq);
-		write_lock(&ppeq->stats.lock);
+		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
-		write_unlock(&ppeq->stats.lock);
+		u64_stats_update_end(&ppeq->stats.syncp);
+
 		skb = skb_dequeue(&ppeq->queue);
 		ret = process_packet(skb, ppeq->type);
 		switch (ret) {
 		case PPE_DROPPED:
-			write_lock(&ppeq->stats.lock);
+			u64_stats_update_begin(&ppeq->stats.syncp);
 			ppeq->stats.dropped++;
-			write_unlock(&ppeq->stats.lock);
+			u64_stats_update_end(&ppeq->stats.syncp);
 			break;
 		case PPE_ERROR:
-			write_lock(&ppeq->stats.lock);
 			ppeq->stats.errors++;
-			write_unlock(&ppeq->stats.lock);
 			break;
 		default:
 			break;
@@ -112,6 +115,7 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	int i;
 	off_t len = 0;
 	struct worker_engine *ppe = data;
+	unsigned int sstart;
 
 	len += sprintf(page + len, "engine: %p\n", ppe);
 	len += sprintf(page + len, "cpu: %u, numa node: %d\n",
@@ -119,18 +123,21 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	len += sprintf(page + len, "load: %lu\n",
 		       atomic64_read(&ppe->load));
 	for (i = 0; i < NUM_TYPES; ++i) {
-		read_lock(&ppe->inqs.ptrs[i]->stats.lock);
-		len += sprintf(page + len, "queue: %p\n",
-			       ppe->inqs.ptrs[i]);
-		len += sprintf(page + len, "  type: %u\n",
-			       ppe->inqs.ptrs[i]->type);
-		len += sprintf(page + len, "  packets: %llu\n",
-			       ppe->inqs.ptrs[i]->stats.packets);
-		len += sprintf(page + len, "  errors: %u\n",
-			       ppe->inqs.ptrs[i]->stats.errors);
-		len += sprintf(page + len, "  drops: %llu\n",
-			       ppe->inqs.ptrs[i]->stats.dropped);
-		read_unlock(&ppe->inqs.ptrs[i]->stats.lock);
+		do {
+			sstart = u64_stats_fetch_begin(&ppe->inqs.ptrs[i]->stats.syncp);
+			len += sprintf(page + len, "queue: %p\n",
+				       ppe->inqs.ptrs[i]);
+			len += sprintf(page + len, "  type: %u\n",
+				       ppe->inqs.ptrs[i]->type);
+			len += sprintf(page + len, "  packets: %llu\n",
+				       ppe->inqs.ptrs[i]->stats.packets);
+			len += sprintf(page + len, "  bytes: %llu\n",
+				       ppe->inqs.ptrs[i]->stats.bytes);
+			len += sprintf(page + len, "  errors: %u\n",
+				       ppe->inqs.ptrs[i]->stats.errors);
+			len += sprintf(page + len, "  drops: %llu\n",
+				       ppe->inqs.ptrs[i]->stats.dropped);
+		} while (u64_stats_fetch_retry(&ppe->inqs.ptrs[i]->stats.syncp, sstart));
 	}
 	/* FIXME: fits in page? */
 	*eof = 1;
@@ -164,7 +171,6 @@ static int init_ppe_squeue(struct ppe_squeue *queues, unsigned int cpu)
 		if (!tmp)
 			return -ENOMEM;
 		tmp->type = (enum path_type) i;
-		tmp->stats.lock = __RW_LOCK_UNLOCKED(lock);
 		tmp->next = NULL;
 		skb_queue_head_init(&tmp->queue);
 		add_to_ppe_squeue(queues, tmp);
