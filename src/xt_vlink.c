@@ -201,8 +201,8 @@ static int __vlink_rm_callback(struct vlink_subsys *n,
 	hb = &n->head;
 	while (*hb != NULL) {
 		if (*hb == cb) {
-			smp_wmb();
 			*hb = cb->next;
+			smp_wmb();
 			return 0;
 		}
 		hb = &((*hb)->next);
