@@ -47,6 +47,7 @@ static inline int __ppe_queues_have_load(struct worker_engine *ppe)
 
 static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
+	/* IDP continuation passing style! */
 	/* TODO */
 	return 0;
 }

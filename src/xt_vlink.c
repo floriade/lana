@@ -59,7 +59,6 @@ int vlink_subsys_register(struct vlink_subsys *n)
 			vs = vlink_subsystem_table[i];
 			if (n->type == vs->type) {
 				vlink_unlock();
-				/* We already have this subsystem loaded! */
 				return -EBUSY;
 			}
 		}
@@ -247,7 +246,6 @@ void vlink_subsys_unregister_batch(struct vlink_subsys *n)
 
 	vlink_unlock();
 
-	/* Now, we cannot be invoked anymore */
 	while (n-> head != NULL)
 		vlink_rm_callback(n, n->head);
 }
