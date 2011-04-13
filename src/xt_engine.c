@@ -19,6 +19,7 @@
 #include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/proc_fs.h>
+#include <linux/sched.h>
 
 #include "xt_engine.h"
 
@@ -151,6 +152,7 @@ int init_worker_engines(void)
 	int ret = 0;
 	unsigned int cpu;
 	char name[64];
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
 	engines = alloc_percpu(struct worker_engine);
 	if (!engines)
@@ -187,7 +189,7 @@ int init_worker_engines(void)
 		}
 
 		kthread_bind(ppe->thread, cpu);
-		rt_task(ppe->thread);
+		sched_setscheduler(ppe->thread, SCHED_FIFO, &param);
 		wake_up_process(ppe->thread);
 	}
 	put_online_cpus();
