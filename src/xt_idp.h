@@ -10,6 +10,7 @@
 #define XT_IDP
 
 typedef int idp_t;
+#define IDP_EXIT_PPE  0
 
 #endif /* XT_IDP */
 

@@ -22,6 +22,7 @@
 #include <linux/sched.h>
 
 #include "xt_engine.h"
+#include "xt_skb.h"
 
 struct worker_engine __percpu *engines;
 extern struct proc_dir_entry *lana_proc_dir;
@@ -33,7 +34,8 @@ static inline struct ppe_queue *__first_ppe_queue(struct worker_engine *ppe)
 	return ppe->inqs.head;
 }
 
-static inline struct ppe_queue *__next_filled_ppe_queue(struct ppe_queue *ppeq)
+static inline struct ppe_queue
+*__next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
 	do ppeq = ppeq->next;
 	while (skb_queue_empty(&ppeq->queue));
@@ -47,13 +49,17 @@ static inline int __ppe_queues_have_load(struct worker_engine *ppe)
 
 static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
-	/* IDP continuation passing style! */
-	/* TODO */
+	idp_t cont;
+	while ((cont = read_next_idp_from_skb(skb))) {
+		/* Call FB receive function */
+		/* ret = send_to_idp(cont, dir, skb); */
+	}
 	return 0;
 }
 
 static int engine_thread(void *arg)
 {
+	int ret;
 	struct sk_buff *skb;
 	struct ppe_queue *ppeq;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
@@ -76,10 +82,22 @@ static int engine_thread(void *arg)
 		write_lock(&ppeq->stats.lock);
 		ppeq->stats.packets++;
 		write_unlock(&ppeq->stats.lock);
-
-		/* TODO */
 		skb = skb_dequeue(&ppeq->queue);
-		process_packet(skb, ppeq->type);
+		ret = process_packet(skb, ppeq->type);
+		switch (ret) {
+		case PPE_DROPPED:
+			write_lock(&ppeq->stats.lock);
+			ppeq->stats.dropped++;
+			write_unlock(&ppeq->stats.lock);
+			break;
+		case PPE_ERROR:
+			write_lock(&ppeq->stats.lock);
+			ppeq->stats.errors++;
+			write_unlock(&ppeq->stats.lock);
+			break;
+		default:
+			break;
+		}
 		kfree_skb(skb);
 	}
 

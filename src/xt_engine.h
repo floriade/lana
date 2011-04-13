@@ -26,6 +26,10 @@ enum path_type {
 #define NUM_TYPES               _TYPE_MAX
 #define NUM_QUEUES              NUM_TYPES
 
+#define PPE_SUCCESS             0
+#define PPE_DROPPED             1
+#define PPE_ERROR               2
+
 struct worker_estats {
 	u64 packets;
 	u32 errors;
