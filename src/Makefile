@@ -10,6 +10,7 @@ xcore-y := core.o      \
 	   xt_sched.o  \
 	   xt_vlink.o  \
 	   xt_engine.o \
+	   xt_tables.o \
 	   xt_user.o
 obj-m   += xcore.o
 
