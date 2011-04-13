@@ -58,23 +58,6 @@ extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);
 extern struct worker_engine __percpu *engines;
 
-static inline struct ppe_queue *__first_ppe_queue(struct worker_engine *ppe)
-{
-	return ppe->inqs.head;
-}
-
-static inline struct ppe_queue *__next_filled_ppe_queue(struct ppe_queue *ppeq)
-{
-	do ppeq = ppeq->next;
-	while (skb_queue_empty(&ppeq->queue));
-	return ppeq;
-}
-
-static inline int __ppe_queues_have_load(struct worker_engine *ppe)
-{
-	return atomic64_read(&ppe->load) != 0;
-}
-
 static inline void enqueue_egress_on_engine(struct sk_buff *skb,
 					    unsigned int cpu)
 {

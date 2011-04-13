@@ -28,8 +28,26 @@ extern struct proc_dir_entry *lana_proc_dir;
 
 void cleanup_worker_engines(void);
 
+static inline struct ppe_queue *__first_ppe_queue(struct worker_engine *ppe)
+{
+	return ppe->inqs.head;
+}
+
+static inline struct ppe_queue *__next_filled_ppe_queue(struct ppe_queue *ppeq)
+{
+	do ppeq = ppeq->next;
+	while (skb_queue_empty(&ppeq->queue));
+	return ppeq;
+}
+
+static inline int __ppe_queues_have_load(struct worker_engine *ppe)
+{
+	return atomic64_read(&ppe->load) != 0;
+}
+
 static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
+	/* TODO */
 	return 0;
 }
 
@@ -57,6 +75,8 @@ static int engine_thread(void *arg)
 		write_lock(&ppeq->stats.lock);
 		ppeq->stats.packets++;
 		write_unlock(&ppeq->stats.lock);
+
+		/* TODO */
 		skb = skb_dequeue(&ppeq->queue);
 		process_packet(skb, ppeq->type);
 		kfree_skb(skb);
