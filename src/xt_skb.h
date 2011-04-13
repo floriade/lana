@@ -12,18 +12,26 @@
 #include <linux/skbuff.h>
 #include "xt_idp.h"
 
-static inline void write_next_idp_to_skb(struct sk_buff *skb, idp_t idp)
+struct sock_lana_inf {
+	idp_t   idp_dst;
+	idp_t   idp_src;
+	__u32   flags;
+	__u32   errno;
+};
+
+#define SKB_LANA_INF(skb) ((struct sock_lana_inf *) ((skb)->cb))
+
+static inline void write_next_idp_to_skb(struct sk_buff *skb, idp_t from,
+					 idp_t to)
 {
-	idp_t *dst;
-	dst = (idp_t *) &skb->cb[sizeof(skb->cb) - sizeof(idp_t) - 1];
-	*dst = idp;
+	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
+	sli->idp_dst = to;
+	sli->idp_src = from;
 }
 
 static inline idp_t read_next_idp_from_skb(struct sk_buff *skb)
 {
-	idp_t *idp;
-	idp = (idp_t *) &skb->cb[sizeof(skb->cb) - sizeof(idp_t) - 1];
-	return *idp;
+	return SKB_LANA_INF(skb)->idp_dst;
 }
 
 #endif /* XT_SKB */

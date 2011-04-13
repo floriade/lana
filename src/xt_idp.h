@@ -9,8 +9,12 @@
 #ifndef XT_IDP
 #define XT_IDP
 
-typedef int idp_t;
+#include <linux/types.h>
+
+typedef __u32 idp_t;
+
 #define IDP_EXIT_PPE  0
+#define IDP_UNKNOWN   IDP_EXIT_PPE
 
 #endif /* XT_IDP */
 
