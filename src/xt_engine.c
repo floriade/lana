@@ -27,7 +27,7 @@ extern struct proc_dir_entry *lana_proc_dir;
 
 void cleanup_worker_engines(void);
 
-static int process_packet(struct sk_buff *skb, enum direction dir)
+static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	return 0;
 }
@@ -41,11 +41,10 @@ static int engine_thread(void *arg)
 
 	if (ppe->cpu != smp_processor_id())
 		panic("[lana] Engine scheduled on wrong CPU!\n");
-
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
 
-	ppeq = __first_ppe_queue();
+	ppeq = __first_ppe_queue(ppe);
 	while (1) {
 		wait_event_interruptible(ppe->wait_queue,
 					 (kthread_should_stop() ||
@@ -54,13 +53,12 @@ static int engine_thread(void *arg)
 			break;
 
 		ppeq = __next_filled_ppe_queue(ppeq);
+		write_lock(&ppeq->stats.lock);
+		ppeq->stats.packets++;
+		write_unlock(&ppeq->stats.lock);
 		skb = skb_dequeue(&ppeq->queue);
 		process_packet(skb, ppeq->type);
 		kfree_skb(skb);
-
-		write_lock(&ppe->stats.lock);
-		ppe->stats.packets++;
-		write_unlock(&ppe->stats.lock);
 	}
 
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "
@@ -71,17 +69,81 @@ static int engine_thread(void *arg)
 static int engine_procfs_stats(char *page, char **start, off_t offset, 
 			       int count, int *eof, void *data)
 {
+	int i;
 	off_t len = 0;
 	struct worker_engine *ppe = data;
 
-	read_lock(&ppe->stats.lock);
-	len += sprintf(page + len, "packets: %llu\n", ppe->stats.packets);
-	len += sprintf(page + len, "errors:  %u\n", ppe->stats.errors);
-	len += sprintf(page + len, "drops:   %llu\n", ppe->stats.dropped);
-	read_unlock(&ppe->stats.lock);
+	len += sprintf(page + len, "engine: %p\n", ppe);
+	len += sprintf(page + len, "cpu: %u, numa node: %d\n",
+		       ppe->cpu, cpu_to_node(ppe->cpu));
+	len += sprintf(page + len, "load: %lu\n",
+		       atomic64_read(&ppe->load));
+	for (i = 0; i < NUM_TYPES; ++i) {
+		read_lock(&ppe->inqs.ptrs[i]->stats.lock);
+		len += sprintf(page + len, "queue: %p\n",
+			       ppe->inqs.ptrs[i]);
+		len += sprintf(page + len, "  type: %u\n",
+			       ppe->inqs.ptrs[i]->type);
+		len += sprintf(page + len, "  packets: %llu\n",
+			       ppe->inqs.ptrs[i]->stats.packets);
+		len += sprintf(page + len, "  errors: %u\n",
+			       ppe->inqs.ptrs[i]->stats.errors);
+		len += sprintf(page + len, "  drops: %llu\n",
+			       ppe->inqs.ptrs[i]->stats.dropped);
+		read_unlock(&ppe->inqs.ptrs[i]->stats.lock);
+	}
+	/* FIXME: fits in page? */
 	*eof = 1;
-
 	return len;
+}
+
+static inline void add_to_ppe_squeue(struct ppe_squeue *qs,
+				     struct ppe_queue *q)
+{
+	q->next = qs->head;
+	qs->head = q;
+	qs->ptrs[q->type] = q;
+}
+
+static void finish_ppe_squeue(struct ppe_squeue *qs)
+{
+	struct ppe_queue *q = qs->head;
+	while (q->next)
+		q = q->next;
+	q->next = qs->head;
+}
+
+static int init_ppe_squeue(struct ppe_squeue *queues, unsigned int cpu)
+{
+	int i;
+	struct ppe_queue *tmp;
+
+	for (i = 0; i < NUM_TYPES; ++i) {
+		tmp = kzalloc_node(sizeof(*tmp), GFP_KERNEL,
+				   cpu_to_node(cpu));
+		if (!tmp)
+			return -ENOMEM;
+		tmp->type = (enum path_type) i;
+		tmp->stats.lock = __RW_LOCK_UNLOCKED(lock);
+		tmp->next = NULL;
+		skb_queue_head_init(&tmp->queue);
+		add_to_ppe_squeue(queues, tmp);
+	}
+
+	finish_ppe_squeue(queues);
+	return 0;
+}
+
+static void cleanup_ppe_squeue(struct ppe_squeue *queues)
+{
+	int i;
+
+	for (i = 0; i < NUM_TYPES; ++i) {
+		if (queues->ptrs[i])
+			kfree(queues->ptrs[i]);
+		queues->ptrs[i] = NULL;
+	}
+	queues->head = NULL;
 }
 
 int init_worker_engines(void)
@@ -97,19 +159,16 @@ int init_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
-
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
-
-		memset(&ppe->stats, 0, sizeof(ppe->stats));
-		ppe->stats.lock = __RW_LOCK_UNLOCKED(lock);
-
-		skb_queue_head_init(&ppe->ingressq);
-		skb_queue_head_init(&ppe->egressq);
-
+		ppe->inqs.head = NULL;
+		memset(&ppe->inqs, 0, sizeof(ppe->inqs));
+		ret = init_ppe_squeue(&ppe->inqs, ppe->cpu);
+		if (ret < 0)
+			break;
+		atomic64_set(&ppe->load, 0);
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
-
 		ppe->proc = create_proc_read_entry(name, 0444, lana_proc_dir,
 						   engine_procfs_stats, ppe);
 		if (!ppe->proc) {
@@ -128,6 +187,7 @@ int init_worker_engines(void)
 		}
 
 		kthread_bind(ppe->thread, cpu);
+		rt_task(ppe->thread);
 		wake_up_process(ppe->thread);
 	}
 	put_online_cpus();
@@ -146,15 +206,14 @@ void cleanup_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
-
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
-
 		ppe = per_cpu_ptr(engines, cpu);
 		if (!IS_ERR(ppe->thread))
 			kthread_stop(ppe->thread);
 		if (ppe->proc)
 			remove_proc_entry(name, lana_proc_dir);
+		cleanup_ppe_squeue(&ppe->inqs);
 	}
 	put_online_cpus();
 	free_percpu(engines);

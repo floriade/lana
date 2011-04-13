@@ -72,7 +72,7 @@ static inline struct ppe_queue *__next_filled_ppe_queue(struct ppe_queue *ppeq)
 
 static inline int __ppe_queues_have_load(struct worker_engine *ppe)
 {
-	return !atomic64_read(&ppe->load);
+	return atomic64_read(&ppe->load) != 0;
 }
 
 static inline void enqueue_egress_on_engine(struct sk_buff *skb,

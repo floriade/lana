@@ -46,8 +46,8 @@ err:
 
 static void __exit cleanup_lana_core_module(void)
 {
-	remove_proc_entry("lana", init_net.proc_net);
 	cleanup_worker_engines();
+	remove_proc_entry("lana", init_net.proc_net);
 	cleanup_vlink_system();
 
 	printk(KERN_INFO "[lana] core removed!\n");
