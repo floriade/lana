@@ -5,7 +5,7 @@
  * of the CPU-affine engines and processed on the Functional Block stack.
  * There are two queues where packets can be added, one from PHY direction
  * for incoming packets (ingress) and one from the socket handler direction
- * for outgoing packets (egress).
+ * for outgoing packets (egress). Support for NUMA-affinity added.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
