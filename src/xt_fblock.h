@@ -18,7 +18,6 @@
 #define FBNAMSIZ IFNAMSIZ
 
 struct fblock;
-
 struct fblock_ops {
 	int (*netrx)(struct sk_buff *skb);
 };
@@ -35,6 +34,15 @@ struct fblock {
 	idp_t idp;
 } ____cacheline_aligned_in_smp;
 
+extern int init_fblock_tables(void);
+extern void cleanup_fblock_tables(void);
+extern struct fblock *search_fblock(idp_t idp);
+extern struct fblock *alloc_fblock(gfp_t flags);
+extern void kfree_fblock(struct fblock *p);
+extern void register_fblock(struct fblock *p);
+extern void unregister_fblock(struct fblock *p);
+extern void xchg_fblock(idp_t idp, struct fblock *newp);
+
 static inline void get_fblock(struct fblock *b)
 {
 	atomic_inc(&b->refcnt);
@@ -44,13 +52,6 @@ static inline void put_fblock(struct fblock *b)
 {
 	if (likely(!atomic_dec_and_test(&b->refcnt)))
 		return;
-	kfree(b);
+	kfree_fblock(b);
 }
-
-extern struct fblock *alloc_fblock(char *name); // kmem_cache for fblock objects, atomic_set(1)
-extern struct fblock *search_fblock(idp_t idp);
-extern void register_fblock(struct fblock *p);
-extern void unregister_fblock(struct fblock *p);
-extern void xchg_fblock(idp_t idp, struct fblock *newp);
-
 #endif /* XT_FBLOCK_H */

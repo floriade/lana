@@ -15,8 +15,8 @@
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 
-#include "xt_tables.h"
 #include "xt_fblock.h"
 #include "xt_idp.h"
 #include "xt_hash.h"
@@ -29,10 +29,13 @@ struct str_idp_elem {
 	atomic_t refcnt;
 } ____cacheline_aligned_in_smp;
 
-static atomic_t idp_counter;
 static struct str_idp_elem **str_idp_head = NULL;
+
 static struct fblock **idp_fbl_head = NULL;
 static spinlock_t idp_fbl_head_lock = __SPIN_LOCK_UNLOCKED(idp_fbl_head_lock);
+
+static atomic_t idp_counter;
+static struct kmem_cache *fblock_cache = NULL;
 
 static inline idp_t provide_new_idp(void)
 {
@@ -105,34 +108,62 @@ void xchg_fblock(idp_t idp, struct fblock *newp)
 }
 EXPORT_SYMBOL_GPL(xchg_fblock);
 
-int init_tables(void)
+static void ctor_fblock(void *obj)
+{
+	struct fblock *p = obj;
+	p->idp = IDP_UNKNOWN;
+	atomic_set(&p->refcnt, 1);
+	p->next = p->prev = NULL;
+	p->private_data = NULL;
+}
+
+struct fblock *alloc_fblock(gfp_t flags)
+{
+	return kmem_cache_alloc(fblock_cache, flags);
+}
+EXPORT_SYMBOL_GPL(alloc_fblock);
+
+void kfree_fblock(struct fblock *p)
+{
+	kmem_cache_free(fblock_cache, p);
+}
+EXPORT_SYMBOL_GPL(kfree_fblock);
+
+int init_fblock_tables(void)
 {
 	int ret = 0;
 
 	str_idp_head = kzalloc(sizeof(*str_idp_head) * HASHTSIZ, GFP_KERNEL);
 	if (!str_idp_head)
 		return -ENOMEM;
-
 	idp_fbl_head = kzalloc(sizeof(*idp_fbl_head) * HASHTSIZ, GFP_KERNEL);
 	if (!idp_fbl_head)
 		goto err;
-
+	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
+					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
+	if (!fblock_cache)
+		goto err2;
 	atomic_set(&idp_counter, 0);
 
+	printk(KERN_INFO "[lana] fblock memcache created!\n");
 	printk(KERN_INFO "[lana] IDP tables with size %u initialized!\n",
 	       HASHTSIZ);
 	return 0;
+err2:
+	kfree(idp_fbl_head);
 err:
 	kfree(str_idp_head);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(init_tables);
+EXPORT_SYMBOL_GPL(init_fblock_tables);
 
-void cleanup_tables(void)
+void cleanup_fblock_tables(void)
 {
 	kfree(str_idp_head);
 	kfree(idp_fbl_head);
+	kmem_cache_destroy(fblock_cache);
+	printk(KERN_INFO "[lana] fblock memcache destroyed!\n");
 	printk(KERN_INFO "[lana] IDP tables removed!\n");
 }
-EXPORT_SYMBOL_GPL(cleanup_tables);
+EXPORT_SYMBOL_GPL(cleanup_fblock_tables);
 
