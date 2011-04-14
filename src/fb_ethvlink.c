@@ -28,7 +28,7 @@
 #include <net/rtnetlink.h>
 
 #include "xt_vlink.h"
-#include "fb_glue.h"
+#include "xt_fblock.h"
 
 #define IFF_VLINK_MAS 0x20000 /* Master device */
 #define IFF_VLINK_DEV 0x40000 /* Slave device */

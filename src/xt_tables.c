@@ -9,7 +9,18 @@
  */
 
 #include <linux/module.h>
-#include <linux/seqlock.h>
+#include <linux/rcupdate.h>
+#include <linux/atomic.h>
+
+#include "xt_tables.h"
+#include "xt_fblock.h"
+
+struct idp_fb_elem {
+	struct functional_block *fblock;
+	struct idp_fb_elem *next;
+	struct rcu_head rcu;
+	atomic_t refcnt;
+};
 
 int init_tables(void)
 {

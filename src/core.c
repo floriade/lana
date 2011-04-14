@@ -13,7 +13,7 @@
 #include <linux/proc_fs.h>
 #include <net/net_namespace.h>
 
-#include "fb_glue.h"
+#include "xt_fblock.h"
 #include "xt_vlink.h"
 #include "xt_engine.h"
 
