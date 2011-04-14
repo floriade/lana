@@ -39,6 +39,8 @@
 static inline __u32 hash_idp(const idp_t k)
 {
         __u32 a,b,c;
+	if (k < HASHTSIZ)
+		return k;
         a = b = c = 0xdeadbeef + (((uint32_t) 1) << 2) + HASHINITVAL;
         a =+ k;
         FINAL(a, b, c);
