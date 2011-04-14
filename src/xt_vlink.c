@@ -66,7 +66,6 @@ int vlink_subsys_register(struct vlink_subsys *n)
 
 	if (slot != -1) {
 		n->id = slot;
-		smp_wmb();
 		vlink_subsystem_table[slot] = n;
 	}
 
@@ -136,9 +135,7 @@ static int __vlink_add_callback(struct vlink_subsys *n,
 	}
 
 	cb->next = *hb;
-	smp_wmb();
 	*hb = cb;
-
 	return 0;
 }
 
@@ -202,7 +199,6 @@ static int __vlink_rm_callback(struct vlink_subsys *n,
 	while (*hb != NULL) {
 		if (*hb == cb) {
 			*hb = cb->next;
-			smp_wmb();
 			return 0;
 		}
 		hb = &((*hb)->next);
@@ -258,11 +254,8 @@ static int __vlink_invoke(struct vlink_subsys *n,
 	int ret;
 	struct vlink_callback *hb, *hn;
 
-	smp_read_barrier_depends();
 	hb = n->head;
-
 	while (hb) {
-		smp_read_barrier_depends();
 		hn = hb->next;
 
 		ret = hb->rx(vmsg, nlh);
