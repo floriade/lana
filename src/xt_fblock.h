@@ -34,14 +34,18 @@ struct fblock {
 	idp_t idp;
 } ____cacheline_aligned_in_smp;
 
-extern int init_fblock_tables(void);
-extern void cleanup_fblock_tables(void);
-extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
-extern void register_fblock(struct fblock *p);
-extern void unregister_fblock(struct fblock *p);
-extern void xchg_fblock(idp_t idp, struct fblock *newp);
+extern int register_fblock(struct fblock *p);
+extern int register_fblock_idp(struct fblock *p, idp_t idp);
+extern idp_t unregister_fblock(struct fblock *p);
+extern void unregister_fblock_namespace(struct fblock *p);
+extern int xchg_fblock_idp(idp_t idp, struct fblock *new);
+extern int xchg_fblock(struct fblock *old, struct fblock *new);
+extern struct fblock *search_fblock(idp_t idp);
+extern idp_t get_fblock_namespace_mapping(char *name);
+extern int init_fblock_tables(void);
+extern void cleanup_fblock_tables(void);
 
 static inline void get_fblock(struct fblock *b)
 {

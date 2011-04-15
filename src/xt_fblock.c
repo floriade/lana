@@ -23,13 +23,14 @@
 
 struct str_idp_elem {
 	idp_t idp;
-	char name[FBNAMSIZ];
+	char *name;
 	struct idp_fb_elem *next;
 	struct rcu_head rcu;
 	atomic_t refcnt;
 } ____cacheline_aligned_in_smp;
 
 static struct str_idp_elem **str_idp_head = NULL;
+static spinlock_t str_idp_head_lock = __SPIN_LOCK_UNLOCKED(str_idp_head_lock);
 
 static struct fblock **idp_fbl_head = NULL;
 static spinlock_t idp_fbl_head_lock = __SPIN_LOCK_UNLOCKED(idp_fbl_head_lock);
@@ -37,7 +38,7 @@ static spinlock_t idp_fbl_head_lock = __SPIN_LOCK_UNLOCKED(idp_fbl_head_lock);
 static atomic_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
 
-static inline idp_t provide_new_idp(void)
+static inline idp_t provide_new_fblock_idp(void)
 {
 	int ret, c = atomic_read(&idp_counter);
 	ret = atomic_inc_return(&idp_counter);
@@ -45,6 +46,22 @@ static inline idp_t provide_new_idp(void)
 		panic("Too many functional blocks loaded!\n");
 	return (idp_t) ret;
 }
+
+static int register_to_fblock_namespace(char *name, idp_t val)
+{
+	return 0;
+}
+
+static int unregister_from_fblock_namespace(char *name)
+{
+	return 0;
+}
+
+idp_t get_fblock_namespace_mapping(char *name)
+{
+	return IDP_UNKNOWN;
+}
+EXPORT_SYMBOL_GPL(get_fblock_namespace_mapping);
 
 /* Caller needs to do a put_fblock() after his work is done! */
 struct fblock *search_fblock(idp_t idp)
@@ -68,19 +85,42 @@ struct fblock *search_fblock(idp_t idp)
 }
 EXPORT_SYMBOL_GPL(search_fblock);
 
-void register_fblock(struct fblock *p)
+/*
+ * register_fblock_idp is called when the idp is preknown to the
+ * caller and has already been registered previously. The previous
+ * registration has then called unregister_fblock to remove the 
+ * fblock but to keep the namespace and idp number.
+ */
+int register_fblock_idp(struct fblock *p, idp_t idp)
 {
 	struct fblock *p0;
-
-	p->idp = provide_new_idp();
+	p->idp = idp;
 	p0 = idp_fbl_head[hash_idp(p->idp)];
 	p->next = p0->next;
 	wmb();
 	p0->next = p;
-
-	printk("[lana] %s loaded!\n", p->name);
+	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
+	return 0;
 }
-EXPORT_SYMBOL_GPL(register_fblock);
+EXPORT_SYMBOL_GPL(register_fblock_idp);
+
+/*
+ * register_fblock_namespace is called when a new functional block
+ * instance is registered to the system. Then, its name will be 
+ * registered into the namespace and it receives a new idp number.
+ */
+int register_fblock_namespace(struct fblock *p)
+{
+	struct fblock *p0;
+	p->idp = provide_new_fblock_idp();
+	p0 = idp_fbl_head[hash_idp(p->idp)];
+	p->next = p0->next;
+	wmb();
+	p0->next = p;
+	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
+	return register_to_fblock_namespace(p->name, p->idp);
+}
+EXPORT_SYMBOL_GPL(register_fblock_namespace);
 
 static void free_fblock_rcu(struct rcu_head *rp)
 {
@@ -88,7 +128,33 @@ static void free_fblock_rcu(struct rcu_head *rp)
 	put_fblock(p);
 }
 
-void unregister_fblock(struct fblock *p)
+/*
+ * unregister_fblock releases the functional block _only_ from the idp to
+ * fblock translation table, but not from the namespace. The idp can then
+ * later be reused, e.g. by another fblock.
+ */
+idp_t unregister_fblock(struct fblock *p)
+{
+	idp_t ret = p->idp;
+	unsigned long flags;
+
+	spin_lock_irqsave(&idp_fbl_head_lock, flags);
+	p->next->prev = p->prev;
+	p->prev->next = p->next;
+	spin_unlock_irqrestore(&idp_fbl_head_lock, flags);
+
+	printk("[lana] (%s) unloaded!\n", p->name);
+	call_rcu(&p->rcu, free_fblock_rcu);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(unregister_fblock);
+
+/*
+ * Removes the functional block from the system along with its namespace
+ * mapping.
+ */
+void unregister_fblock_namespace(struct fblock *p)
 {
 	unsigned long flags;
 
@@ -96,15 +162,22 @@ void unregister_fblock(struct fblock *p)
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
 	spin_unlock_irqrestore(&idp_fbl_head_lock, flags);
-	printk("[lana] %s unloaded!\n", p->name);
 
+	printk("[lana] (%u,%s) unloaded!\n", p->idp, p->name);
+	unregister_from_fblock_namespace(p->name);
 	call_rcu(&p->rcu, free_fblock_rcu);
-	return;
 }
-EXPORT_SYMBOL_GPL(unregister_fblock);
+EXPORT_SYMBOL_GPL(unregister_fblock_namespace);
 
-void xchg_fblock(idp_t idp, struct fblock *newp)
+int xchg_fblock_idp(idp_t idp, struct fblock *new)
 {
+	return 0;
+}
+EXPORT_SYMBOL_GPL(xchg_fblock_idp);
+
+int xchg_fblock(struct fblock *old, struct fblock *new)
+{
+	return 0;
 }
 EXPORT_SYMBOL_GPL(xchg_fblock);
 
