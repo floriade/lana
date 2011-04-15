@@ -11,7 +11,7 @@ int main(void)
 	int hist[HASHTSIZ];
 	memset(hist, 0, sizeof(hist));
 	for (i = 0; i < MAX_INS; ++i)
-		hist[hash_idp(i)]++;
+		hist[hash_idp2(i)]++;
 	for (i = 0; i < HASHTSIZ; ++i) {
 		if (hist[i] > 1)
 			coll += (hist[i] - 1);

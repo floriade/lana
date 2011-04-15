@@ -38,14 +38,18 @@
 
 static inline __u32 hash_idp(const idp_t k)
 {
-        __u32 a,b,c;
-	if (k < HASHTSIZ)
-		return k;
-        a = b = c = 0xdeadbeef + (((uint32_t) 1) << 2) + HASHINITVAL;
-        a =+ k;
-        FINAL(a, b, c);
-        return HASHSLOT(c);
+	return HASHSLOT(k);
 }
+
+static inline __u32 hash_idp2(const idp_t k)
+{
+	__u32 a,b,c;
+	a = b = c = 0xdeadbeef + (((uint32_t) 1) << 2) + HASHINITVAL;
+	a =+ k;
+	FINAL(a, b, c);
+	return HASHSLOT(c);
+}
+
 
 extern __u32 hash_string(const char *key, size_t len);
 
