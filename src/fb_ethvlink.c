@@ -221,8 +221,8 @@ drop:
 static void fb_ethvlink_ethtool_get_drvinfo(struct net_device *dev,
 					    struct ethtool_drvinfo *drvinfo)
 {
-	snprintf(drvinfo->driver, 32, "ethvlink");
-	snprintf(drvinfo->version, 32, "0.1");
+	snprintf(drvinfo->driver, sizeof(drvinfo->driver), "ethvlink");
+	snprintf(drvinfo->version, sizeof(drvinfo->version), "0.1");
 }
 
 static u32 fb_ethvlink_ethtool_get_rx_csum(struct net_device *dev)
