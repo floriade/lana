@@ -36,7 +36,7 @@ struct critbit_tree {
 	spinlock_t wr_lock;
 };
 
-#define struct_of(ptr, type)  ({ (type *)(ptr) })
+#define struct_of(ptr, type)  ((type *)(ptr))
 
 /* Lock holding variants. */
 extern int critbit_insert(struct critbit_tree *tree, char *elem);

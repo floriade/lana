@@ -14,7 +14,6 @@
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <linux/spinlock.h>
-#include <linux/seqlock.h>
 #include <linux/slab.h>
 
 #include "xt_fblock.h"
@@ -25,7 +24,7 @@
 struct idp_elem {
 	char name[FBNAMSIZ];
 	idp_t idp;
-	seqlock_t idp_lock;
+	struct rcu_head rcu;
 } ____cacheline_aligned;
 
 /* string -> idp translation map */
@@ -48,19 +47,72 @@ static inline idp_t provide_new_fblock_idp(void)
 
 static int register_to_fblock_namespace(char *name, idp_t val)
 {
-	return 0;
+	struct idp_elem *elem;
+	if (critbit_contains(&idpmap, name))
+		return -EEXIST;
+	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
+	strlcpy(elem->name, name, sizeof(elem->name));
+	elem->idp = val;
+	return critbit_insert(&idpmap, elem->name);
+}
+
+static void fblock_namespace_do_free_rcu(struct rcu_head *rp)
+{
+	struct idp_elem *p = container_of(rp, struct idp_elem, rcu);
+	kfree(p);
 }
 
 static int unregister_from_fblock_namespace(char *name)
 {
+	int ret;
+	struct idp_elem *elem = struct_of(critbit_get(&idpmap, name),
+					  struct idp_elem);
+	ret = critbit_delete(&idpmap, elem->name);
+	if (ret)
+		return ret;
+	call_rcu(&elem->rcu, fblock_namespace_do_free_rcu);
 	return 0;
 }
 
+/* Called within RCU read lock. */
+idp_t __get_fblock_namespace_mapping(char *name)
+{
+	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
+					  struct idp_elem);
+	smp_rmb();
+	return elem->idp;
+}
+EXPORT_SYMBOL_GPL(__get_fblock_namespace_mapping);
+
 idp_t get_fblock_namespace_mapping(char *name)
 {
-	return IDP_UNKNOWN;
+	idp_t ret;
+	rcu_read_lock();
+	ret = __get_fblock_namespace_mapping(name);
+	rcu_read_unlock();
+	return ret;
 }
 EXPORT_SYMBOL_GPL(get_fblock_namespace_mapping);
+
+int __change_fblock_namespace_mapping(char *name, idp_t new)
+{
+	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
+				struct idp_elem);
+	elem->idp = new;
+	smp_wmb();
+	return 0;
+}
+EXPORT_SYMBOL_GPL(__change_fblock_namespace_mapping);
+
+int change_fblock_namespace_mapping(char *name, idp_t new)
+{
+	int ret;
+	rcu_read_lock();
+	ret = __change_fblock_namespace_mapping(name, new);
+	rcu_read_unlock();
+	return ret;
+}
+EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 
 /* Caller needs to do a put_fblock() after his work is done! */
 struct fblock *search_fblock(idp_t idp)

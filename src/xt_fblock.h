@@ -43,7 +43,10 @@ extern void unregister_fblock_namespace(struct fblock *p);
 extern int xchg_fblock_idp(idp_t idp, struct fblock *new);
 extern int xchg_fblock(struct fblock *old, struct fblock *new);
 extern struct fblock *search_fblock(idp_t idp);
-extern idp_t get_fblock_namespace_mapping(char *name);
+extern idp_t get_fblock_namespace_mapping(char *name); /* acquires rcu_read_lock */
+extern idp_t __get_fblock_namespace_mapping(char *name);
+extern int change_fblock_namespace_mapping(char *name, idp_t new); 
+extern int __change_fblock_namespace_mapping(char *name, idp_t new);
 extern int init_fblock_tables(void);
 extern void cleanup_fblock_tables(void);
 
