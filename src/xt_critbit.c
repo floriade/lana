@@ -281,6 +281,8 @@ EXPORT_SYMBOL(critbit_node_cache_init);
 
 void critbit_node_cache_destroy(void)
 {
+	printk(KERN_INFO "[lana] %s cache destroyed!\n",
+	       critbit_node_cache->name);
 	kmem_cache_destroy(critbit_node_cache);
 }
 EXPORT_SYMBOL(critbit_node_cache_destroy);
