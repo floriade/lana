@@ -257,7 +257,7 @@ static void fb_ethvlink_dev_setup(struct net_device *dev)
 	dev->destructor = free_netdev;
 
 	random_ether_addr(dev->dev_addr);
-	memset(dev->broadcast, 0, ETH_ALEN);
+	memset(dev->broadcast, 0, sizeof(dev->broadcast));
 }
 
 static int fb_ethvlink_validate(struct nlattr **tb, struct nlattr **data)
