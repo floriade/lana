@@ -63,10 +63,13 @@ int __critbit_contains(struct critbit_tree *tree, const char *elem)
 {
 	const u8 *ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = rcu_dereference_raw(tree->root);
+	u8 c, *p;
 	struct critbit_node *q;
 	int direction;
 
+	if (unlikely(!rcu_read_lock_held()))
+		return -EINVAL;
+	p = rcu_dereference_raw(tree->root);
 	if (!p)
 		return 0;
 	while (1 & (intptr_t) p) {
@@ -96,10 +99,15 @@ char *__critbit_get(struct critbit_tree *tree, const char *elem)
 {
 	const u8 *ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = rcu_dereference_raw(tree->root);
+	u8 c, *p;
 	struct critbit_node *q;
 	int direction;
 
+	if (unlikely(!rcu_read_lock_held())) {
+		printk(KERN_ERR "WARNING: No rcu_read_lock held!\n");
+		return NULL;
+	}
+	p = rcu_dereference_raw(tree->root);
 	if (!p)
 		return NULL;
 	while (1 & (intptr_t) p) {
