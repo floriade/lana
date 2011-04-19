@@ -6,12 +6,13 @@
 # Subject to the GPL.
 #
 
-xcore-y := core.o      \
-	   xt_sched.o  \
-	   xt_vlink.o  \
-	   xt_engine.o \
-	   xt_fblock.o \
-	   xt_hash.o   \
+xcore-y := core.o       \
+	   xt_sched.o   \
+	   xt_vlink.o   \
+	   xt_engine.o  \
+	   xt_fblock.o  \
+	   xt_hash.o    \
+	   xt_critbit.o \
 	   xt_user.o
 obj-m   += xcore.o
 
