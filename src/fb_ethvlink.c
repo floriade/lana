@@ -191,12 +191,12 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	if (unlikely(!skb))
 		return NULL;
 
-	if ((eth_hdr(skb)->h_proto & htons(ETH_P_LANA)) !=
-	    htons(ETH_P_LANA))
+	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_LANA)) !=
+	    __constant_htons(ETH_P_LANA))
 		goto normstack;
 
 	vport = ntohs(eth_hdr(skb)->h_proto &
-		      ~htons(ETH_P_LANA));
+		      ~__constant_htons(ETH_P_LANA));
 
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
 		if (vport == vdev->port) {
