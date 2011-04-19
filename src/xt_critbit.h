@@ -20,7 +20,7 @@
  *      char myname[IFNAMSIZ];
  *      int myflag;
  *      ...
- * } __attribute__((aligned(cacheline)));
+ * } ____cacheline_aligned;
  *
  * Here, myname is at the start of the struct and cacheline aligned. Then,
  * instantiate such a struct with i.e. name "foobar" and add it to your tree
