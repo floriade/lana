@@ -560,8 +560,8 @@ static int fb_ethvlink_dev_event(struct notifier_block *self,
 			if (vdev->real_dev == dev) {
 				memset(vhdr.virt_name, 0,
 				       sizeof(vhdr.virt_name));
-				memcpy(vhdr.virt_name, vdev->self->name,
-				       strlen(vdev->self->name));
+				strlcpy(vhdr.virt_name, vdev->self->name,
+					strlen(vdev->self->name));
 				fb_ethvlink_rm_dev(&vhdr, NULL);
 			}
 		}
