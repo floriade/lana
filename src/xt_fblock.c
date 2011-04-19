@@ -51,6 +51,8 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
 	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
+	if (!elem)
+		return -ENOMEM;
 	strlcpy(elem->name, name, sizeof(elem->name));
 	elem->idp = val;
 	return critbit_insert(&idpmap, elem->name);
