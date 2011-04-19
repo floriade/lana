@@ -99,7 +99,7 @@ EXPORT_SYMBOL_GPL(get_fblock_namespace_mapping);
 int __change_fblock_namespace_mapping(char *name, idp_t new)
 {
 	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
-				struct idp_elem);
+					  struct idp_elem);
 	elem->idp = new;
 	smp_wmb();
 	return 0;
