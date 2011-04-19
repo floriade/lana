@@ -273,6 +273,8 @@ int critbit_node_cache_init(void)
 					       0, SLAB_HWCACHE_ALIGN, NULL);
 	if (!critbit_node_cache)
 		return -ENOMEM;
+	printk(KERN_INFO "[lana] %s cache created!\n",
+	       critbit_node_cache->name);
 	return 0;
 }
 EXPORT_SYMBOL(critbit_node_cache_init);

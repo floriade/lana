@@ -1,8 +1,7 @@
 /*
  * Lightweight Autonomic Network Architecture
  *
- * Global LANA IDP translation tables, core backend. Implemented as RCU
- * protected hash tables with bucket lists.
+ * Global LANA IDP translation tables, core backend.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -15,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <linux/spinlock.h>
+#include <linux/seqlock.h>
 #include <linux/slab.h>
 
 #include "xt_fblock.h"
@@ -22,19 +22,17 @@
 #include "xt_hash.h"
 #include "xt_critbit.h"
 
-struct str_idp_elem {
+struct idp_elem {
+	char name[FBNAMSIZ];
 	idp_t idp;
-	char *name;
-	struct idp_fb_elem *next;
-	struct rcu_head rcu;
-	atomic_t refcnt;
-} ____cacheline_aligned_in_smp;
+	seqlock_t idp_lock;
+} ____cacheline_aligned;
 
-static struct str_idp_elem **str_idp_head = NULL;
-static spinlock_t str_idp_head_lock = __SPIN_LOCK_UNLOCKED(str_idp_head_lock);
-
-static struct fblock **idp_fbl_head = NULL;
-static spinlock_t idp_fbl_head_lock = __SPIN_LOCK_UNLOCKED(idp_fbl_head_lock);
+/* string -> idp translation map */
+static struct critbit_tree idpmap;
+/* idp -> fblock translation map */
+static struct fblock **fblmap_head = NULL;
+static spinlock_t fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
 
 static atomic_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
@@ -70,7 +68,7 @@ struct fblock *search_fblock(idp_t idp)
 	struct fblock *p;
 	struct fblock *p0;
 
-	p0 = idp_fbl_head[hash_idp(idp)];
+	p0 = fblmap_head[hash_idp(idp)];
 	rmb();
 	p = p0->next;
 	while (p != p0) {
@@ -96,7 +94,7 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 {
 	struct fblock *p0;
 	p->idp = idp;
-	p0 = idp_fbl_head[hash_idp(p->idp)];
+	p0 = fblmap_head[hash_idp(p->idp)];
 	p->next = p0->next;
 	wmb();
 	p0->next = p;
@@ -114,7 +112,7 @@ int register_fblock_namespace(struct fblock *p)
 {
 	struct fblock *p0;
 	p->idp = provide_new_fblock_idp();
-	p0 = idp_fbl_head[hash_idp(p->idp)];
+	p0 = fblmap_head[hash_idp(p->idp)];
 	p->next = p0->next;
 	wmb();
 	p0->next = p;
@@ -139,10 +137,10 @@ idp_t unregister_fblock(struct fblock *p)
 	idp_t ret = p->idp;
 	unsigned long flags;
 
-	spin_lock_irqsave(&idp_fbl_head_lock, flags);
+	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
-	spin_unlock_irqrestore(&idp_fbl_head_lock, flags);
+	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%s) unloaded!\n", p->name);
 	call_rcu(&p->rcu, free_fblock_rcu);
@@ -159,10 +157,10 @@ void unregister_fblock_namespace(struct fblock *p)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&idp_fbl_head_lock, flags);
+	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
-	spin_unlock_irqrestore(&idp_fbl_head_lock, flags);
+	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%u,%s) unloaded!\n", p->idp, p->name);
 	unregister_from_fblock_namespace(p->name);
@@ -207,11 +205,12 @@ int init_fblock_tables(void)
 {
 	int ret = 0;
 
-	str_idp_head = kzalloc(sizeof(*str_idp_head) * HASHTSIZ, GFP_KERNEL);
-	if (!str_idp_head)
-		return -ENOMEM;
-	idp_fbl_head = kzalloc(sizeof(*idp_fbl_head) * HASHTSIZ, GFP_KERNEL);
-	if (!idp_fbl_head)
+	critbit_init_tree(&idpmap);
+	ret = critbit_node_cache_init();
+	if (ret == -ENOMEM)
+		return ret;
+	fblmap_head = kzalloc(sizeof(*fblmap_head) * HASHTSIZ, GFP_KERNEL);
+	if (!fblmap_head)
 		goto err;
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
 					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
@@ -225,17 +224,17 @@ int init_fblock_tables(void)
 	       HASHTSIZ);
 	return 0;
 err2:
-	kfree(idp_fbl_head);
+	kfree(fblmap_head);
 err:
-	kfree(str_idp_head);
+	critbit_node_cache_destroy();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(init_fblock_tables);
 
 void cleanup_fblock_tables(void)
 {
-	kfree(str_idp_head);
-	kfree(idp_fbl_head);
+	critbit_node_cache_destroy();
+	kfree(fblmap_head);
 	printk(KERN_INFO "[lana] %s cache destroyed!\n",
 	       fblock_cache->name);
 	kmem_cache_destroy(fblock_cache);
