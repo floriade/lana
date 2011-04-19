@@ -345,8 +345,8 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	}
 	rcu_read_unlock();
 
-	dev = alloc_netdev(sizeof(struct fb_ethvlink_private),
-			   vhdr->virt_name, fb_ethvlink_dev_setup);
+	dev = alloc_netdev(sizeof(*dev_priv), vhdr->virt_name,
+			   fb_ethvlink_dev_setup);
 	if (!dev)
 		goto err_put;
 
