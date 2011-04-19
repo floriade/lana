@@ -199,19 +199,17 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 		      ~__constant_htons(ETH_P_LANA));
 
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
-		if (vport == vdev->port) {
-			if (dev == vdev->real_dev) {
-				dstats = this_cpu_ptr(vdev->self->dstats);
-				ret = vdev->netvif_rx(skb, vdev->self);
-				if (ret == NET_RX_SUCCESS) {
-					u64_stats_update_begin(&dstats->syncp);
-					dstats->rx_packets++;
-					dstats->rx_bytes += skb->len;
-					u64_stats_update_end(&dstats->syncp);
-				} else
-					this_cpu_inc(dstats->rx_errors);
-				break;
-			}
+		if (vport == vdev->port && dev == vdev->real_dev) {
+			dstats = this_cpu_ptr(vdev->self->dstats);
+			ret = vdev->netvif_rx(skb, vdev->self);
+			if (ret == NET_RX_SUCCESS) {
+				u64_stats_update_begin(&dstats->syncp);
+				dstats->rx_packets++;
+				dstats->rx_bytes += skb->len;
+				u64_stats_update_end(&dstats->syncp);
+			} else
+				this_cpu_inc(dstats->rx_errors);
+			break;
 		}
 	}
 
