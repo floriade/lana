@@ -59,11 +59,11 @@ static inline void critbit_free_node(struct critbit_node *p)
 	kmem_cache_free(critbit_node_cache, p);
 }
 
-int critbit_contains(struct critbit_tree *tree, const char *elem)
+int __critbit_contains(struct critbit_tree *tree, const char *elem)
 {
 	const u8 *ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = tree->root;
+	u8 c, *p = rcu_dereference_raw(tree->root);
 	struct critbit_node *q;
 	int direction;
 
@@ -75,18 +75,28 @@ int critbit_contains(struct critbit_tree *tree, const char *elem)
 		if (q->byte < ulen)
 			c = ubytes[q->byte];
 		direction = (1 + (q->otherbits | c)) >> 8;
-		p = q->child[direction];
+		p = rcu_dereference_raw(q->child[direction]);
 	}
 
 	return (0 == strcmp(elem, (char *) p));
 }
+EXPORT_SYMBOL(__critbit_contains);
+
+int critbit_contains(struct critbit_tree *tree, const char *elem)
+{
+	int ret;
+	rcu_read_lock();
+	ret = __critbit_contains(tree, elem);
+	rcu_read_unlock();
+	return ret;
+}
 EXPORT_SYMBOL(critbit_contains);
 
-char *critbit_get(struct critbit_tree *tree, const char *elem)
+char *__critbit_get(struct critbit_tree *tree, const char *elem)
 {
 	const u8 *ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = tree->root;
+	u8 c, *p = rcu_dereference_raw(tree->root);
 	struct critbit_node *q;
 	int direction;
 
@@ -98,18 +108,28 @@ char *critbit_get(struct critbit_tree *tree, const char *elem)
 		if (q->byte < ulen)
 			c = ubytes[q->byte];
 		direction = (1 + (q->otherbits | c)) >> 8;
-		p = q->child[direction];
+		p = rcu_dereference_raw(q->child[direction]);
 	}
 
 	return (0 == strcmp(elem, (char *) p)) ? (char *) p : NULL;
 }
+EXPORT_SYMBOL(__critbit_get);
+
+char *critbit_get(struct critbit_tree *tree, const char *elem)
+{
+	char *ret;
+	rcu_read_lock();
+	ret = __critbit_get(tree, elem);
+	rcu_read_unlock();
+	return ret;
+}
 EXPORT_SYMBOL(critbit_get);
 
-int critbit_insert(struct critbit_tree *tree, char *elem)
+int __critbit_insert(struct critbit_tree *tree, char *elem)
 {
 	const u8 *const ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = tree->root;
+	u8 c, *p = rcu_dereference_raw(tree->root);
 	u32 newbyte, newotherbits;
 	struct critbit_node *q, *newnode;
 	int direction, newdirection;
@@ -118,7 +138,7 @@ int critbit_insert(struct critbit_tree *tree, char *elem)
 	if (unlikely(!IS_ALIGNED((unsigned long) elem, SMP_CACHE_BYTES)))
 		return -EINVAL;
 	if (!p) {
-		tree->root = elem;
+		rcu_assign_pointer(tree->root, elem);
 		return 0;
 	}
 
@@ -128,7 +148,7 @@ int critbit_insert(struct critbit_tree *tree, char *elem)
 		if (q->byte < ulen)
 			c = ubytes[q->byte];
 		direction = (1 + (q->otherbits | c)) >> 8;
-		p = q->child[direction];
+		p = rcu_dereference_raw(q->child[direction]);
 	}
 
 	for (newbyte = 0; newbyte < ulen; ++newbyte) {
@@ -175,17 +195,33 @@ different_byte_found:
 	}
 
 	newnode->child[newdirection] = *wherep;
-	*wherep = (void *) (1 + (char *) newnode);
-
+	rcu_assign_pointer(*wherep, (void *) (1 + (char *) newnode));
 	return 0;
+}
+EXPORT_SYMBOL(__critbit_insert);
+
+int critbit_insert(struct critbit_tree *tree, char *elem)
+{
+	int ret;
+	unsigned long flags;
+	spin_lock_irqsave(&tree->wr_lock, flags);
+	ret = __critbit_insert(tree, elem);
+	spin_unlock_irqrestore(&tree->wr_lock, flags);
+	return ret;
 }
 EXPORT_SYMBOL(critbit_insert);
 
-int critbit_delete(struct critbit_tree *tree, const char *elem)
+static void critbit_do_free_rcu(struct rcu_head *rp)
+{
+	struct critbit_node *p = container_of(rp, struct critbit_node, rcu);
+	critbit_free_node(p);
+}
+
+int __critbit_delete(struct critbit_tree *tree, const char *elem)
 {
 	const u8 *ubytes = (void *) elem;
 	const size_t ulen = strlen(elem);
-	u8 c, *p = tree->root;
+	u8 c, *p = rcu_dereference_raw(tree->root);
 	void **wherep = &tree->root;
 	void **whereq = NULL;
 	struct critbit_node *q = NULL;
@@ -212,9 +248,20 @@ int critbit_delete(struct critbit_tree *tree, const char *elem)
 		return 0;
 	}
 
-	*whereq = q->child[1 - direction];
-	critbit_free_node(q);
+	rcu_assign_pointer(*whereq, q->child[1 - direction]);
+	call_rcu(&q->rcu, critbit_do_free_rcu);
 	return 0;
+}
+EXPORT_SYMBOL(__critbit_delete);
+
+int critbit_delete(struct critbit_tree *tree, const char *elem)
+{
+	int ret;
+	unsigned long flags;
+	spin_lock_irqsave(&tree->wr_lock, flags);
+	ret = __critbit_delete(tree, elem);
+	spin_unlock_irqrestore(&tree->wr_lock, flags);
+	return ret;
 }
 EXPORT_SYMBOL(critbit_delete);
 

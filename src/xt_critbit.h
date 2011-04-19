@@ -38,10 +38,17 @@ struct critbit_tree {
 
 #define struct_of(ptr, type)  ({ (type *)(ptr) })
 
+/* Lock holding variants. */
 extern int critbit_insert(struct critbit_tree *tree, char *elem);
 extern char *critbit_get(struct critbit_tree *tree, const char *elem);
 extern int critbit_delete(struct critbit_tree *tree, const char *elem);
 extern int critbit_contains(struct critbit_tree *tree, const char *elem);
+
+/* Non-lock holding variants. */
+extern int __critbit_insert(struct critbit_tree *tree, char *elem);
+extern char *__critbit_get(struct critbit_tree *tree, const char *elem);
+extern int __critbit_delete(struct critbit_tree *tree, const char *elem);
+extern int __critbit_contains(struct critbit_tree *tree, const char *elem);
 
 extern int critbit_node_cache_init(void);
 extern void critbit_node_cache_destroy(void);
