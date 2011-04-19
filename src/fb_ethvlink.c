@@ -530,6 +530,7 @@ err_put:
 static int fb_ethvlink_dev_event(struct notifier_block *self,
 				 unsigned long event, void *ptr)
 {
+	unsigned long flags;
 	struct net_device *dev = ptr;
 	struct fb_ethvlink_private *vdev;
 	struct vlinknlmsg vhdr;
@@ -555,7 +556,7 @@ static int fb_ethvlink_dev_event(struct notifier_block *self,
 
 		memset(&vhdr, 0, sizeof(vhdr));
 		vhdr.cmd = VLINKNLCMD_RM_DEVICE;
-		/* FIXME! */
+		spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
 		list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
 			if (vdev->real_dev == dev) {
 				memset(vhdr.virt_name, 0,
@@ -565,7 +566,7 @@ static int fb_ethvlink_dev_event(struct notifier_block *self,
 				fb_ethvlink_rm_dev(&vhdr, NULL);
 			}
 		}
-		
+		spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
 		break;
 	case NETDEV_PRE_TYPE_CHANGE:
 		return NOTIFY_BAD;
