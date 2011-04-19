@@ -182,7 +182,7 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 		goto drop;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
-		goto normstack;
+		return skb;
 
 	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
 		goto drop;
@@ -193,7 +193,7 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 
 	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_LANA)) !=
 	    __constant_htons(ETH_P_LANA))
-		goto normstack;
+		return skb;
 
 	vport = ntohs(eth_hdr(skb)->h_proto &
 		      ~__constant_htons(ETH_P_LANA));
@@ -213,10 +213,6 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 		}
 	}
 
-	kfree_skb(skb);
-	return NULL;
-normstack:
-	return skb;
 drop:
 	kfree_skb(skb);
 	return NULL;
