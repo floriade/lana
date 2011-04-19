@@ -20,6 +20,7 @@
 #include "xt_fblock.h"
 #include "xt_idp.h"
 #include "xt_hash.h"
+#include "xt_critbit.h"
 
 struct str_idp_elem {
 	idp_t idp;

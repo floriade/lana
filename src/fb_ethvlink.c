@@ -178,7 +178,7 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 	struct pcpu_dstats *dstats;
 
 	dev = skb->dev;
-	if (unlikely(!(dev->flags & IFF_UP)))
+	if (unlikely((dev->flags & IFF_UP) != IFF_UP))
 		goto drop;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
