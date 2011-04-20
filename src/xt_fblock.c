@@ -311,7 +311,7 @@ static void ctor_fblock(void *obj)
 	struct fblock *p = obj;
 	p->idp = IDP_UNKNOWN;
 	atomic_set(&p->refcnt, 1);
-	p->next = p->prev = NULL;
+	p->next = NULL;
 	p->private_data = NULL;
 }
 
