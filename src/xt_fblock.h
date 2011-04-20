@@ -36,8 +36,9 @@ struct fblock {
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
-extern int register_fblock(struct fblock *p);
+extern int register_fblock_namespace(struct fblock *p);
 extern int register_fblock_idp(struct fblock *p, idp_t idp);
+
 extern int unregister_fblock(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
 

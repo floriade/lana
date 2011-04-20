@@ -20,14 +20,24 @@ static struct fblock_ops fb_test_ops = {
 	.netrx = fb_test_netrx,
 };
 
+static struct fblock *fb_test_block;
+
 static int __init init_fb_test_module(void)
 {
+	fb_test_block = alloc_fblock(GFP_ATOMIC);
+	fb_test_block->ops = &fb_test_ops;
+	strlcpy(fb_test_block->name, "fb1", sizeof(fb_test_block->name));
+
+	register_fblock_namespace(fb_test_block);
+
 	printk(KERN_INFO "[lana] Dummy/test loaded!\n");
 	return 0;
 }
 
 static void __exit cleanup_fb_test_module(void)
 {
+	unregister_fblock_namespace(fb_test_block);
+
 	printk(KERN_INFO "[lana] Dummy/test removed!\n");
 }
 

@@ -275,12 +275,20 @@ int critbit_delete(struct critbit_tree *tree, const char *elem)
 }
 EXPORT_SYMBOL(critbit_delete);
 
+static void critbit_ctor(void *obj)
+{
+	struct critbit_node *node = obj;
+	node->child[0] = node->child[1] = NULL;
+}
+
 int critbit_node_cache_init(void)
 {
 	if (critbit_node_cache)
 		return -EBUSY;
-	critbit_node_cache = kmem_cache_create("critbit", sizeof(struct critbit_node),
-					       0, SLAB_HWCACHE_ALIGN, NULL);
+	critbit_node_cache = kmem_cache_create("critbit",
+					       sizeof(struct critbit_node),
+					       0, SLAB_HWCACHE_ALIGN,
+					       critbit_ctor);
 	if (!critbit_node_cache)
 		return -ENOMEM;
 	printk(KERN_INFO "[lana] %s cache created!\n",

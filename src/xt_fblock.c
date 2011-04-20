@@ -45,11 +45,6 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 {
 	struct idp_elem *elem;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Registration of fblock ns during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
 	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
@@ -72,11 +67,6 @@ static int unregister_from_fblock_namespace(char *name)
 	int ret;
 	struct idp_elem *elem;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Unregistration of fblock ns during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	elem = struct_of(critbit_get(&idpmap, name), struct idp_elem);
 	ret = critbit_delete(&idpmap, elem->name);
 	if (ret)
@@ -135,6 +125,8 @@ struct fblock *__search_fblock(idp_t idp)
 	struct fblock *p0;
 
 	p0 = fblmap_head[hash_idp(idp)];
+	if (!p0)
+		return NULL;
 	p = rcu_dereference_raw(p0->next);
 	while (p != p0) {
 		if (p->idp == idp) {
@@ -169,16 +161,15 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 	struct fblock *p0;
 	unsigned long flags;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Registration of fblock_idp during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = idp;
 	p0 = fblmap_head[hash_idp(p->idp)];
-	p->next = p0->next;
-	rcu_assign_pointer(p0->next, p);
+	if (!p0)
+		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
+	else {
+		p->next = p0->next;
+		rcu_assign_pointer(p0->next, p);
+	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
@@ -196,16 +187,15 @@ int register_fblock_namespace(struct fblock *p)
 	struct fblock *p0;
 	unsigned long flags;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Unregistration of fblock during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = provide_new_fblock_idp();
 	p0 = fblmap_head[hash_idp(p->idp)];
-	p->next = p0->next;
-	rcu_assign_pointer(p0->next, p);
+	if (!p0)
+		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
+	else {
+		p->next = p0->next;
+		rcu_assign_pointer(p0->next, p);
+	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
@@ -230,11 +220,6 @@ int unregister_fblock(struct fblock *p)
 	struct fblock *p0;
 	unsigned long flags;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Unregistration of fblock during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p0 = fblmap_head[hash_idp(p->idp)];
 	if (p0 == p)
@@ -267,11 +252,6 @@ void unregister_fblock_namespace(struct fblock *p)
 	struct fblock *p0;
 	unsigned long flags;
 
-	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Unregistration of fblock during "
-		       "rcu_read_lock held!\n");
-		BUG();
-	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p0 = fblmap_head[hash_idp(p->idp)];
 	if (p0 == p)
