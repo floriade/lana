@@ -45,8 +45,12 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 {
 	struct idp_elem *elem;
 
-	if (unlikely(rcu_read_lock_held()))
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Registration of fblock ns during "
+		       "rcu_read_lock held!\n");
+		BUG();
 		return -EINVAL;
+	}
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
 	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
@@ -69,8 +73,12 @@ static int unregister_from_fblock_namespace(char *name)
 	int ret;
 	struct idp_elem *elem = struct_of(critbit_get(&idpmap, name),
 					  struct idp_elem);
-	if (unlikely(rcu_read_lock_held()))
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Unregistration of fblock ns during "
+		       "rcu_read_lock held!\n");
+		BUG();
 		return -EINVAL;
+	}
 	ret = critbit_delete(&idpmap, elem->name);
 	if (ret)
 		return ret;
@@ -78,7 +86,7 @@ static int unregister_from_fblock_namespace(char *name)
 	return 0;
 }
 
-/* Called within RCU read lock. */
+/* Called within RCU read lock! */
 idp_t __get_fblock_namespace_mapping(char *name)
 {
 	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
@@ -119,6 +127,7 @@ int change_fblock_namespace_mapping(char *name, idp_t new)
 EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 
 /* Caller needs to do a put_fblock() after his work is done! */
+/* Called within RCU read lock! */
 struct fblock *__search_fblock(idp_t idp)
 {
 	struct fblock *p;
@@ -160,7 +169,7 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 	unsigned long flags;
 
 	if (unlikely(rcu_read_lock_held())) {
-		printk("[lana] Unregistration of fblock during "
+		printk("[lana] Registration of fblock_idp during "
 		       "rcu_read_lock held!\n");
 		BUG();
 		return -EINVAL;
@@ -200,7 +209,7 @@ int register_fblock_namespace(struct fblock *p)
 	rcu_assign_pointer(p0->next, p);
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
-	printk("[lana] (%u,%s) loaded, name registered!\n", p->idp, p->name);
+	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
 	return register_to_fblock_namespace(p->name, p->idp);
 }
 EXPORT_SYMBOL_GPL(register_fblock_namespace);
