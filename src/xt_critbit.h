@@ -50,8 +50,12 @@ extern char *__critbit_get(struct critbit_tree *tree, const char *elem);
 extern int __critbit_delete(struct critbit_tree *tree, const char *elem);
 extern int __critbit_contains(struct critbit_tree *tree, const char *elem);
 
-extern int critbit_node_cache_init(void);
-extern void critbit_node_cache_destroy(void);
+/*
+ * If your module needs the critbit cache, call get_critbit_cache() on
+ * module init and put_critbit_cache() on module unload!
+ */
+extern void get_critbit_cache(void);
+extern void put_critbit_cache(void);
 
 static inline void critbit_init_tree(struct critbit_tree *tree)
 {

@@ -35,6 +35,7 @@
 #include <linux/slab.h>
 #include <linux/cache.h>
 #include <linux/rcupdate.h>
+#include <linux/atomic.h>
 
 #include "xt_critbit.h"
 
@@ -47,16 +48,21 @@ struct critbit_node {
 	u8 otherbits;
 } ____cacheline_aligned;
 
-static struct kmem_cache *critbit_node_cache = NULL;
+struct critbit_node_cache {
+	struct kmem_cache *cache;
+	atomic_t refcnt;
+};
+
+struct critbit_node_cache critbit_cache;
 
 static inline struct critbit_node *critbit_alloc_node_aligned(gfp_t flags)
 {
-	return kmem_cache_alloc(critbit_node_cache, flags);
+	return kmem_cache_alloc(critbit_cache.cache, flags);
 }
 
 static inline void critbit_free_node(struct critbit_node *p)
 {
-	kmem_cache_free(critbit_node_cache, p);
+	kmem_cache_free(critbit_cache.cache, p);
 }
 
 int __critbit_contains(struct critbit_tree *tree, const char *elem)
@@ -281,27 +287,42 @@ static void critbit_ctor(void *obj)
 	node->child[0] = node->child[1] = NULL;
 }
 
-int critbit_node_cache_init(void)
+static int critbit_node_cache_init(void)
 {
-	if (critbit_node_cache)
-		return -EBUSY;
-	critbit_node_cache = kmem_cache_create("critbit",
-					       sizeof(struct critbit_node),
-					       0, SLAB_HWCACHE_ALIGN,
-					       critbit_ctor);
-	if (!critbit_node_cache)
+	atomic_set(&critbit_cache.refcnt, 1);
+	critbit_cache.cache = kmem_cache_create("critbit",
+						sizeof(struct critbit_node),
+						0, SLAB_HWCACHE_ALIGN,
+						critbit_ctor);
+	if (!critbit_cache.cache)
 		return -ENOMEM;
 	printk(KERN_INFO "[lana] %s cache created!\n",
-	       critbit_node_cache->name);
+	       critbit_cache.cache->name);
 	return 0;
 }
-EXPORT_SYMBOL(critbit_node_cache_init);
 
-void critbit_node_cache_destroy(void)
+static void critbit_node_cache_destroy(void)
 {
 	printk(KERN_INFO "[lana] %s cache destroyed!\n",
-	       critbit_node_cache->name);
-	kmem_cache_destroy(critbit_node_cache);
+	       critbit_cache.cache->name);
+	kmem_cache_destroy(critbit_cache.cache);
 }
-EXPORT_SYMBOL(critbit_node_cache_destroy);
+
+void get_critbit_cache(void)
+{
+	if (unlikely(!atomic_read(&critbit_cache.refcnt))) {
+		if (critbit_node_cache_init())
+			panic("No mem left for critbit cache!\n");
+	} else
+		atomic_inc(&critbit_cache.refcnt);
+}
+EXPORT_SYMBOL(get_critbit_cache);
+
+void put_critbit_cache(void)
+{
+	if (likely(!atomic_dec_and_test(&critbit_cache.refcnt)))
+		return;
+	critbit_node_cache_destroy();
+}
+EXPORT_SYMBOL(put_critbit_cache);
 

@@ -9,6 +9,7 @@
  */
 
 #include "xt_fblock.h"
+#include "xt_critbit.h"
 
 int fb_test_netrx(struct sk_buff *skb)
 {
@@ -29,7 +30,6 @@ static int __init init_fb_test_module(void)
 	strlcpy(fb_test_block->name, "fb1", sizeof(fb_test_block->name));
 
 	register_fblock_namespace(fb_test_block);
-
 	printk(KERN_INFO "[lana] Dummy/test loaded!\n");
 	return 0;
 }
@@ -37,7 +37,6 @@ static int __init init_fb_test_module(void)
 static void __exit cleanup_fb_test_module(void)
 {
 	unregister_fblock_namespace(fb_test_block);
-
 	printk(KERN_INFO "[lana] Dummy/test removed!\n");
 }
 

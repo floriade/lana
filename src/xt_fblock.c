@@ -317,14 +317,14 @@ int init_fblock_tables(void)
 {
 	int ret = 0;
 
+	get_critbit_cache();
 	critbit_init_tree(&idpmap);
-	ret = critbit_node_cache_init();
-	if (ret == -ENOMEM)
-		return ret;
+
 	fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
 	fblmap_head = kzalloc(sizeof(*fblmap_head) * HASHTSIZ, GFP_KERNEL);
 	if (!fblmap_head)
 		goto err;
+
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
 					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
 	if (!fblock_cache)
@@ -339,14 +339,14 @@ int init_fblock_tables(void)
 err2:
 	kfree(fblmap_head);
 err:
-	critbit_node_cache_destroy();
+	put_critbit_cache();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(init_fblock_tables);
 
 void cleanup_fblock_tables(void)
 {
-	critbit_node_cache_destroy();
+	put_critbit_cache();
 	kfree(fblmap_head);
 	printk(KERN_INFO "[lana] %s cache destroyed!\n",
 	       fblock_cache->name);

@@ -34,6 +34,10 @@ static int __init init_fb_test2_module(void)
 	if (ret)
 		return ret;
 
+	printk(KERN_INFO "idp1: %u, idp2: %u\n",
+	       get_fblock_namespace_mapping("fb1"),
+	       get_fblock_namespace_mapping("fb2"));
+
 	printk(KERN_INFO "[lana] Dummy/test 2 loaded!\n");
 	return 0;
 }
