@@ -50,7 +50,6 @@ static inline __u32 hash_idp2(const idp_t k)
 	return HASHSLOT(c);
 }
 
-
 extern __u32 hash_string(const char *key, size_t len);
 
 #endif /* XT_HASH_H */
