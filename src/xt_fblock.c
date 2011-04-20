@@ -33,12 +33,12 @@ static struct critbit_tree idpmap;
 static struct fblock **fblmap_head = NULL;
 static spinlock_t fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
 
-static atomic_t idp_counter;
+static atomic64_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
 
 static inline idp_t provide_new_fblock_idp(void)
 {
-	return atomic_inc_return(&idp_counter);
+	return (idp_t) atomic64_inc_return(&idp_counter);
 }
 
 static int register_to_fblock_namespace(char *name, idp_t val)
@@ -312,7 +312,7 @@ int init_fblock_tables(void)
 					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
 	if (!fblock_cache)
 		goto err2;
-	atomic_set(&idp_counter, 0);
+	atomic64_set(&idp_counter, 0);
 
 	printk(KERN_INFO "[lana] %s cache created!\n",
 	       fblock_cache->name);
