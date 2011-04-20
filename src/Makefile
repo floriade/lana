@@ -23,6 +23,9 @@ obj-m   += xcore.o
 xbasic-y := fb_ethvlink.o
 obj-m    += xbasic.o
 
+xdebug-y := fb_test.o
+obj-m    += xdebug.o
+
 #xextra-y := fb_ethvlink.o
 #obj-m    += xextra.o
 
