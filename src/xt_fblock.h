@@ -72,6 +72,22 @@ extern int __change_fblock_namespace_mapping(char *name, idp_t new);
 extern int init_fblock_tables(void);
 extern void cleanup_fblock_tables(void);
 
+static inline void init_fblock_notifier_block(struct fblock *fb,
+					      struct notifier_block *nb)
+{
+	nb->priority = 0;
+	nb->notifier_call = fb->ops->event_rx;
+	nb->next = NULL;
+}
+
+static inline int call_fblock_subscribers(struct fblock *fb,
+					  unsigned long cmd, void *arg)
+{
+	if (unlikely(!fb->others))
+		return -ENOENT;
+	return atomic_notifier_call_chain(&fb->others->subscribers, cmd, arg);
+}
+
 static inline void get_fblock(struct fblock *b)
 {
 	atomic_inc(&b->refcnt);
