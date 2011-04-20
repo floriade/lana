@@ -11,10 +11,14 @@
 
 #include <linux/if.h>
 #include <linux/cpu.h>
+#include <linux/rwlock.h>
 #include <linux/skbuff.h>
 #include <linux/notifier.h>
 
 #include "xt_idp.h"
+
+#define FBLOCK_DOWN_PREPARE	0x0001	/* Notify of fblock going down */
+#define FBLOCK_DOWN		0x0002	/* Notify of fblock is down    */
 
 #define FBNAMSIZ IFNAMSIZ
 #define MAXNBLKS 32
@@ -28,6 +32,7 @@ struct fblock_ops {
 
 struct fblock_notifier {
 	struct fblock *self;
+	struct fblock *remote;
 	struct notifier_block nb;
 	struct fblock_notifier *next;
 };
@@ -46,6 +51,7 @@ struct fblock {
 	struct rcu_head rcu;
 	atomic_t refcnt;
 	idp_t idp;
+	rwlock_t lock;
 } ____cacheline_aligned_in_smp;
 
 extern struct fblock *alloc_fblock(gfp_t flags);
@@ -75,6 +81,11 @@ extern int __change_fblock_namespace_mapping(char *name, idp_t new);
 
 extern int init_fblock_tables(void);
 extern void cleanup_fblock_tables(void);
+
+extern int subscribe_to_remote_fblock(struct fblock *us,
+				      struct fblock *remote);
+extern void unsubscribe_from_remote_fblock(struct fblock *us,
+					   struct fblock *remote);
 
 static inline void init_fblock_subscriber(struct fblock *fb,
 					  struct notifier_block *nb)

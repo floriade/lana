@@ -14,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/cpu.h>
 #include <linux/spinlock.h>
+#include <linux/rwlock.h>
 #include <linux/slab.h>
 
 #include "xt_fblock.h"
@@ -289,11 +290,59 @@ int xchg_fblock(struct fblock *old, struct fblock *new)
 }
 EXPORT_SYMBOL_GPL(xchg_fblock);
 
+/* If state changes on 'remote' fb, we ('us') want to be notified. */
+int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
+{
+	struct fblock_notifier *fn = kmalloc(sizeof(*fn), GFP_KERNEL);
+	if (!fn)
+		return -ENOMEM;
+	write_lock(&us->lock);
+	fn->self = us;
+	fn->remote = remote;
+	init_fblock_subscriber(us, &fn->nb);
+	fn->next = us->notifiers;
+	us->notifiers = fn;
+	write_unlock(&us->lock);
+	return fblock_register_foreign_subscriber(remote, &us->notifiers->nb);
+}
+EXPORT_SYMBOL_GPL(subscribe_to_remote_fblock);
+
+void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
+{
+	int found = 0;
+	struct fblock_notifier *fn;
+
+	if (unlikely(!us->notifiers))
+		return;
+	write_lock(&us->lock);
+	fn = us->notifiers;
+	if (fn->remote == remote)
+		us->notifiers = us->notifiers->next;
+	else {
+		struct fblock_notifier *f1;
+		while ((f1 = fn->next)) {
+			if (f1->remote == remote) {
+				found = 1;
+				fn->next = f1->next;
+				break;
+			}
+			fn = f1;
+		}
+	}
+	write_unlock(&us->lock);
+	if (found) {
+		fblock_unregister_foreign_subscriber(remote, &fn->nb);
+		kfree(fn);
+	}
+}
+EXPORT_SYMBOL_GPL(unsubscribe_from_remote_fblock);
+
 static void ctor_fblock(void *obj)
 {
 	struct fblock *p = obj;
 
 	atomic_set(&p->refcnt, 1);
+	rwlock_init(&p->lock);
 	p->idp = IDP_UNKNOWN;
 	p->next = NULL;
 	p->private_data = NULL;
@@ -311,6 +360,7 @@ EXPORT_SYMBOL_GPL(alloc_fblock);
 int init_fblock(struct fblock *fb, char *name, void *priv,
 		struct fblock_ops *ops)
 {
+	write_lock(&fb->lock);
 	strlcpy(fb->name, name, sizeof(fb->name));
 	fb->private_data = priv;
 	fb->ops = ops;
@@ -318,6 +368,7 @@ int init_fblock(struct fblock *fb, char *name, void *priv,
 	if (!fb->others)
 		return -ENOMEM;
 	ATOMIC_INIT_NOTIFIER_HEAD(&fb->others->subscribers);
+	write_unlock(&fb->lock);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(init_fblock);
