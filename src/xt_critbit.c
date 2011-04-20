@@ -146,7 +146,6 @@ int __critbit_insert(struct critbit_tree *tree, char *elem)
 	if (unlikely(!IS_ALIGNED((unsigned long) elem, SMP_CACHE_BYTES))) {
 		printk("[lana] Your string is not power of two aligned!\n");
 		BUG();
-		return -EINVAL;
 	}
 	if (!p) {
 		rcu_assign_pointer(tree->root, elem);

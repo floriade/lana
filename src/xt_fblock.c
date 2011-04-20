@@ -49,7 +49,6 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 		printk("[lana] Registration of fblock ns during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return -EINVAL;
 	}
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
@@ -77,7 +76,6 @@ static int unregister_from_fblock_namespace(char *name)
 		printk("[lana] Unregistration of fblock ns during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return -EINVAL;
 	}
 	elem = struct_of(critbit_get(&idpmap, name), struct idp_elem);
 	ret = critbit_delete(&idpmap, elem->name);
@@ -175,7 +173,6 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 		printk("[lana] Registration of fblock_idp during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return -EINVAL;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = idp;
@@ -203,7 +200,6 @@ int register_fblock_namespace(struct fblock *p)
 		printk("[lana] Unregistration of fblock during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return -EINVAL;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = provide_new_fblock_idp();
@@ -238,7 +234,6 @@ int unregister_fblock(struct fblock *p)
 		printk("[lana] Unregistration of fblock during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return -EINVAL;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p0 = fblmap_head[hash_idp(p->idp)];
@@ -276,7 +271,6 @@ void unregister_fblock_namespace(struct fblock *p)
 		printk("[lana] Unregistration of fblock during "
 		       "rcu_read_lock held!\n");
 		BUG();
-		return;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p0 = fblmap_head[hash_idp(p->idp)];
