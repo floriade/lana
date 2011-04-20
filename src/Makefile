@@ -23,11 +23,10 @@ obj-m   += xcore.o
 xbasic-y := fb_ethvlink.o
 obj-m    += xbasic.o
 
-xdebug-y := fb_test.o
-obj-m    += xdebug.o
+# Test modules
 
-#xextra-y := fb_ethvlink.o
-#obj-m    += xextra.o
+obj-m    += fb_test.o
+obj-m    += fb_test2.o
 
 MDIR     := /lib/modules/$(shell uname -r)
 KDIR     := $(MDIR)/build

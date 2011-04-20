@@ -68,6 +68,8 @@ static int unregister_from_fblock_namespace(char *name)
 	struct idp_elem *elem;
 
 	elem = struct_of(critbit_get(&idpmap, name), struct idp_elem);
+	if (!elem)
+		return -ENOENT;
 	ret = critbit_delete(&idpmap, elem->name);
 	if (ret)
 		return ret;
@@ -81,6 +83,8 @@ idp_t __get_fblock_namespace_mapping(char *name)
 {
 	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
 					  struct idp_elem);
+	if (unlikely(!elem))
+		return IDP_UNKNOWN;
 	smp_rmb();
 	return elem->idp;
 }
@@ -101,6 +105,8 @@ int __change_fblock_namespace_mapping(char *name, idp_t new)
 {
 	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
 					  struct idp_elem);
+	if (unlikely(!elem))
+		return -ENOENT;
 	elem->idp = new;
 	smp_wmb();
 	return 0;
