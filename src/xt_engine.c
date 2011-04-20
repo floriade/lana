@@ -25,6 +25,7 @@
 
 #include "xt_engine.h"
 #include "xt_skb.h"
+#include "xt_fblock.h"
 
 struct worker_engine __percpu *engines;
 extern struct proc_dir_entry *lana_proc_dir;
@@ -55,8 +56,11 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	idp_t cont;
 	while ((cont = read_next_idp_from_skb(skb))) {
-		/* Call FB receive function */
-		/* ret = send_to_idp(cont, dir, skb); */
+		struct fblock *fb = search_fblock(cont);
+		if (unlikely(!fb))
+			break;
+		fb->ops->netfb_rx(fb, skb);
+		put_fblock(fb);
 	}
 	return 0;
 }

@@ -21,7 +21,7 @@
 
 struct fblock;
 struct fblock_ops {
-	int (*netfb_rx)(struct sk_buff *skb);
+	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb);
 	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
 			void *args);
 };

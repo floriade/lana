@@ -11,7 +11,7 @@
 #include "xt_fblock.h"
 #include "xt_critbit.h"
 
-int fb_test_netrx(struct sk_buff *skb)
+int fb_test_netrx(struct fblock *fb, struct sk_buff *skb)
 {
 	printk("Got skb!\n");
 	return 0;
