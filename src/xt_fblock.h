@@ -28,7 +28,7 @@ struct fblock_ops {
 
 struct fblock_notifier {
 	struct notifier_block nb;
-	struct fblock_not *next;
+	struct fblock_notifier *next;
 };
 
 struct fblock_subscrib {
