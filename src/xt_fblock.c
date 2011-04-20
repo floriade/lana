@@ -38,16 +38,15 @@ static struct kmem_cache *fblock_cache = NULL;
 
 static inline idp_t provide_new_fblock_idp(void)
 {
-	int ret, c = atomic_read(&idp_counter);
-	ret = atomic_inc_return(&idp_counter);
-	if (unlikely(c > ret))
-		panic("Too many functional blocks loaded!\n");
-	return (idp_t) ret;
+	return atomic_inc_return(&idp_counter);
 }
 
 static int register_to_fblock_namespace(char *name, idp_t val)
 {
 	struct idp_elem *elem;
+
+	if (unlikely(rcu_read_lock_held()))
+		return -EINVAL;
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
 	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
@@ -55,6 +54,7 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 		return -ENOMEM;
 	strlcpy(elem->name, name, sizeof(elem->name));
 	elem->idp = val;
+
 	return critbit_insert(&idpmap, elem->name);
 }
 
@@ -69,6 +69,8 @@ static int unregister_from_fblock_namespace(char *name)
 	int ret;
 	struct idp_elem *elem = struct_of(critbit_get(&idpmap, name),
 					  struct idp_elem);
+	if (unlikely(rcu_read_lock_held()))
+		return -EINVAL;
 	ret = critbit_delete(&idpmap, elem->name);
 	if (ret)
 		return ret;
@@ -117,24 +119,32 @@ int change_fblock_namespace_mapping(char *name, idp_t new)
 EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 
 /* Caller needs to do a put_fblock() after his work is done! */
-struct fblock *search_fblock(idp_t idp)
+struct fblock *__search_fblock(idp_t idp)
 {
 	struct fblock *p;
 	struct fblock *p0;
 
 	p0 = fblmap_head[hash_idp(idp)];
-	rmb();
-	p = p0->next;
+	p = rcu_dereference_raw(p0->next);
 	while (p != p0) {
-		rmb();
 		if (p->idp == idp) {
 			get_fblock(p);
 			return p;
 		}
-		p = p->next;
+		p = rcu_dereference_raw(p->next);
 	}
 
 	return NULL;
+}
+EXPORT_SYMBOL_GPL(__search_fblock);
+
+struct fblock *search_fblock(idp_t idp)
+{
+	struct fblock * ret;
+	rcu_read_lock();
+	ret = __search_fblock(idp);
+	rcu_read_unlock();
+	return ret;
 }
 EXPORT_SYMBOL_GPL(search_fblock);
 
@@ -147,11 +157,21 @@ EXPORT_SYMBOL_GPL(search_fblock);
 int register_fblock_idp(struct fblock *p, idp_t idp)
 {
 	struct fblock *p0;
+	unsigned long flags;
+
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Unregistration of fblock during "
+		       "rcu_read_lock held!\n");
+		BUG();
+		return -EINVAL;
+	}
+	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = idp;
 	p0 = fblmap_head[hash_idp(p->idp)];
 	p->next = p0->next;
-	wmb();
-	p0->next = p;
+	rcu_assign_pointer(p0->next, p);
+	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+
 	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
 	return 0;
 }
@@ -165,12 +185,22 @@ EXPORT_SYMBOL_GPL(register_fblock_idp);
 int register_fblock_namespace(struct fblock *p)
 {
 	struct fblock *p0;
+	unsigned long flags;
+
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Unregistration of fblock during "
+		       "rcu_read_lock held!\n");
+		BUG();
+		return -EINVAL;
+	}
+	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = provide_new_fblock_idp();
 	p0 = fblmap_head[hash_idp(p->idp)];
 	p->next = p0->next;
-	wmb();
-	p0->next = p;
-	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
+	rcu_assign_pointer(p0->next, p);
+	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+
+	printk("[lana] (%u,%s) loaded, name registered!\n", p->idp, p->name);
 	return register_to_fblock_namespace(p->name, p->idp);
 }
 EXPORT_SYMBOL_GPL(register_fblock_namespace);
@@ -191,6 +221,12 @@ idp_t unregister_fblock(struct fblock *p)
 	idp_t ret = p->idp;
 	unsigned long flags;
 
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Unregistration of fblock during "
+		       "rcu_read_lock held!\n");
+		BUG();
+		return -EINVAL;
+	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
@@ -211,6 +247,12 @@ void unregister_fblock_namespace(struct fblock *p)
 {
 	unsigned long flags;
 
+	if (unlikely(rcu_read_lock_held())) {
+		printk("[lana] Unregistration of fblock during "
+		       "rcu_read_lock held!\n");
+		BUG();
+		return;
+	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->next->prev = p->prev;
 	p->prev->next = p->next;
