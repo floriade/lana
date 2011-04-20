@@ -54,15 +54,22 @@ static inline int __ppe_queues_have_load(struct worker_engine *ppe)
 
 static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
+	int ret = PPE_DROPPED;
 	idp_t cont;
+
 	while ((cont = read_next_idp_from_skb(skb))) {
 		struct fblock *fb = search_fblock(cont);
-		if (unlikely(!fb))
+		if (unlikely(!fb)) {
+			ret = PPE_ERROR;
 			break;
-		fb->ops->netfb_rx(fb, skb);
+		}
+		ret = fb->ops->netfb_rx(fb, skb);
 		put_fblock(fb);
+		if (ret == PPE_DROPPED)
+			break;
 	}
-	return 0;
+
+	return ret;
 }
 
 static int engine_thread(void *arg)
