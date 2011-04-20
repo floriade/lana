@@ -31,7 +31,7 @@ struct idp_elem {
 static struct critbit_tree idpmap;
 /* idp -> fblock translation map */
 static struct fblock **fblmap_head = NULL;
-static spinlock_t fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
+static spinlock_t fblmap_head_lock;
 
 static atomic64_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
@@ -305,6 +305,7 @@ int init_fblock_tables(void)
 	ret = critbit_node_cache_init();
 	if (ret == -ENOMEM)
 		return ret;
+	fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
 	fblmap_head = kzalloc(sizeof(*fblmap_head) * HASHTSIZ, GFP_KERNEL);
 	if (!fblmap_head)
 		goto err;
