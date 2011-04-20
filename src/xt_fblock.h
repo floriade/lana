@@ -27,6 +27,7 @@ struct fblock_ops {
 };
 
 struct fblock_notifier {
+	struct fblock *self;
 	struct notifier_block nb;
 	struct fblock_notifier *next;
 };
@@ -37,7 +38,6 @@ struct fblock_subscrib {
 
 struct fblock {
 	char name[FBNAMSIZ];
-	u32 flags;
 	void *private_data;
 	struct fblock_ops *ops;
 	struct fblock_notifier *notifiers;
