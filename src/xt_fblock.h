@@ -12,15 +12,27 @@
 #include <linux/if.h>
 #include <linux/cpu.h>
 #include <linux/skbuff.h>
+#include <linux/notifier.h>
 
 #include "xt_idp.h"
 
 #define FBNAMSIZ IFNAMSIZ
+#define MAXNBLKS 32
 
 struct fblock;
 struct fblock_ops {
-	int (*net_rx)(struct sk_buff *skb);
-	int (*event_rx)(struct fblockmsg *msg, void *args);
+	int (*netfb_rx)(struct sk_buff *skb);
+	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
+			void *args);
+};
+
+struct fblock_notifier {
+	struct notifier_block nb;
+	struct fblock_not *next;
+};
+
+struct fblock_subscrib {
+	struct atomic_notifier_head subscribers;
 };
 
 struct fblock {
@@ -28,6 +40,8 @@ struct fblock {
 	u32 flags;
 	void *private_data;
 	struct fblock_ops *ops;
+	struct fblock_notifier *notifiers;
+	struct fblock_subscrib *others;
 	struct fblock *next;
 	struct rcu_head rcu;
 	atomic_t refcnt;

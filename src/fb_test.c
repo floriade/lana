@@ -18,7 +18,7 @@ int fb_test_netrx(struct sk_buff *skb)
 }
 
 static struct fblock_ops fb_test_ops = {
-	.netrx = fb_test_netrx,
+	.netfb_rx = fb_test_netrx,
 };
 
 static struct fblock *fb_test_block;

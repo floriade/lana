@@ -292,10 +292,14 @@ EXPORT_SYMBOL_GPL(xchg_fblock);
 static void ctor_fblock(void *obj)
 {
 	struct fblock *p = obj;
-	p->idp = IDP_UNKNOWN;
+
 	atomic_set(&p->refcnt, 1);
+	p->idp = IDP_UNKNOWN;
 	p->next = NULL;
 	p->private_data = NULL;
+	p->ops = NULL;
+	p->notifiers = NULL;
+	p->others = NULL;
 }
 
 struct fblock *alloc_fblock(gfp_t flags)

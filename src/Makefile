@@ -26,7 +26,6 @@ obj-m    += xbasic.o
 # Test modules
 
 obj-m    += fb_test.o
-obj-m    += fb_test2.o
 
 MDIR     := /lib/modules/$(shell uname -r)
 KDIR     := $(MDIR)/build
