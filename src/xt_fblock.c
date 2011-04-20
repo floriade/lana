@@ -308,11 +308,31 @@ struct fblock *alloc_fblock(gfp_t flags)
 }
 EXPORT_SYMBOL_GPL(alloc_fblock);
 
+int init_fblock(struct fblock *fb, char *name, void *priv,
+		struct fblock_ops *ops)
+{
+	strlcpy(fb->name, name, sizeof(fb->name));
+	fb->private_data = priv;
+	fb->ops = ops;
+	fb->others = kmalloc(sizeof(*(fb->others)), GFP_KERNEL);
+	if (!fb->others)
+		return -ENOMEM;
+	ATOMIC_INIT_NOTIFIER_HEAD(&fb->others->subscribers);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(init_fblock);
+
 void kfree_fblock(struct fblock *p)
 {
 	kmem_cache_free(fblock_cache, p);
 }
 EXPORT_SYMBOL_GPL(kfree_fblock);
+
+void cleanup_fblock(struct fblock *fb)
+{
+	kfree(fb->others);
+}
+EXPORT_SYMBOL_GPL(cleanup_fblock);
 
 int init_fblock_tables(void)
 {
