@@ -28,7 +28,6 @@ struct fblock {
 	void *private_data;
 	struct fblock_ops *ops;
 	struct fblock *next;
-	struct fblock *prev;
 	struct rcu_head rcu;
 	atomic_t refcnt;
 	idp_t idp;
@@ -36,10 +35,12 @@ struct fblock {
 
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
+
 extern int register_fblock(struct fblock *p);
 extern int register_fblock_idp(struct fblock *p, idp_t idp);
-extern idp_t unregister_fblock(struct fblock *p);
+extern int unregister_fblock(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
+
 extern int xchg_fblock_idp(idp_t idp, struct fblock *new);
 extern int xchg_fblock(struct fblock *old, struct fblock *new);
 
@@ -48,8 +49,10 @@ extern struct fblock *__search_fblock(idp_t idp);
 
 extern idp_t get_fblock_namespace_mapping(char *name); /* acquires rcu_read_lock */
 extern idp_t __get_fblock_namespace_mapping(char *name);
+
 extern int change_fblock_namespace_mapping(char *name, idp_t new); 
 extern int __change_fblock_namespace_mapping(char *name, idp_t new);
+
 extern int init_fblock_tables(void);
 extern void cleanup_fblock_tables(void);
 

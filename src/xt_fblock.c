@@ -71,18 +71,20 @@ static void fblock_namespace_do_free_rcu(struct rcu_head *rp)
 static int unregister_from_fblock_namespace(char *name)
 {
 	int ret;
-	struct idp_elem *elem = struct_of(critbit_get(&idpmap, name),
-					  struct idp_elem);
+	struct idp_elem *elem;
+
 	if (unlikely(rcu_read_lock_held())) {
 		printk("[lana] Unregistration of fblock ns during "
 		       "rcu_read_lock held!\n");
 		BUG();
 		return -EINVAL;
 	}
+	elem = struct_of(critbit_get(&idpmap, name), struct idp_elem);
 	ret = critbit_delete(&idpmap, elem->name);
 	if (ret)
 		return ret;
 	call_rcu(&elem->rcu, fblock_namespace_do_free_rcu);
+
 	return 0;
 }
 
@@ -106,6 +108,7 @@ idp_t get_fblock_namespace_mapping(char *name)
 }
 EXPORT_SYMBOL_GPL(get_fblock_namespace_mapping);
 
+/* Called within RCU read lock! */
 int __change_fblock_namespace_mapping(char *name, idp_t new)
 {
 	struct idp_elem *elem = struct_of(__critbit_get(&idpmap, name),
@@ -225,9 +228,10 @@ static void free_fblock_rcu(struct rcu_head *rp)
  * fblock translation table, but not from the namespace. The idp can then
  * later be reused, e.g. by another fblock.
  */
-idp_t unregister_fblock(struct fblock *p)
+int unregister_fblock(struct fblock *p)
 {
-	idp_t ret = p->idp;
+	int ret = -ENOENT;
+	struct fblock *p0;
 	unsigned long flags;
 
 	if (unlikely(rcu_read_lock_held())) {
@@ -237,13 +241,24 @@ idp_t unregister_fblock(struct fblock *p)
 		return -EINVAL;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p->next->prev = p->prev;
-	p->prev->next = p->next;
+	p0 = fblmap_head[hash_idp(p->idp)];
+	if (p0 == p)
+		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
+	else if (p0) {
+		struct fblock *p1;
+		while ((p1 = rcu_dereference_raw(p0->next))) {
+			if (p1 == p) {
+				rcu_assign_pointer(p0->next, p->next);
+				ret = 0;
+				break;
+			}
+			p0 = p1;
+		}
+	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%s) unloaded!\n", p->name);
 	call_rcu(&p->rcu, free_fblock_rcu);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(unregister_fblock);
@@ -254,6 +269,7 @@ EXPORT_SYMBOL_GPL(unregister_fblock);
  */
 void unregister_fblock_namespace(struct fblock *p)
 {
+	struct fblock *p0;
 	unsigned long flags;
 
 	if (unlikely(rcu_read_lock_held())) {
@@ -263,8 +279,19 @@ void unregister_fblock_namespace(struct fblock *p)
 		return;
 	}
 	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p->next->prev = p->prev;
-	p->prev->next = p->next;
+	p0 = fblmap_head[hash_idp(p->idp)];
+	if (p0 == p)
+		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
+	else if (p0) {
+		struct fblock *p1;
+		while ((p1 = rcu_dereference_raw(p0->next))) {
+			if (p1 == p) {
+				rcu_assign_pointer(p0->next, p->next);
+				break;
+			}
+			p0 = p1;
+		}
+	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 
 	printk("[lana] (%u,%s) unloaded!\n", p->idp, p->name);
