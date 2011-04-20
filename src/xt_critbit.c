@@ -73,8 +73,10 @@ int __critbit_contains(struct critbit_tree *tree, const char *elem)
 	struct critbit_node *q;
 	int direction;
 
-	if (unlikely(!rcu_read_lock_held()))
-		return -EINVAL;
+	if (unlikely(!rcu_read_lock_held())) {
+		printk(KERN_ERR "No rcu_read_lock held!\n");
+		BUG();
+	}
 	p = rcu_dereference_raw(tree->root);
 	if (!p)
 		return 0;
@@ -110,8 +112,8 @@ char *__critbit_get(struct critbit_tree *tree, const char *elem)
 	int direction;
 
 	if (unlikely(!rcu_read_lock_held())) {
-		printk(KERN_ERR "WARNING: No rcu_read_lock held!\n");
-		return NULL;
+		printk(KERN_ERR "No rcu_read_lock held!\n");
+		BUG();
 	}
 	p = rcu_dereference_raw(tree->root);
 	if (!p)
@@ -150,7 +152,8 @@ int __critbit_insert(struct critbit_tree *tree, char *elem)
 	void **wherep;
 
 	if (unlikely(!IS_ALIGNED((unsigned long) elem, SMP_CACHE_BYTES))) {
-		printk("[lana] Your string is not power of two aligned!\n");
+		printk(KERN_ERR "[lana] Your string is not power "
+		       "of two aligned!\n");
 		BUG();
 	}
 	if (!p) {
