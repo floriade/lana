@@ -32,13 +32,13 @@ extern struct proc_dir_entry *lana_proc_dir;
 
 void cleanup_worker_engines(void);
 
-static inline struct ppe_queue *__first_ppe_queue(struct worker_engine *ppe)
+static inline struct ppe_queue *first_ppe_queue(struct worker_engine *ppe)
 {
 	return ppe->inqs.head;
 }
 
-static inline struct ppe_queue
-*__next_filled_ppe_queue(struct ppe_queue *ppeq)
+static inline struct ppe_queue *
+next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
 	do {
 		ppeq = ppeq->next;
@@ -47,7 +47,7 @@ static inline struct ppe_queue
 	return ppeq;
 }
 
-static inline int __ppe_queues_have_load(struct worker_engine *ppe)
+static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
 	return atomic64_read(&ppe->load) != 0;
 }
@@ -85,15 +85,15 @@ static int engine_thread(void *arg)
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
 
-	ppeq = __first_ppe_queue(ppe);
+	ppeq = first_ppe_queue(ppe);
 	while (1) {
 		wait_event_interruptible(ppe->wait_queue,
 					 (kthread_should_stop() ||
-					  __ppe_queues_have_load(ppe)));
+					  ppe_queues_have_load(ppe)));
 		if (unlikely(kthread_should_stop()))
 			break;
 
-		ppeq = __next_filled_ppe_queue(ppeq);
+		ppeq = next_filled_ppe_queue(ppeq);
 		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
 		u64_stats_update_end(&ppeq->stats.syncp);
