@@ -19,7 +19,8 @@
 
 struct fblock;
 struct fblock_ops {
-	int (*netrx)(struct sk_buff *skb);
+	int (*net_rx)(struct sk_buff *skb);
+	int (*event_rx)(struct fblockmsg *msg, void *args);
 };
 
 struct fblock {
