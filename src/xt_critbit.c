@@ -53,7 +53,7 @@ struct critbit_node_cache {
 	atomic_t refcnt;
 };
 
-struct critbit_node_cache critbit_cache;
+struct critbit_node_cache critbit_cache = { 0 };
 
 static inline struct critbit_node *critbit_alloc_node_aligned(gfp_t flags)
 {
