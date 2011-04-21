@@ -17,25 +17,35 @@
 
 #include "xt_idp.h"
 
-#define FBLOCK_DOWN_PREPARE	0x0001	/* Notify of fblock going down */
-#define FBLOCK_DOWN		0x0002	/* Notify of fblock is down    */
+#define FBLOCK_DOWN_PREPARE	 0x0001	/* Notify of fblock going down */
+#define FBLOCK_DOWN		 0x0002	/* Notify of fblock is down    */
 
-#define FBNAMSIZ IFNAMSIZ
-#define MAXNBLKS 32
+#define FBNAMSIZ                 IFNAMSIZ
+#define TYPNAMSIZ                FBNAMSIZ
+
+#define FBLOCK_FACTORY_COPY_OPS  (1 << 1)
 
 struct fblock;
+
 struct fblock_ops {
 	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb);
 	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
 			void *args);
 };
 
+struct fblock_factory_ops {
+	char type[TYPNAMSIZ];
+	struct fblock *(*ctor)(char *name, void *priv, unsigned long flags,
+			       struct fblock_ops *ops);
+	void (*dtor)(struct fblock *fb);
+} ____cacheline_aligned;
+
 struct fblock_notifier {
 	struct fblock *self;
 	struct fblock *remote;
 	struct notifier_block nb;
 	struct fblock_notifier *next;
-};
+} ____cacheline_aligned;
 
 struct fblock_subscrib {
 	struct atomic_notifier_head subscribers;
@@ -52,7 +62,7 @@ struct fblock {
 	atomic_t refcnt;
 	idp_t idp;
 	rwlock_t lock;
-} ____cacheline_aligned_in_smp;
+} ____cacheline_aligned;
 
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
