@@ -55,6 +55,7 @@ struct fblock {
 	char name[FBNAMSIZ];
 	void *private_data;
 	struct fblock_ops *ops;
+	struct fblock_factory_ops *fops;
 	struct fblock_notifier *notifiers;
 	struct fblock_subscrib *others;
 	struct fblock *next;
