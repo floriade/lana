@@ -33,7 +33,7 @@ struct fblock_ops {
 
 struct fblock_factory_ops {
 	char type[TYPNAMSIZ];
-	struct fblock *(*ctor)(char *name, unsigned long flags);
+	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
 } ____cacheline_aligned;
 

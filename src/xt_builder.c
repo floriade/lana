@@ -31,13 +31,12 @@ void unregister_fblock_type(struct fblock_factory_ops *fops)
 }
 EXPORT_SYMBOL_GPL(unregister_fblock_type);
 
-struct fblock *build_fblock_object(char *type, char *name,
-				   unsigned long flags)
+struct fblock *build_fblock_object(char *type, char *name)
 {
 	struct fblock *fb;
 	struct fblock_factory_ops *fops = struct_of(critbit_get(&fbmap, type),
 						    struct fblock_factory_ops);
-	fb = fops->ctor(name, flags);
+	fb = fops->ctor(name);
 	if (!fb)
 		return NULL;
 	fb->fops = fops;

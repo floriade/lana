@@ -27,7 +27,7 @@ static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 	return 0;
 }
 
-static struct fblock *fb_test_ctor(char *name, unsigned long flags)
+static struct fblock *fb_test_ctor(char *name)
 {
 	int ret = 0;
 	struct fblock *fb;
