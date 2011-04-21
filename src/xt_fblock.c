@@ -398,6 +398,7 @@ static int procfs_fblocks(char *page, char **start, off_t offset,
 	off_t len = 0;
 	struct fblock *fb;
 
+	len += sprintf(page + len, "name type addr idp\n");
 	rcu_read_lock();
 	for (i = 0; i < HASHTSIZ; ++i) {
 		fb = rcu_dereference_raw(fblmap_head[i]);
