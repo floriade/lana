@@ -299,15 +299,11 @@ static int critbit_node_cache_init(void)
 						critbit_ctor);
 	if (!critbit_cache.cache)
 		return -ENOMEM;
-	printk(KERN_INFO "[lana] %s cache created!\n",
-	       critbit_cache.cache->name);
 	return 0;
 }
 
 static void critbit_node_cache_destroy(void)
 {
-	printk(KERN_INFO "[lana] %s cache destroyed!\n",
-	       critbit_cache.cache->name);
 	kmem_cache_destroy(critbit_cache.cache);
 }
 

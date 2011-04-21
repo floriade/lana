@@ -310,7 +310,6 @@ int init_vlink_system(void)
 					MAX_VLINK_SUBSYSTEMS, GFP_KERNEL);
 	if (!vlink_subsystem_table)
 		return -ENOMEM;
-
 	vlink_sock = netlink_kernel_create(&init_net, NETLINK_VLINK,
 					   VLINKNLGRP_MAX, vlink_rcv,
 					   NULL, THIS_MODULE);
@@ -318,10 +317,7 @@ int init_vlink_system(void)
 		ret = -ENOMEM;
 		goto err;
 	}
-
-	printk(KERN_INFO "[lana] NETLINK vlink layer loaded!\n");
 	return 0;
-
 err:
 	kfree(vlink_subsystem_table);
 	return ret;
@@ -331,7 +327,5 @@ void cleanup_vlink_system(void)
 {
 	netlink_kernel_release(vlink_sock);
 	kfree(vlink_subsystem_table);
-
-	printk(KERN_INFO "[lana] NETLINK vlink layer removed!\n");
 }
 

@@ -402,11 +402,6 @@ int init_fblock_tables(void)
 	if (!fblock_cache)
 		goto err2;
 	atomic64_set(&idp_counter, 0);
-
-	printk(KERN_INFO "[lana] %s cache created!\n",
-	       fblock_cache->name);
-	printk(KERN_INFO "[lana] IDP tables with size %u initialized!\n",
-	       HASHTSIZ);
 	return 0;
 err2:
 	kfree(fblmap_head);
@@ -420,10 +415,7 @@ void cleanup_fblock_tables(void)
 {
 	put_critbit_cache();
 	kfree(fblmap_head);
-	printk(KERN_INFO "[lana] %s cache destroyed!\n",
-	       fblock_cache->name);
 	kmem_cache_destroy(fblock_cache);
-	printk(KERN_INFO "[lana] IDP tables removed!\n");
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock_tables);
 

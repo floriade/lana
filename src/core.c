@@ -16,6 +16,7 @@
 #include "xt_fblock.h"
 #include "xt_vlink.h"
 #include "xt_engine.h"
+#include "xt_builder.h"
 
 struct proc_dir_entry *lana_proc_dir;
 EXPORT_SYMBOL(lana_proc_dir);
@@ -36,10 +37,13 @@ static int __init init_lana_core_module(void)
 	ret = init_fblock_tables();
 	if (ret)
 		goto err3;
-
+	ret = init_fblock_builder();
+	if (ret)
+		goto err4;
 	printk(KERN_INFO "[lana] core loaded!\n");
 	return 0;
-
+err4:
+	cleanup_fblock_tables();
 err3:
 	cleanup_worker_engines();
 err2:
@@ -54,8 +58,8 @@ static void __exit cleanup_lana_core_module(void)
 	cleanup_worker_engines();
 	remove_proc_entry("lana", init_net.proc_net);
 	cleanup_fblock_tables();
+	cleanup_fblock_builder();
 	cleanup_vlink_system();
-
 	printk(KERN_INFO "[lana] core removed!\n");
 }
 
