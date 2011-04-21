@@ -135,6 +135,7 @@ static inline void put_fblock(struct fblock *fb)
 {
 	if (likely(!atomic_dec_and_test(&fb->refcnt)))
 		return;
+	cleanup_fblock(fb);
 	kfree_fblock(fb);
 }
 

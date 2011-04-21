@@ -381,6 +381,7 @@ EXPORT_SYMBOL_GPL(kfree_fblock);
 
 void cleanup_fblock(struct fblock *fb)
 {
+	fb->fops->dtor(fb);
 	kfree(fb->others);
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock);
