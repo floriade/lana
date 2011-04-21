@@ -36,6 +36,10 @@ struct fblock *build_fblock_object(char *type, char *name)
 	struct fblock *fb;
 	struct fblock_factory *factory = struct_of(critbit_get(&fbmap, type),
 						   struct fblock_factory);
+	if (!factory) {
+		printk(KERN_ERR "[lana] So such type available!\n");
+		return NULL;
+	}
 	fb = factory->ctor(name);
 	if (!fb)
 		return NULL;
