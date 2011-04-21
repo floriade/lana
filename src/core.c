@@ -25,11 +25,12 @@ static int __init init_lana_core_module(void)
 {
 	int ret;
 
-	ret = init_vlink_system();
-	if (ret)
-		return -ENOMEM;
 	lana_proc_dir = proc_mkdir("lana", init_net.proc_net);
 	if (!lana_proc_dir)
+		return -ENOMEM;
+
+	ret = init_vlink_system();
+	if (ret)
 		goto err;
 	ret = init_worker_engines();
 	if (ret)
@@ -40,6 +41,7 @@ static int __init init_lana_core_module(void)
 	ret = init_fblock_builder();
 	if (ret)
 		goto err4;
+
 	printk(KERN_INFO "[lana] core loaded!\n");
 	return 0;
 err4:
@@ -47,19 +49,20 @@ err4:
 err3:
 	cleanup_worker_engines();
 err2:
-	remove_proc_entry("lana", init_net.proc_net);
-err:
 	cleanup_vlink_system();
+err:
+	remove_proc_entry("lana", init_net.proc_net);
 	return -ENOMEM;
 }
 
 static void __exit cleanup_lana_core_module(void)
 {
 	cleanup_worker_engines();
-	remove_proc_entry("lana", init_net.proc_net);
 	cleanup_fblock_tables();
 	cleanup_fblock_builder();
 	cleanup_vlink_system();
+
+	remove_proc_entry("lana", init_net.proc_net);
 	printk(KERN_INFO "[lana] core removed!\n");
 }
 
