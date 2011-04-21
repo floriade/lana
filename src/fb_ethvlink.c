@@ -169,10 +169,11 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
  * the valid pointer to the skb. Basically, here's the point where we
  * demultiplex the ingress path to registered virtual lana devices.
  */
-static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
+static rx_handler_result_t fb_ethvlink_handle_frame(struct sk_buff **pskb)
 {
 	int ret;
 	u16 vport;
+	struct sk_buff *skb = *pskb;
 	struct net_device *dev;
 	struct fb_ethvlink_private *vdev;
 	struct pcpu_dstats *dstats;
@@ -182,18 +183,18 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 		goto drop;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
-		return skb;
+		return RX_HANDLER_PASS;
 
 	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
 		goto drop;
 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (unlikely(!skb))
-		return NULL;
+		return RX_HANDLER_CONSUMED;
 
 	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_LANA)) !=
 	    __constant_htons(ETH_P_LANA))
-		return skb;
+		return RX_HANDLER_PASS;
 
 	vport = ntohs(eth_hdr(skb)->h_proto &
 		      ~__constant_htons(ETH_P_LANA));
@@ -215,7 +216,7 @@ static struct sk_buff *fb_ethvlink_handle_frame(struct sk_buff *skb)
 
 drop:
 	kfree_skb(skb);
-	return NULL;
+	return RX_HANDLER_CONSUMED;
 }
 
 static void fb_ethvlink_ethtool_get_drvinfo(struct net_device *dev,
