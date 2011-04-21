@@ -15,14 +15,15 @@ static struct fblock_ops fb_test_ops;
 
 static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb)
 {
-	printk("Got skb!\n");
+	printk("Got skb on %p!\n", fb);
 	return 0;
 }
 
 static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 			 void *args)
 {
-	printk("Got event!\n");
+	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
+	printk("Got event on %p!\n", fb);
 	return 0;
 }
 
