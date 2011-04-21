@@ -8,6 +8,7 @@
  * Subject to the GPL.
  */
 
+#include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/rcupdate.h>
 #include <linux/atomic.h>
@@ -16,6 +17,7 @@
 #include <linux/spinlock.h>
 #include <linux/rwlock.h>
 #include <linux/slab.h>
+#include <linux/proc_fs.h>
 
 #include "xt_fblock.h"
 #include "xt_idp.h"
@@ -33,6 +35,8 @@ static struct fblock **fblmap_head = NULL; /* idp -> fblock translation map */
 static spinlock_t fblmap_head_lock;
 static atomic64_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
+extern struct proc_dir_entry *lana_proc_dir;
+static struct proc_dir_entry *fblocks_proc;
 
 static inline idp_t provide_new_fblock_idp(void)
 {
@@ -128,7 +132,7 @@ struct fblock *__search_fblock(idp_t idp)
 	struct fblock *p;
 	struct fblock *p0;
 
-	p0 = fblmap_head[hash_idp(idp)];
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(idp)]);
 	if (!p0)
 		return NULL;
 	p = rcu_dereference_raw(p0->next);
@@ -167,7 +171,7 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = idp;
-	p0 = fblmap_head[hash_idp(p->idp)];
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
 	if (!p0)
 		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
 	else {
@@ -193,7 +197,7 @@ int register_fblock_namespace(struct fblock *p)
 
 	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = provide_new_fblock_idp();
-	p0 = fblmap_head[hash_idp(p->idp)];
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
 	if (!p0)
 		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
 	else {
@@ -225,7 +229,7 @@ int unregister_fblock(struct fblock *p)
 	unsigned long flags;
 
 	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p0 = fblmap_head[hash_idp(p->idp)];
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
 	if (p0 == p)
 		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
 	else if (p0) {
@@ -257,7 +261,7 @@ void unregister_fblock_namespace(struct fblock *p)
 	unsigned long flags;
 
 	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p0 = fblmap_head[hash_idp(p->idp)];
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
 	if (p0 == p)
 		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
 	else if (p0) {
@@ -387,6 +391,30 @@ void cleanup_fblock(struct fblock *fb)
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock);
 
+static int procfs_fblocks(char *page, char **start, off_t offset,
+			  int count, int *eof, void *data)
+{
+	int i;
+	off_t len = 0;
+	struct fblock *fb;
+
+	rcu_read_lock();
+	for (i = 0; i < HASHTSIZ; ++i) {
+		fb = rcu_dereference_raw(fblmap_head[i]);
+		while (fb) {
+			len += sprintf(page + len, "%s %s %p %u\n",
+				       fb->name, fb->factory->type,
+				       fb, fb->idp);
+			fb = rcu_dereference_raw(fb->next);
+		}
+	}
+	rcu_read_unlock();
+
+	/* FIXME: fits in page? */
+	*eof = 1;
+	return len;
+}
+
 int init_fblock_tables(void)
 {
 	int ret = 0;
@@ -398,13 +426,18 @@ int init_fblock_tables(void)
 	fblmap_head = kzalloc(sizeof(*fblmap_head) * HASHTSIZ, GFP_KERNEL);
 	if (!fblmap_head)
 		goto err;
-
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
 					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
 	if (!fblock_cache)
 		goto err2;
 	atomic64_set(&idp_counter, 0);
+	fblocks_proc = create_proc_read_entry("fblocks", 0444, lana_proc_dir,
+					      procfs_fblocks, NULL);
+	if (!fblocks_proc)
+		goto err3;
 	return 0;
+err3:
+	kmem_cache_destroy(fblock_cache);
 err2:
 	kfree(fblmap_head);
 err:
@@ -415,6 +448,7 @@ EXPORT_SYMBOL_GPL(init_fblock_tables);
 
 void cleanup_fblock_tables(void)
 {
+	remove_proc_entry("fblocks", lana_proc_dir);
 	put_critbit_cache();
 	kfree(fblmap_head);
 	kmem_cache_destroy(fblock_cache);
