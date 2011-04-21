@@ -8,6 +8,9 @@
  * Subject to the GPL.
  */
 
+#include <linux/kernel.h>
+#include <linux/module.h>
+
 #include "xt_fblock.h"
 #include "xt_builder.h"
 
