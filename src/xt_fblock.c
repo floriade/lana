@@ -381,6 +381,7 @@ EXPORT_SYMBOL_GPL(kfree_fblock);
 
 void cleanup_fblock(struct fblock *fb)
 {
+	notify_fblock_subscribers(fb, FBLOCK_DOWN, &fb->idp);
 	fb->fops->dtor(fb);
 	kfree(fb->others);
 }
