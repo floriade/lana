@@ -23,8 +23,6 @@
 #define FBNAMSIZ                 IFNAMSIZ
 #define TYPNAMSIZ                FBNAMSIZ
 
-#define FBLOCK_FACTORY_COPY_OPS  (1 << 1)
-
 struct fblock;
 
 struct fblock_ops {
@@ -35,8 +33,7 @@ struct fblock_ops {
 
 struct fblock_factory_ops {
 	char type[TYPNAMSIZ];
-	struct fblock *(*ctor)(char *name, void *priv, unsigned long flags,
-			       struct fblock_ops *ops);
+	struct fblock *(*ctor)(char *name, unsigned long flags);
 	void (*dtor)(struct fblock *fb);
 } ____cacheline_aligned;
 

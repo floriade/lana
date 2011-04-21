@@ -13,9 +13,8 @@
 
 extern int register_fblock_type(struct fblock_factory_ops *fops);
 extern void unregister_fblock_type(struct fblock_factory_ops *fops);
-extern struct fblock *build_fblock_object(char *type, char *name, void *priv,
-					  unsigned long flags,
-					  struct fblock_ops *ops);
+extern struct fblock *build_fblock_object(char *type, char *name,
+					  unsigned long flags);
 extern int init_fblock_builder(void);
 extern void cleanup_fblock_builder(void);
 
