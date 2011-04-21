@@ -11,6 +11,7 @@
 
 #include <linux/if.h>
 #include <linux/cpu.h>
+#include <linux/module.h>
 #include <linux/rwlock.h>
 #include <linux/skbuff.h>
 #include <linux/notifier.h>
@@ -33,6 +34,7 @@ struct fblock_ops {
 
 struct fblock_factory_ops {
 	char type[TYPNAMSIZ];
+	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
 } ____cacheline_aligned;

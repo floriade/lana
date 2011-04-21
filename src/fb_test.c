@@ -59,6 +59,7 @@ static struct fblock_factory_ops fb_test_fops = {
 	.type = "test",
 	.ctor = fb_test_ctor,
 	.dtor = fb_test_dtor,
+	.owner = THIS_MODULE,
 };
 
 static int __init init_fb_test_module(void)
