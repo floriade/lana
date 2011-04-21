@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/net.h>
 #include <linux/skbuff.h>
+#include <linux/proc_fs.h>
 #include <net/netlink.h>
 #include <net/sock.h>
 
@@ -27,6 +28,8 @@
 static DEFINE_MUTEX(vlink_mutex);
 static struct sock *vlink_sock = NULL;
 static struct vlink_subsys **vlink_subsystem_table = NULL;
+extern struct proc_dir_entry *lana_proc_dir;
+static struct proc_dir_entry *vlink_proc;
 
 void vlink_lock(void)
 {
@@ -47,9 +50,7 @@ int vlink_subsys_register(struct vlink_subsys *n)
 
 	if (!n)
 		return -EINVAL;
-
 	vlink_lock();
-
 	for (i = 0, slot = -1; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (!vlink_subsystem_table[i] && slot == -1)
 			slot = i;
@@ -63,14 +64,11 @@ int vlink_subsys_register(struct vlink_subsys *n)
 			}
 		}
 	}
-
 	if (slot != -1) {
 		n->id = slot;
 		vlink_subsystem_table[slot] = n;
 	}
-
 	vlink_unlock();
-
 	return slot == -1 ? -ENOMEM : 0;
 }
 EXPORT_SYMBOL_GPL(vlink_subsys_register);
@@ -78,12 +76,9 @@ EXPORT_SYMBOL_GPL(vlink_subsys_register);
 void vlink_subsys_unregister(struct vlink_subsys *n)
 {
 	int i;
-
 	if (!n)
 		return;
-
 	vlink_lock();
-
 	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (vlink_subsystem_table[i] == n && i == n->id) {
 			vlink_subsystem_table[i] = NULL;
@@ -91,7 +86,6 @@ void vlink_subsys_unregister(struct vlink_subsys *n)
 			break;
 		}
 	}
-
 	vlink_unlock();
 }
 EXPORT_SYMBOL_GPL(vlink_subsys_unregister);
@@ -99,7 +93,6 @@ EXPORT_SYMBOL_GPL(vlink_subsys_unregister);
 static struct vlink_subsys *__vlink_subsys_find(u16 type)
 {
 	int i;
-
 	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i)
 		if (vlink_subsystem_table[i])
 			if (vlink_subsystem_table[i]->type == type)
@@ -110,11 +103,9 @@ static struct vlink_subsys *__vlink_subsys_find(u16 type)
 struct vlink_subsys *vlink_subsys_find(u16 type)
 {
 	struct vlink_subsys *ret;
-
 	vlink_lock();
 	ret = __vlink_subsys_find(type);
 	vlink_unlock();
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(vlink_subsys_find);
@@ -126,14 +117,12 @@ static int __vlink_add_callback(struct vlink_subsys *n,
 
 	if (!cb)
 		return -EINVAL;
-
 	hb = &n->head;
 	while (*hb != NULL) {
 		if (cb->priority > (*hb)->priority)
 			break;
 		hb = &((*hb)->next);
 	}
-
 	cb->next = *hb;
 	*hb = cb;
 	return 0;
@@ -146,7 +135,6 @@ int vlink_add_callback(struct vlink_subsys *n,
 
 	if (!n)
 		return -EINVAL;
-
 	down_write(&n->rwsem);
 	ret = __vlink_add_callback(n, cb);
 	up_write(&n->rwsem);
@@ -194,7 +182,6 @@ static int __vlink_rm_callback(struct vlink_subsys *n,
 
 	if (!cb)
 		return -EINVAL;
-
 	hb = &n->head;
 	while (*hb != NULL) {
 		if (*hb == cb) {
@@ -211,14 +198,11 @@ int vlink_rm_callback(struct vlink_subsys *n,
 		      struct vlink_callback *cb)
 {
 	int ret;
-
 	if (!n)
 		return -EINVAL;
-
 	down_write(&n->rwsem);
 	ret = __vlink_rm_callback(n, cb);
 	up_write(&n->rwsem);
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(vlink_rm_callback);
@@ -229,9 +213,7 @@ void vlink_subsys_unregister_batch(struct vlink_subsys *n)
 
 	if (!n)
 		return;
-
 	vlink_lock();
-
 	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
 		if (vlink_subsystem_table[i] == n && i == n->id) {
 			vlink_subsystem_table[i] = NULL;
@@ -239,9 +221,7 @@ void vlink_subsys_unregister_batch(struct vlink_subsys *n)
 			break;
 		}
 	}
-
 	vlink_unlock();
-
 	while (n-> head != NULL)
 		vlink_rm_callback(n, n->head);
 }
@@ -302,6 +282,28 @@ static void vlink_rcv(struct sk_buff *skb)
 	vlink_unlock();
 }
 
+static int vlink_procfs(char *page, char **start, off_t offset,
+			int count, int *eof, void *data)
+{
+	int i;
+	off_t len = 0;
+
+	len += sprintf(page + len, "name type id\n");
+	vlink_lock();
+	for (i = 0; i < MAX_VLINK_SUBSYSTEMS; ++i) {
+		if (vlink_subsystem_table[i])
+			len += sprintf(page + len, "%s %u %u\n",
+				       vlink_subsystem_table[i]->name,
+				       vlink_subsystem_table[i]->type,
+				       vlink_subsystem_table[i]->id);
+	}
+	vlink_unlock();
+
+	/* FIXME: fits in page? */
+	*eof = 1;
+	return len;
+}
+
 int init_vlink_system(void)
 {
 	int ret;
@@ -317,7 +319,13 @@ int init_vlink_system(void)
 		ret = -ENOMEM;
 		goto err;
 	}
+	vlink_proc = create_proc_read_entry("vlink", 0444, lana_proc_dir,
+					    vlink_procfs, NULL);
+	if (!vlink_proc)
+		goto err2;
 	return 0;
+err2:
+	netlink_kernel_release(vlink_sock);
 err:
 	kfree(vlink_subsystem_table);
 	return ret;
@@ -325,6 +333,7 @@ err:
 
 void cleanup_vlink_system(void)
 {
+	remove_proc_entry("vlink", lana_proc_dir);
 	netlink_kernel_release(vlink_sock);
 	kfree(vlink_subsystem_table);
 }
