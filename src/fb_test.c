@@ -58,7 +58,7 @@ static struct fblock_ops fb_test_ops = {
 	.event_rx = fb_test_event,
 };
 
-static struct fblock_factory_ops fb_test_fops = {
+static struct fblock_factory fb_test_factory = {
 	.type = "test",
 	.ctor = fb_test_ctor,
 	.dtor = fb_test_dtor,
@@ -67,12 +67,12 @@ static struct fblock_factory_ops fb_test_fops = {
 
 static int __init init_fb_test_module(void)
 {
-	return register_fblock_type(&fb_test_fops);
+	return register_fblock_type(&fb_test_factory);
 }
 
 static void __exit cleanup_fb_test_module(void)
 {
-	unregister_fblock_type(&fb_test_fops);
+	unregister_fblock_type(&fb_test_factory);
 }
 
 module_init(init_fb_test_module);

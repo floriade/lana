@@ -32,7 +32,7 @@ struct fblock_ops {
 			void *args);
 };
 
-struct fblock_factory_ops {
+struct fblock_factory {
 	char type[TYPNAMSIZ];
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
@@ -54,7 +54,7 @@ struct fblock {
 	char name[FBNAMSIZ];
 	void *private_data;
 	struct fblock_ops *ops;
-	struct fblock_factory_ops *fops;
+	struct fblock_factory *factory;
 	struct fblock_notifier *notifiers;
 	struct fblock_subscrib *others;
 	struct fblock *next;

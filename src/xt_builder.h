@@ -11,8 +11,8 @@
 
 #include "xt_fblock.h"
 
-extern int register_fblock_type(struct fblock_factory_ops *fops);
-extern void unregister_fblock_type(struct fblock_factory_ops *fops);
+extern int register_fblock_type(struct fblock_factory *fops);
+extern void unregister_fblock_type(struct fblock_factory *fops);
 extern struct fblock *build_fblock_object(char *type, char *name);
 extern int init_fblock_builder(void);
 extern void cleanup_fblock_builder(void);

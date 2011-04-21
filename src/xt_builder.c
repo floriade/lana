@@ -19,13 +19,13 @@
 
 static struct critbit_tree fbmap;
 
-int register_fblock_type(struct fblock_factory_ops *fops)
+int register_fblock_type(struct fblock_factory *fops)
 {
 	return critbit_insert(&fbmap, fops->type);
 }
 EXPORT_SYMBOL_GPL(register_fblock_type);
 
-void unregister_fblock_type(struct fblock_factory_ops *fops)
+void unregister_fblock_type(struct fblock_factory *fops)
 {
 	critbit_delete(&fbmap, fops->type);
 }
@@ -34,12 +34,12 @@ EXPORT_SYMBOL_GPL(unregister_fblock_type);
 struct fblock *build_fblock_object(char *type, char *name)
 {
 	struct fblock *fb;
-	struct fblock_factory_ops *fops = struct_of(critbit_get(&fbmap, type),
-						    struct fblock_factory_ops);
-	fb = fops->ctor(name);
+	struct fblock_factory *factory = struct_of(critbit_get(&fbmap, type),
+						   struct fblock_factory);
+	fb = factory->ctor(name);
 	if (!fb)
 		return NULL;
-	fb->fops = fops;
+	fb->factory = factory;
 	return fb;
 }
 EXPORT_SYMBOL(build_fblock_object);
