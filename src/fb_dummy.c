@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/spinlock.h>
+#include <linux/notifier.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -58,6 +59,7 @@ static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 			fb_priv->port[msg->dir] = msg->idp;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		printk("[lana] Bound fb %p to %u!\n", fb, msg->idp);
+		break;
 	case FBLOCK_UNBIND_IDP:
 		msg = args;
 		spin_lock_irqsave(&fb_priv->lock, flags);
@@ -65,16 +67,19 @@ static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 			fb_priv->port[msg->dir] = IDP_UNKNOWN;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		printk("[lana] Unbound fb %p to %u!\n", fb, msg->idp);
+		break;
 	case FBLOCK_XCHG_IDP:
 		msg = args;
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		fb_priv->port[msg->dir] = msg->idp;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		printk("[lana] Xchg fb %p to %u!\n", fb, msg->idp);
+		break;
 	default:
 		break;
 	}
-	return 0;
+
+	return NOTIFY_OK;
 }
 
 static struct fblock *fb_test_ctor(char *name)

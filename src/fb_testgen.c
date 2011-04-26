@@ -11,16 +11,20 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/skbuff.h>
+#include <linux/cpu.h>
 
 #include "xt_builder.h"
 #include "xt_skb.h"
+#include "xt_idp.h"
+#include "xt_engine.h"
 
 static struct fblock *fb1, *fb2, *fb3;
 
 static int __init init_fbtestgen_module(void)
 {
-	/* Only xt_user is actually doing all this, just for testing purpose here. */
+	struct sk_buff *skb;
 
+	/* Only xt_user is actually doing all this, just for testing purpose here. */
 	fb1 = build_fblock_object("test", "fb1");
 	if (!fb1)
 		return -ENOMEM;
@@ -38,6 +42,18 @@ static int __init init_fbtestgen_module(void)
 
 	fblock_bind(fb1, fb2);
 	fblock_bind(fb2, fb3);
+
+	skb = alloc_skb(250, GFP_ATOMIC);
+	if (!skb) {
+		unregister_fblock_namespace(fb1);
+		unregister_fblock_namespace(fb2);
+		unregister_fblock_namespace(fb3);
+		return -ENOMEM;
+	}
+
+	write_next_idp_to_skb(skb, IDP_UNKNOWN, fb1->idp);
+	enqueue_ingress_on_engine(skb, smp_processor_id());
+	printk(KERN_INFO "skb enqueued!\n");
 
 	printk(KERN_INFO "[lana] fbtestgen loaded!\n");
 	return 0;

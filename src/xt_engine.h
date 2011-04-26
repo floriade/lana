@@ -63,6 +63,7 @@ static inline void enqueue_egress_on_engine(struct sk_buff *skb,
         struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
         skb_queue_tail(&ppe->inqs.ptrs[TYPE_EGRESS]->queue, skb);
 	atomic64_inc(&ppe->load);
+	wake_up_interruptible(&ppe->wait_queue);
 }
 
 static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
@@ -71,6 +72,7 @@ static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
         struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
         skb_queue_tail(&ppe->inqs.ptrs[TYPE_INGRESS]->queue, skb);
 	atomic64_inc(&ppe->load);
+	wake_up_interruptible(&ppe->wait_queue);
 }
 
 #endif /* XT_ENGINE_H */

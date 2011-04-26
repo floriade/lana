@@ -28,6 +28,7 @@
 #include "xt_fblock.h"
 
 struct worker_engine __percpu *engines;
+EXPORT_SYMBOL_GPL(engines);
 extern struct proc_dir_entry *lana_proc_dir;
 
 void cleanup_worker_engines(void);
@@ -56,11 +57,15 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_DROPPED;
 	idp_t cont;
+	struct fblock *fb;
 
 	while ((cont = read_next_idp_from_skb(skb))) {
-		struct fblock *fb = search_fblock(cont);
+		fb = search_fblock(cont);
 		if (unlikely(!fb)) {
-			ret = PPE_ERROR;
+			if (cont == IDP_UNKNOWN)
+				ret = PPE_DROPPED;
+			else
+				ret = PPE_ERROR;
 			break;
 		}
 		ret = fb->ops->netfb_rx(fb, skb, &dir);
@@ -100,17 +105,12 @@ static int engine_thread(void *arg)
 
 		skb = skb_dequeue(&ppeq->queue);
 		ret = process_packet(skb, ppeq->type);
-		switch (ret) {
-		case PPE_DROPPED:
+		if (unlikely(ret == PPE_DROPPED)) {
 			u64_stats_update_begin(&ppeq->stats.syncp);
 			ppeq->stats.dropped++;
 			u64_stats_update_end(&ppeq->stats.syncp);
-			break;
-		case PPE_ERROR:
+		} else if (unlikely(ret == PPE_ERROR)) {
 			ppeq->stats.errors++;
-			break;
-		default:
-			break;
 		}
 		kfree_skb(skb);
 	}

@@ -151,9 +151,13 @@ EXPORT_SYMBOL_GPL(__search_fblock);
 struct fblock *search_fblock(idp_t idp)
 {
 	struct fblock * ret;
+
+	if (unlikely(idp == IDP_UNKNOWN))
+		return NULL;
 	rcu_read_lock();
 	ret = __search_fblock(idp);
 	rcu_read_unlock();
+
 	return ret;
 }
 EXPORT_SYMBOL_GPL(search_fblock);
@@ -164,18 +168,29 @@ EXPORT_SYMBOL_GPL(search_fblock);
 int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 {
 	struct fblock_bind_msg msg;
+	/* Hack: we let the fb think that this belongs to his own chain to
+	 * get the reference back to itself. */
+	struct fblock_notifier fbn;
+
+	memset(&fbn, 0, sizeof(fbn));
+	memset(&msg, 0, sizeof(msg));
+
 	get_fblock(fb1);
 	get_fblock(fb2);
-	memset(&msg, 0, sizeof(msg));
+
 	msg.dir = TYPE_EGRESS;
 	msg.idp = fb2->idp;
-	fb1->ops->event_rx(NULL, FBLOCK_BIND_IDP, &msg);
-	memset(&msg, 0, sizeof(msg));
+	fbn.self = fb1;
+	fb1->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+
 	msg.dir = TYPE_INGRESS;
 	msg.idp = fb1->idp;
-	fb2->ops->event_rx(NULL, FBLOCK_BIND_IDP, &msg);
+	fbn.self = fb2;
+	fb2->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+
 	put_fblock(fb2);
 	put_fblock(fb1);
+
 	return 0;
 }
 EXPORT_SYMBOL_GPL(__fblock_bind);
