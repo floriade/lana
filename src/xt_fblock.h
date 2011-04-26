@@ -80,7 +80,7 @@ struct fblock {
 	struct rcu_head rcu;
 	atomic_t refcnt;
 	idp_t idp;
-	rwlock_t lock;
+	rwlock_t lock; /* Used in notifiers */
 } ____cacheline_aligned;
 
 extern struct fblock *alloc_fblock(gfp_t flags);
