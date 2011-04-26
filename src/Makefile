@@ -11,7 +11,6 @@ xcore-y := core.o       \
 	   xt_vlink.o   \
 	   xt_engine.o  \
 	   xt_fblock.o  \
-	   xt_hash.o    \
 	   xt_builder.o \
 	   xt_critbit.o \
 	   xt_user.o
