@@ -107,6 +107,7 @@ static int engine_thread(void *arg)
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
+		ppeq->stats.bytes += skb->len;
 		u64_stats_update_end(&ppeq->stats.syncp);
 		if (unlikely(ret == PPE_DROPPED)) {
 			u64_stats_update_begin(&ppeq->stats.syncp);
