@@ -38,13 +38,13 @@ static inline struct ppe_queue *first_ppe_queue(struct worker_engine *ppe)
 	return ppe->inqs.head;
 }
 
-static inline struct ppe_queue *
-next_filled_ppe_queue(struct ppe_queue *ppeq)
+static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
 	do {
 		ppeq = ppeq->next;
 		prefetch(ppeq->next);
 	} while (skb_queue_empty(&ppeq->queue));
+
 	return ppeq;
 }
 
