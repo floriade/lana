@@ -62,10 +62,7 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = search_fblock(cont);
 		if (unlikely(!fb)) {
-			if (cont == IDP_UNKNOWN)
-				ret = PPE_DROPPED;
-			else
-				ret = PPE_ERROR;
+			ret = PPE_ERROR;
 			break;
 		}
 		ret = fb->ops->netfb_rx(fb, skb, &dir);
@@ -99,12 +96,12 @@ static int engine_thread(void *arg)
 			break;
 
 		ppeq = next_filled_ppe_queue(ppeq);
+		skb = skb_dequeue(&ppeq->queue);
+		ret = process_packet(skb, ppeq->type);
+
 		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
 		u64_stats_update_end(&ppeq->stats.syncp);
-
-		skb = skb_dequeue(&ppeq->queue);
-		ret = process_packet(skb, ppeq->type);
 		if (unlikely(ret == PPE_DROPPED)) {
 			u64_stats_update_begin(&ppeq->stats.syncp);
 			ppeq->stats.dropped++;
@@ -112,6 +109,7 @@ static int engine_thread(void *arg)
 		} else if (unlikely(ret == PPE_ERROR)) {
 			ppeq->stats.errors++;
 		}
+
 		kfree_skb(skb);
 	}
 

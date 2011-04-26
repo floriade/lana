@@ -129,19 +129,17 @@ EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 /* Called within RCU read lock! */
 struct fblock *__search_fblock(idp_t idp)
 {
-	struct fblock *p;
 	struct fblock *p0;
 
 	p0 = rcu_dereference_raw(fblmap_head[hash_idp(idp)]);
 	if (!p0)
 		return NULL;
-	p = rcu_dereference_raw(p0->next);
-	while (p != p0) {
-		if (p->idp == idp) {
-			get_fblock(p);
-			return p;
+	while (p0) {
+		if (p0->idp == idp) {
+			get_fblock(p0);
+			return p0;
 		}
-		p = rcu_dereference_raw(p->next);
+		p0 = rcu_dereference_raw(p0->next);
 	}
 
 	return NULL;
@@ -150,7 +148,7 @@ EXPORT_SYMBOL_GPL(__search_fblock);
 
 struct fblock *search_fblock(idp_t idp)
 {
-	struct fblock * ret;
+	struct fblock *ret;
 
 	if (unlikely(idp == IDP_UNKNOWN))
 		return NULL;
@@ -283,7 +281,7 @@ int unregister_fblock(struct fblock *p)
 		struct fblock *p1;
 		while ((p1 = rcu_dereference_raw(p0->next))) {
 			if (p1 == p) {
-				rcu_assign_pointer(p0->next, p->next);
+				rcu_assign_pointer(p0->next, p1->next);
 				ret = 0;
 				break;
 			}
