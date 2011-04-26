@@ -20,13 +20,13 @@
 
 enum path_type {
         TYPE_INGRESS = 0,
-#define TYPE_INGRESS           TYPE_INGRESS
+#define TYPE_INGRESS		TYPE_INGRESS
         TYPE_EGRESS,
-#define TYPE_EGRESS            TYPE_EGRESS
+#define TYPE_EGRESS		TYPE_EGRESS
         _TYPE_MAX,
 };
 
-#define NUM_TYPES               _TYPE_MAX
+#define NUM_TYPES		_TYPE_MAX
 
 #define FBLOCK_BIND_IDP		0x0001
 #define FBLOCK_UNBIND_IDP	0x0002
@@ -34,8 +34,8 @@ enum path_type {
 #define FBLOCK_DOWN_PREPARE	0x0004
 #define FBLOCK_DOWN		0x0005
 
-#define FBNAMSIZ                 IFNAMSIZ
-#define TYPNAMSIZ                FBNAMSIZ
+#define FBNAMSIZ		IFNAMSIZ
+#define TYPNAMSIZ		FBNAMSIZ
 
 struct fblock_bind_msg {
 	enum path_type dir;
