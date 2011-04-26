@@ -26,11 +26,21 @@ enum path_type {
         _TYPE_MAX,
 };
 
-#define FBLOCK_DOWN_PREPARE	 0x0001	/* Notify of fblock going down */
-#define FBLOCK_DOWN		 0x0002	/* Notify of fblock is down    */
+#define NUM_TYPES               _TYPE_MAX
+
+#define FBLOCK_BIND_IDP		0x0001
+#define FBLOCK_UNBIND_IDP	0x0002
+#define FBLOCK_XCHG_IDP		0x0003
+#define FBLOCK_DOWN_PREPARE	0x0004
+#define FBLOCK_DOWN		0x0005
 
 #define FBNAMSIZ                 IFNAMSIZ
 #define TYPNAMSIZ                FBNAMSIZ
+
+struct fblock_bind_msg {
+	enum path_type dir;
+	idp_t idp;
+};
 
 struct fblock;
 
@@ -91,6 +101,9 @@ extern int xchg_fblock(struct fblock *old, struct fblock *new);
 
 extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *__search_fblock(idp_t idp);
+
+extern int fblock_bind(struct fblock *fb1, struct fblock *fb2);
+extern int __fblock_bind(struct fblock *fb1, struct fblock *fb2);
 
 extern idp_t get_fblock_namespace_mapping(char *name);
 extern idp_t __get_fblock_namespace_mapping(char *name);

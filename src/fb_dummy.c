@@ -10,15 +10,17 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/spinlock.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
 #include "xt_idp.h"
 #include "xt_skb.h"
+#include "xt_engine.h"
 
 struct fb_test_priv {
-	idp_t ingress;
-	idp_t egress;
+	idp_t port[NUM_TYPES];
+	spinlock_t lock;
 };
 
 static struct fblock_ops fb_test_ops;
@@ -26,25 +28,58 @@ static struct fblock_ops fb_test_ops;
 static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb,
 			 enum path_type *dir)
 {
+	unsigned long flags;
 	struct fb_test_priv *fb_priv = fb->private_data;
 
 	printk("Got skb on %p!\n", fb);
-	write_next_idp_to_skb(skb, fb->idp, *dir == TYPE_INGRESS ?
-			      fb_priv->ingress : fb_priv->egress);
-	return 0;
+
+	spin_lock_irqsave(&fb_priv->lock, flags);
+	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
+	spin_unlock_irqrestore(&fb_priv->lock, flags);
+
+	return PPE_SUCCESS;
 }
 
 static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 			 void *args)
 {
+	unsigned long flags;
+	struct fblock_bind_msg *msg;
 	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
-	printk("Got event on %p!\n", fb);
+	struct fb_test_priv *fb_priv = fb->private_data;
+
+	printk("Got event %lu on %p!\n", cmd, fb);
+
+	switch (cmd) {
+	case FBLOCK_BIND_IDP:
+		msg = args;
+		spin_lock_irqsave(&fb_priv->lock, flags);
+		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
+			fb_priv->port[msg->dir] = msg->idp;
+		spin_unlock_irqrestore(&fb_priv->lock, flags);
+		printk("[lana] Bound fb %p to %u!\n", fb, msg->idp);
+	case FBLOCK_UNBIND_IDP:
+		msg = args;
+		spin_lock_irqsave(&fb_priv->lock, flags);
+		if (fb_priv->port[msg->dir] == msg->idp)
+			fb_priv->port[msg->dir] = IDP_UNKNOWN;
+		spin_unlock_irqrestore(&fb_priv->lock, flags);
+		printk("[lana] Unbound fb %p to %u!\n", fb, msg->idp);
+	case FBLOCK_XCHG_IDP:
+		msg = args;
+		spin_lock_irqsave(&fb_priv->lock, flags);
+		fb_priv->port[msg->dir] = msg->idp;
+		spin_unlock_irqrestore(&fb_priv->lock, flags);
+		printk("[lana] Xchg fb %p to %u!\n", fb, msg->idp);
+	default:
+		break;
+	}
 	return 0;
 }
 
 static struct fblock *fb_test_ctor(char *name)
 {
-	int ret = 0;
+	int i, ret = 0;
 	struct fblock *fb;
 	struct fb_test_priv *fb_priv;
 
@@ -54,8 +89,9 @@ static struct fblock *fb_test_ctor(char *name)
 	fb_priv = kmalloc(sizeof(*fb_priv), GFP_KERNEL);
 	if (!fb_priv)
 		goto err;
-	fb_priv->ingress = IDP_UNKNOWN;
-	fb_priv->egress = IDP_UNKNOWN;
+	for (i = 0; i < NUM_TYPES; ++i)
+		fb_priv->port[i] = IDP_UNKNOWN;
+	spin_lock_init(&fb_priv->lock);
 	ret = init_fblock(fb, name, fb_priv, &fb_test_ops);
 	if (ret)
 		goto err2;

@@ -159,6 +159,38 @@ struct fblock *search_fblock(idp_t idp)
 EXPORT_SYMBOL_GPL(search_fblock);
 
 /*
+ * fb1 on top of fb2 in the stack
+ */
+int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
+{
+	struct fblock_bind_msg msg;
+	get_fblock(fb1);
+	get_fblock(fb2);
+	memset(&msg, 0, sizeof(msg));
+	msg.dir = TYPE_EGRESS;
+	msg.idp = fb2->idp;
+	fb1->ops->event_rx(NULL, FBLOCK_BIND_IDP, &msg);
+	memset(&msg, 0, sizeof(msg));
+	msg.dir = TYPE_INGRESS;
+	msg.idp = fb1->idp;
+	fb2->ops->event_rx(NULL, FBLOCK_BIND_IDP, &msg);
+	put_fblock(fb2);
+	put_fblock(fb1);
+	return 0;
+}
+EXPORT_SYMBOL_GPL(__fblock_bind);
+
+int fblock_bind(struct fblock *fb1, struct fblock *fb2)
+{
+	int ret;
+	rcu_read_lock();
+	ret = __fblock_bind(fb1, fb2);
+	rcu_read_unlock();
+	return ret;
+}
+EXPORT_SYMBOL_GPL(fblock_bind);
+
+/*
  * register_fblock_idp is called when the idp is preknown to the
  * caller and has already been registered previously. The previous
  * registration has then called unregister_fblock to remove the 

@@ -18,7 +18,6 @@
 
 #include "xt_fblock.h"
 
-#define NUM_TYPES               _TYPE_MAX
 #define NUM_QUEUES              NUM_TYPES
 
 #define PPE_SUCCESS             0

@@ -10,15 +10,16 @@
 
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/skbuff.h>
 
 #include "xt_builder.h"
+#include "xt_skb.h"
 
 static struct fblock *fb1, *fb2, *fb3;
 
 static int __init init_fbtestgen_module(void)
 {
-	/* Only xt_user is actually doing this,
-	 * just for testing purpose here. */
+	/* Only xt_user is actually doing all this, just for testing purpose here. */
 
 	fb1 = build_fblock_object("test", "fb1");
 	if (!fb1)
@@ -34,6 +35,9 @@ static int __init init_fbtestgen_module(void)
 		unregister_fblock_namespace(fb2);
 		return -ENOMEM;
 	}
+
+	fblock_bind(fb1, fb2);
+	fblock_bind(fb2, fb3);
 
 	printk(KERN_INFO "[lana] fbtestgen loaded!\n");
 	return 0;
