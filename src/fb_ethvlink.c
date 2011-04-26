@@ -285,7 +285,7 @@ static int fb_ethvlink_create_header(struct sk_buff *skb,
 
 static struct rtnl_link_stats64 *
 fb_ethvlink_get_stats64(struct net_device *dev,
-			 struct rtnl_link_stats64 *stats)
+			struct rtnl_link_stats64 *stats)
 {
 	int i;
 
