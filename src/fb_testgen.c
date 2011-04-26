@@ -52,7 +52,7 @@ static int __init init_fbtestgen_module(void)
 	}
 
 	write_next_idp_to_skb(skb, IDP_UNKNOWN, fb1->idp);
-	enqueue_ingress_on_engine(skb, smp_processor_id());
+	enqueue_egress_on_engine(skb, smp_processor_id());
 	printk(KERN_INFO "skb enqueued!\n");
 
 	printk(KERN_INFO "[lana] fbtestgen loaded!\n");

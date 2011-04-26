@@ -53,6 +53,11 @@ static inline int ppe_queues_have_load(struct worker_engine *ppe)
 	return atomic64_read(&ppe->load) != 0;
 }
 
+static inline void ppe_queues_reduce_load(struct worker_engine *ppe)
+{
+	atomic64_dec(&ppe->load);
+}
+
 static int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_DROPPED;
@@ -96,6 +101,7 @@ static int engine_thread(void *arg)
 			break;
 
 		ppeq = next_filled_ppe_queue(ppeq);
+		ppe_queues_reduce_load(ppe);
 		skb = skb_dequeue(&ppeq->queue);
 		ret = process_packet(skb, ppeq->type);
 
