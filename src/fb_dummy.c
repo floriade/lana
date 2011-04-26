@@ -91,7 +91,7 @@ static struct fblock *fb_test_ctor(char *name)
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
 		return NULL;
-	fb_priv = kmalloc(sizeof(*fb_priv), GFP_KERNEL);
+	fb_priv = kmalloc(sizeof(*fb_priv), GFP_ATOMIC);
 	if (!fb_priv)
 		goto err;
 	for (i = 0; i < NUM_TYPES; ++i)
@@ -100,9 +100,13 @@ static struct fblock *fb_test_ctor(char *name)
 	ret = init_fblock(fb, name, fb_priv, &fb_test_ops);
 	if (ret)
 		goto err2;
-	register_fblock_namespace(fb);
+	ret = register_fblock_namespace(fb);
+	if (ret)
+		goto err3;
 
 	return fb;
+err3:
+	cleanup_fblock_ctor(fb);
 err2:
 	kfree(fb_priv);
 err:

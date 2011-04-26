@@ -89,6 +89,7 @@ extern void kfree_fblock(struct fblock *p);
 extern int init_fblock(struct fblock *fb, char *name, void *priv,
 		       struct fblock_ops *ops);
 extern void cleanup_fblock(struct fblock *fb);
+extern void cleanup_fblock_ctor(struct fblock *fb);
 
 extern int register_fblock_namespace(struct fblock *p);
 extern int register_fblock_idp(struct fblock *p, idp_t idp);

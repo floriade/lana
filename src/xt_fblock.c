@@ -436,6 +436,12 @@ void cleanup_fblock(struct fblock *fb)
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock);
 
+void cleanup_fblock_ctor(struct fblock *fb)
+{
+	kfree(fb->others);
+}
+EXPORT_SYMBOL_GPL(cleanup_fblock_ctor);
+
 static int procfs_fblocks(char *page, char **start, off_t offset,
 			  int count, int *eof, void *data)
 {
