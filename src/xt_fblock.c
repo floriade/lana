@@ -345,7 +345,7 @@ EXPORT_SYMBOL_GPL(xchg_fblock);
 /* If state changes on 'remote' fb, we ('us') want to be notified. */
 int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
 {
-	struct fblock_notifier *fn = kmalloc(sizeof(*fn), GFP_KERNEL);
+	struct fblock_notifier *fn = kmalloc(sizeof(*fn), GFP_ATOMIC);
 	if (!fn)
 		return -ENOMEM;
 	write_lock(&us->lock);
@@ -376,9 +376,10 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 			if (f1->remote == remote) {
 				found = 1;
 				fn->next = f1->next;
+				fn = f1; /* free f1 */
 				break;
-			}
-			fn = f1;
+			} else
+				fn = f1;
 		}
 	}
 	write_unlock(&us->lock);
@@ -392,7 +393,6 @@ EXPORT_SYMBOL_GPL(unsubscribe_from_remote_fblock);
 static void ctor_fblock(void *obj)
 {
 	struct fblock *p = obj;
-
 	atomic_set(&p->refcnt, 1);
 	rwlock_init(&p->lock);
 	p->idp = IDP_UNKNOWN;
@@ -416,7 +416,7 @@ int init_fblock(struct fblock *fb, char *name, void *priv,
 	strlcpy(fb->name, name, sizeof(fb->name));
 	fb->private_data = priv;
 	fb->ops = ops;
-	fb->others = kmalloc(sizeof(*(fb->others)), GFP_KERNEL);
+	fb->others = kmalloc(sizeof(*(fb->others)), GFP_ATOMIC);
 	if (!fb->others)
 		return -ENOMEM;
 	ATOMIC_INIT_NOTIFIER_HEAD(&fb->others->subscribers);
