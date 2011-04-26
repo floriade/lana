@@ -13,6 +13,12 @@
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
+#include "xt_idp.h"
+
+struct fb_test_priv {
+	idp_t ingress;
+	idp_t egress;
+};
 
 static struct fblock_ops fb_test_ops;
 
@@ -34,16 +40,22 @@ static struct fblock *fb_test_ctor(char *name)
 {
 	int ret = 0;
 	struct fblock *fb;
+	struct fb_test_priv *fb_priv;
 
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
 		return NULL;
-	ret = init_fblock(fb, name, NULL, &fb_test_ops);
-	if (ret)
+	fb_priv = kmalloc(sizeof(*fb_priv), GFP_KERNEL);
+	if (!fb_priv)
 		goto err;
+	ret = init_fblock(fb, name, fb_priv, &fb_test_ops);
+	if (ret)
+		goto err2;
 	register_fblock_namespace(fb);
 
 	return fb;
+err2:
+	kfree(fb_priv);
 err:
 	kfree_fblock(fb);
 	return NULL;
@@ -51,6 +63,7 @@ err:
 
 static void fb_test_dtor(struct fblock *fb)
 {
+	kfree(fb->private_data);
 }
 
 static struct fblock_ops fb_test_ops = {
