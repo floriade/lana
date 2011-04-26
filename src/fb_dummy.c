@@ -14,6 +14,7 @@
 #include "xt_fblock.h"
 #include "xt_builder.h"
 #include "xt_idp.h"
+#include "xt_skb.h"
 
 struct fb_test_priv {
 	idp_t ingress;
@@ -22,9 +23,14 @@ struct fb_test_priv {
 
 static struct fblock_ops fb_test_ops;
 
-static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb)
+static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb,
+			 enum path_type *dir)
 {
+	struct fb_test_priv *fb_priv = fb->private_data;
+
 	printk("Got skb on %p!\n", fb);
+	write_next_idp_to_skb(skb, fb->idp, *dir == TYPE_INGRESS ?
+			      fb_priv->ingress : fb_priv->egress);
 	return 0;
 }
 
@@ -48,6 +54,8 @@ static struct fblock *fb_test_ctor(char *name)
 	fb_priv = kmalloc(sizeof(*fb_priv), GFP_KERNEL);
 	if (!fb_priv)
 		goto err;
+	fb_priv->ingress = IDP_UNKNOWN;
+	fb_priv->egress = IDP_UNKNOWN;
 	ret = init_fblock(fb, name, fb_priv, &fb_test_ops);
 	if (ret)
 		goto err2;

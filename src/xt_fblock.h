@@ -18,6 +18,14 @@
 
 #include "xt_idp.h"
 
+enum path_type {
+        TYPE_INGRESS = 0,
+#define TYPE_INGRESS           TYPE_INGRESS
+        TYPE_EGRESS,
+#define TYPE_EGRESS            TYPE_EGRESS
+        _TYPE_MAX,
+};
+
 #define FBLOCK_DOWN_PREPARE	 0x0001	/* Notify of fblock going down */
 #define FBLOCK_DOWN		 0x0002	/* Notify of fblock is down    */
 
@@ -27,7 +35,8 @@
 struct fblock;
 
 struct fblock_ops {
-	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb);
+	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb,
+			enum path_type *dir);
 	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
 			void *args);
 };

@@ -63,7 +63,7 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 			ret = PPE_ERROR;
 			break;
 		}
-		ret = fb->ops->netfb_rx(fb, skb);
+		ret = fb->ops->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)
 			break;

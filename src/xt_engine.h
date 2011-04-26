@@ -16,13 +16,7 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/atomic.h>
 
-enum path_type {
-	TYPE_INGRESS = 0,
-#define TYPE_INGRESS           TYPE_INGRESS
-	TYPE_EGRESS,
-#define TYPE_EGRESS            TYPE_EGRESS
-	_TYPE_MAX,
-};
+#include "xt_fblock.h"
 
 #define NUM_TYPES               _TYPE_MAX
 #define NUM_QUEUES              NUM_TYPES
