@@ -25,7 +25,6 @@
 #include <time.h>
 #include <sys/mman.h>
 #include <dlfcn.h>
-//#include <popt.h>
 #include <sys/socket.h>
 #include <ctype.h>
 #include <assert.h>
@@ -35,6 +34,8 @@
 #define TEST_TSC 1
 #define TEST_TOD 0
 #define TEST_CLOCK 0
+
+#define DEBUG 1
 
 #if !TEST_TSC && !TEST_TOD && !TEST_CLOCK
 # error this setting makes no sense ...
@@ -340,10 +341,9 @@ usage:
 #endif
 		"\n"
 		);
+
 	shared = setup_shared_var();
-
 	parent = getpid();
-
 	for (i = 1; i < tasks; i++) {
 		if (!fork())
 			break;
