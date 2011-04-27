@@ -6,7 +6,7 @@
 # Subject to the GPL.
 #
 
-xcore-y := core.o       \
+lana-y   := core.o      \
 	   xt_sched.o   \
 	   xt_vlink.o   \
 	   xt_engine.o  \
@@ -14,19 +14,19 @@ xcore-y := core.o       \
 	   xt_builder.o \
 	   xt_critbit.o \
 	   xt_user.o
-obj-m   += xcore.o
+obj-m    += lana.o
 
 # Some of the optional modules are packed, so that we have two packages:
 # basic and extra, nevertheless modules can also be developed as a single
 # module.
 
-xbasic-y := fb_ethvlink.o
-obj-m    += xbasic.o
-
 # Test modules
-
 obj-m    += fb_dummy.o
 obj-m    += fb_testgen.o
+
+# Real modules
+obj-m    += sd_blackhole.o
+obj-m    += fb_ethvlink.o
 
 MDIR     := /lib/modules/$(shell uname -r)
 KDIR     := $(MDIR)/build

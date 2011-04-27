@@ -24,7 +24,7 @@
 
 #define MAX_SCHED 32
 
-static int ppesched_current = 0;
+static int ppesched_current = -1;
 static spinlock_t ppesched_lock;
 struct ppesched_discipline *ppesched_discipline_table[MAX_SCHED];
 
@@ -36,6 +36,10 @@ int ppesched_init(void)
 	int ret;
 	unsigned long flags;
 	spin_lock_irqsave(&ppesched_lock, flags);
+	if (unlikely(ppesched_current == -1)) {
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		return -ENOENT;
+	}
 	ret = ppesched_discipline_table[ppesched_current]->ops->discipline_init();
 	spin_unlock_irqrestore(&ppesched_lock, flags);
 	return ret;
@@ -69,6 +73,8 @@ int ppesched_discipline_register(struct ppesched_discipline *pd)
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (!ppesched_discipline_table[i]) {
 			ppesched_discipline_table[i] = pd;
+			if (unlikely(ppesched_current == -1))
+				ppesched_current = i;
 			done = 1;
 			break;
 		}
