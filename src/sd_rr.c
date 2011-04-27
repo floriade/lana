@@ -37,6 +37,7 @@ static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 		break;
 	case TYPE_INGRESS:
 		enqueue_ingress_on_engine(skb, __cpu);
+		break;
 	default:
 		return PPE_ERROR;
 	}
