@@ -17,7 +17,6 @@
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
-#include <linux/seq_file.h>
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
 #include <linux/module.h>
