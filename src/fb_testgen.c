@@ -52,6 +52,8 @@ static int __init init_fbtestgen_module(void)
 	}
 
 	write_next_idp_to_skb(skb, IDP_UNKNOWN, fb1->idp);
+	/* Assuming scheduler is loaded! */
+	ppesched_init();
 	ppesched_sched(skb, TYPE_EGRESS);
 	printk(KERN_INFO "skb enqueued!\n");
 

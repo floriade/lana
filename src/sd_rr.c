@@ -12,25 +12,37 @@
 #include <linux/kernel.h>
 #include <linux/cache.h>
 #include <linux/cpumask.h>
-#include <linux/atomic.h>
+#include <linux/spinlock.h>
 
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-static atomic_t cpu;
+static unsigned long cpu;
+static unsigned long cpu_max;
+static spinlock_t lock;
+static int initialized = 0;
 
 static int ppe_rr_init(void)
 {
-	atomic_set(&cpu, -1);
-	atomic_set(&cpu, cpumask_next(atomic_read(&cpu), cpu_online_mask));
+	if (likely(initialized))
+		return 0;
+	cpu = 0;
+	cpu_max = num_online_cpus();
+	spin_lock_init(&lock);
+	initialized = 1;
 	return 0;
 }
 
 static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 {
-	int __cpu;
-	atomic_set(&cpu, cpumask_next((__cpu = atomic_read(&cpu)),
-		   cpu_online_mask));
+	unsigned long __cpu, flags;
+
+	spin_lock_irqsave(&lock, flags);
+	__cpu = cpu++;
+	if (cpu == cpu_max)
+		cpu = 0;
+	spin_unlock_irqrestore(&lock, flags);
+
 	switch (dir) {
 	case TYPE_EGRESS:
 		enqueue_egress_on_engine(skb, __cpu);
@@ -46,6 +58,7 @@ static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 
 static void ppe_rr_cleanup(void)
 {
+	initialized = 0;
 }
 
 static struct ppesched_discipline_ops ppe_rr_ops __read_mostly = {

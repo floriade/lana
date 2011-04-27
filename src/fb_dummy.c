@@ -32,7 +32,7 @@ static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb,
 	unsigned long flags;
 	struct fb_test_priv *fb_priv = fb->private_data;
 
-	printk("Got skb on %p!\n", fb);
+	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 
 	spin_lock_irqsave(&fb_priv->lock, flags);
 	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
