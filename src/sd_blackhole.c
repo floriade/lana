@@ -7,8 +7,7 @@
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
  *
- * Note: Blackhole information paradox only supported for skbs,
- *       not for your NIC.
+ * Note: Quantum tunneling is not supported, too.
  */
 
 #include <linux/module.h>
@@ -25,7 +24,7 @@ static int ppe_blackhole_init(void)
 
 static int ppe_blackhole_sched(struct sk_buff *skb, enum path_type dir)
 {
-	/* Entering the event horizon! */
+	/* ... entering the event horizon! */
 	kfree(skb);
 	return PPE_SUCCESS;
 }
