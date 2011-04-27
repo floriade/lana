@@ -46,6 +46,7 @@ int ppesched_init(void)
 }
 EXPORT_SYMBOL_GPL(ppesched_init);
 
+/* ppesched_current must be set previously! */
 int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 {
 	int ret;
@@ -91,6 +92,8 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (ppesched_discipline_table[i] == pd) {
 			ppesched_discipline_table[i] = NULL;
+			if (i == ppesched_current)
+				ppesched_current = -1;
 			break;
 		}
 	}
@@ -106,7 +109,9 @@ static int ppesched_procfs(char *page, char **start, off_t offset,
 
 	spin_lock(&ppesched_lock);
 	len += sprintf(page + len, "running: %s\n",
-		       ppesched_discipline_table[ppesched_current]->name);
+		       ppesched_current != -1 ?
+		       ppesched_discipline_table[ppesched_current]->name :
+		       "none");
 	len += sprintf(page + len, "name addr id\n");
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (ppesched_discipline_table[i])

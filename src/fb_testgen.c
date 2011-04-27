@@ -16,7 +16,7 @@
 #include "xt_builder.h"
 #include "xt_skb.h"
 #include "xt_idp.h"
-#include "xt_engine.h"
+#include "xt_sched.h"
 
 static struct fblock *fb1, *fb2, *fb3;
 
@@ -52,7 +52,7 @@ static int __init init_fbtestgen_module(void)
 	}
 
 	write_next_idp_to_skb(skb, IDP_UNKNOWN, fb1->idp);
-	enqueue_egress_on_engine(skb, smp_processor_id());
+	ppesched_sched(skb, TYPE_EGRESS);
 	printk(KERN_INFO "skb enqueued!\n");
 
 	printk(KERN_INFO "[lana] fbtestgen loaded!\n");
