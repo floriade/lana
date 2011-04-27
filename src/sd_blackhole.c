@@ -51,13 +51,13 @@ static int __init init_ppe_blackhole_module(void)
 	return ppesched_discipline_register(&ppe_blackhole);
 }
 
-static void __exit cleanup_lana_core_module(void)
+static void __exit cleanup_ppe_blackhole_module(void)
 {
 	return ppesched_discipline_unregister(&ppe_blackhole);
 }
 
 module_init(init_ppe_blackhole_module);
-module_exit(cleanup_lana_core_module);
+module_exit(cleanup_ppe_blackhole_module);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
