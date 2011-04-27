@@ -3,8 +3,11 @@
  *
  * Ingress and egress flow ppe-scheduler. Flows that traverse the network
  * stack, e.g. ranging from PHY to the socket handler, are kept CPU-affine
- * for the communication. This scheduler classifies the packet and enqueues
- * it into the specific PPE.
+ * for the communication. This scheduler framework offers modules to register
+ * their disciplines.
+ *
+ * Change scheduling policies with, i.e. echo "1" > /proc/net/lana/ppesched
+ * where "n" is the id of the discipline.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -14,11 +17,10 @@
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
+#include <linux/seq_file.h>
 #include <linux/skbuff.h>
 #include <linux/spinlock.h>
 #include <linux/module.h>
-#include <net/netlink.h>
-#include <net/sock.h>
 
 #include "xt_sched.h"
 
@@ -101,8 +103,8 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_unregister);
 
-static int ppesched_procfs(char *page, char **start, off_t offset,
-			   int count, int *eof, void *data)
+static int ppesched_procfs_read(char *page, char **start, off_t offset,
+				int count, int *eof, void *data)
 {
 	int i;
 	off_t len = 0;
@@ -125,15 +127,53 @@ static int ppesched_procfs(char *page, char **start, off_t offset,
 	return len;
 }
 
+static int ppesched_procfs_write(struct file *file, const char __user *buffer,
+				 unsigned long count, void *data)
+{
+	int ret;
+	unsigned long res;
+	size_t len;
+	char *discipline;
+
+	discipline = kzalloc(32, GFP_KERNEL);
+	if (!discipline)
+		return -ENOMEM;
+	len = min(sizeof(discipline), count);
+	if (copy_from_user(discipline, buffer, len)) {
+		ret = -EFAULT;
+		goto out;
+	}
+	discipline[sizeof(discipline) - 1] = 0;
+	res = simple_strtoul(discipline, &discipline, 10);
+	if (res >= MAX_SCHED) {
+		ret = -EINVAL;
+		goto out;
+	}
+	spin_lock(&ppesched_lock);
+	if (!ppesched_discipline_table[res]) {
+		spin_unlock(&ppesched_lock);
+		ret = -EINVAL;
+		goto out;
+	}
+	ppesched_current = res;
+	spin_unlock(&ppesched_lock);
+
+	return count;
+out:
+	kfree(discipline);
+	return ret;
+}
+
 int init_ppesched_system(void)
 {
 	ppesched_lock = __SPIN_LOCK_UNLOCKED(ppesched_lock);
 	memset(ppesched_discipline_table, 0,
 	       sizeof(ppesched_discipline_table));
-	ppesched_proc = create_proc_read_entry("ppesched", 0444, lana_proc_dir,
-					       ppesched_procfs, NULL);
+	ppesched_proc = create_proc_entry("ppesched", 0666, lana_proc_dir);
 	if (!ppesched_proc)
 		return -ENOMEM;
+	ppesched_proc->read_proc = ppesched_procfs_read;
+	ppesched_proc->write_proc = ppesched_procfs_write;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(init_ppesched_system);
@@ -141,7 +181,6 @@ EXPORT_SYMBOL_GPL(init_ppesched_system);
 void cleanup_ppesched_system(void)
 {
 	remove_proc_entry("ppesched", lana_proc_dir);
-//	netlink_kernel_release(ppesched_sock);
 }
 EXPORT_SYMBOL_GPL(cleanup_ppesched_system);
 
