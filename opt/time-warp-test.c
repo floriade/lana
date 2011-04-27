@@ -31,11 +31,10 @@
 #include <sched.h>
 #include <time.h>
 
-#define TEST_TSC 1
-#define TEST_TOD 0
+#define TEST_TSC 0
+#define TEST_TOD 1
 #define TEST_CLOCK 0
-
-#define DEBUG 1
+#define DEBUG 0
 
 #if !TEST_TSC && !TEST_TOD && !TEST_CLOCK
 # error this setting makes no sense ...
