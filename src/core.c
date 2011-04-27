@@ -17,6 +17,7 @@
 #include "xt_vlink.h"
 #include "xt_engine.h"
 #include "xt_builder.h"
+#include "xt_sched.h"
 
 struct proc_dir_entry *lana_proc_dir;
 EXPORT_SYMBOL(lana_proc_dir);
@@ -25,10 +26,10 @@ static int __init init_lana_core_module(void)
 {
 	int ret;
 
+	printk(KERN_INFO "[lana] bootstrapping core ...\n");
 	lana_proc_dir = proc_mkdir("lana", init_net.proc_net);
 	if (!lana_proc_dir)
 		return -ENOMEM;
-
 	ret = init_vlink_system();
 	if (ret)
 		goto err;
@@ -41,9 +42,13 @@ static int __init init_lana_core_module(void)
 	ret = init_fblock_builder();
 	if (ret)
 		goto err4;
-
-	printk(KERN_INFO "[lana] core loaded!\n");
+	ret = init_ppesched_system();
+	if (ret)
+		goto err5;
+	printk(KERN_INFO "[lana] core up and running!\n");
 	return 0;
+err5:
+	cleanup_fblock_builder();
 err4:
 	cleanup_fblock_tables();
 err3:
@@ -57,13 +62,14 @@ err:
 
 static void __exit cleanup_lana_core_module(void)
 {
+	printk(KERN_INFO "[lana] halting core ...\n");
 	cleanup_worker_engines();
 	cleanup_fblock_tables();
+	cleanup_ppesched_system();
 	cleanup_fblock_builder();
 	cleanup_vlink_system();
-
 	remove_proc_entry("lana", init_net.proc_net);
-	printk(KERN_INFO "[lana] core removed!\n");
+	printk(KERN_INFO "[lana] core shut down!\n");
 }
 
 module_init(init_lana_core_module);
