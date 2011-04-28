@@ -113,6 +113,7 @@ static void usage(void)
 	printf("Commands:\n");
 	printf("  preload <module>\n");
 	printf("  add <name> <type>\n");
+	printf("  set <name> <string>\n");
 	printf("  rm <name>\n");
 	printf("  bind <name1> <name2>\n");
 	printf("  unbind <name1> <name2>\n");
