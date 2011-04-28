@@ -167,8 +167,26 @@ static void do_preload(int argc, char **argv)
 		panic("Preload failed!\n");
 }
 
+static int send_netlink()
+{
+	int sock;
+	struct sockaddr_nl src_addr, dest_addr;
+	struct nlmsghdr *nlh;
+	struct iovec iov;
+	struct msghdr msg;
+
+
+	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_USERCTL);
+	if (sock < 0)
+		panic("Cannot get NETLINK_USERCTL socket from kernel! "
+		      "Modules not loaded?!\n");
+}
+
 static void do_add(int argc, char **argv)
 {
+	if (argc != 2)
+		usage();
+	send_netlink();
 }
 
 static void do_set(int argc, char **argv)

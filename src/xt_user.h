@@ -12,11 +12,12 @@
 #include <linux/types.h>
 
 #include "xt_vlink.h"
+#include "xt_fblock.h"
 
 #define NETLINK_USERCTL 24
 
 enum userctl_groups {
-	USERCTLGRP_NONE = VLINKNLGRP_MAX, /* Reserved                    */
+	USERCTLGRP_NONE = VLINKNLGRP_MAX, /* Reserved */
 #define USERCTLGRP_NONE		USERCTLGRP_NONE
 	USERCTLGRP_CONF,
 #define USERCTLGRP_CONF		USERCTLGRP_CONF
@@ -24,10 +25,42 @@ enum userctl_groups {
 };
 
 #define USERCTLGRP_MAX		(__USERCTLGRP_MAX - 1)
+#define USERCTL_BUF_LEN         1500
+
+#define NETLINK_USERCTL_CMD_ADD		1
+#define NETLINK_USERCTL_CMD_SET		2
+#define NETLINK_USERCTL_CMD_RM		3
+#define NETLINK_USERCTL_CMD_BIND	4
+#define NETLINK_USERCTL_CMD_UNBIND	5
+
+struct lananlmsg_add {
+	char name[FBNAMSIZ];
+	char type[TYPNAMSIZ];
+};
+
+struct lananlmsg_rm {
+	char name[FBNAMSIZ];
+};
+
+struct lananlmsg_set {
+	char name[FBNAMSIZ];
+	/* 0-terminated string, e.g. "myip=192.168.1.111" */
+	char option[USERCTL_BUF_LEN - FBNAMSIZ];
+};
+
+struct lananlmsg_bind {
+	char name1[FBNAMSIZ];
+	char name2[FBNAMSIZ];
+};
+
+struct lananlmsg_unbind {
+	char name1[FBNAMSIZ];
+	char name2[FBNAMSIZ];
+};
 
 struct lananlmsg {
 	uint32_t cmd;
-	char buff[1500];
+	uint8_t buff[USERCTL_BUF_LEN];
 };
 
 extern int init_userctl_system(void);

@@ -31,8 +31,36 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		return 0;
 
 	lmsg = NLMSG_DATA(nlh);
-	printk(KERN_INFO "[lana] lananlmsg received: %u, %s!\n",
-	       lmsg->cmd, lmsg->buff);
+
+	switch (lmsg->cmd) {
+	case NETLINK_USERCTL_CMD_ADD: {
+			struct lananlmsg_add *msg = (struct lananlmsg_add *) lmsg->buff;
+			printk(KERN_INFO "[lana] Adding %s::%s!\n",
+			       msg->name, msg->type);
+		} break;
+	case NETLINK_USERCTL_CMD_SET: {
+			struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
+			printk(KERN_INFO "[lana] Setting %s -> %s!\n",
+			       msg->name, msg->option);
+		} break;
+	case NETLINK_USERCTL_CMD_RM: {
+			struct lananlmsg_rm *msg = (struct lananlmsg_rm *) lmsg->buff;
+			printk(KERN_INFO "[lana] Removing %s!\n", msg->name);
+		} break;
+	case NETLINK_USERCTL_CMD_BIND: {
+			struct lananlmsg_bind *msg = (struct lananlmsg_bind *) lmsg->buff;
+			printk(KERN_INFO "[lana] Binding %s >=< %s!\n",
+			       msg->name1, msg->name2);
+		} break;
+	case NETLINK_USERCTL_CMD_UNBIND: {
+			struct lananlmsg_unbind *msg = (struct lananlmsg_unbind *) lmsg->buff;
+			printk(KERN_INFO "[lana] Unbinding %s >|< %s!\n",
+			       msg->name1, msg->name2);
+		} break;
+	default:
+		printk("[lana] Unknown command!\n");
+		break;
+	}
 
 	return 0;
 }
