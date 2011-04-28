@@ -19,18 +19,18 @@
 #include "xt_skb.h"
 #include "xt_engine.h"
 
-struct fb_test_priv {
+struct fb_dummy_priv {
 	idp_t port[NUM_TYPES];
 	spinlock_t lock;
 };
 
-static struct fblock_ops fb_test_ops;
+static struct fblock_ops fb_dummy_ops;
 
-static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb,
-			 enum path_type *dir)
+static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
+			  enum path_type *dir)
 {
 	unsigned long flags;
-	struct fb_test_priv *fb_priv = fb->private_data;
+	struct fb_dummy_priv *fb_priv = fb->private_data;
 
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 
@@ -41,13 +41,13 @@ static int fb_test_netrx(struct fblock *fb, struct sk_buff *skb,
 	return PPE_SUCCESS;
 }
 
-static int fb_test_event(struct notifier_block *self, unsigned long cmd,
-			 void *args)
+static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
+			  void *args)
 {
 	unsigned long flags;
 	struct fblock_bind_msg *msg;
 	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
-	struct fb_test_priv *fb_priv = fb->private_data;
+	struct fb_dummy_priv *fb_priv = fb->private_data;
 
 	printk("Got event %lu on %p!\n", cmd, fb);
 
@@ -82,11 +82,11 @@ static int fb_test_event(struct notifier_block *self, unsigned long cmd,
 	return NOTIFY_OK;
 }
 
-static struct fblock *fb_test_ctor(char *name)
+static struct fblock *fb_dummy_ctor(char *name)
 {
 	int i, ret = 0;
 	struct fblock *fb;
-	struct fb_test_priv *fb_priv;
+	struct fb_dummy_priv *fb_priv;
 
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
@@ -97,7 +97,7 @@ static struct fblock *fb_test_ctor(char *name)
 	for (i = 0; i < NUM_TYPES; ++i)
 		fb_priv->port[i] = IDP_UNKNOWN;
 	spin_lock_init(&fb_priv->lock);
-	ret = init_fblock(fb, name, fb_priv, &fb_test_ops);
+	ret = init_fblock(fb, name, fb_priv, &fb_dummy_ops);
 	if (ret)
 		goto err2;
 	ret = register_fblock_namespace(fb);
@@ -114,35 +114,35 @@ err:
 	return NULL;
 }
 
-static void fb_test_dtor(struct fblock *fb)
+static void fb_dummy_dtor(struct fblock *fb)
 {
 	kfree(fb->private_data);
 }
 
-static struct fblock_ops fb_test_ops = {
-	.netfb_rx = fb_test_netrx,
-	.event_rx = fb_test_event,
+static struct fblock_ops fb_dummy_ops = {
+	.netfb_rx = fb_dummy_netrx,
+	.event_rx = fb_dummy_event,
 };
 
-static struct fblock_factory fb_test_factory = {
-	.type = "test",
-	.ctor = fb_test_ctor,
-	.dtor = fb_test_dtor,
+static struct fblock_factory fb_dummy_factory = {
+	.type = "dummy",
+	.ctor = fb_dummy_ctor,
+	.dtor = fb_dummy_dtor,
 	.owner = THIS_MODULE,
 };
 
-static int __init init_fb_test_module(void)
+static int __init init_fb_dummy_module(void)
 {
-	return register_fblock_type(&fb_test_factory);
+	return register_fblock_type(&fb_dummy_factory);
 }
 
-static void __exit cleanup_fb_test_module(void)
+static void __exit cleanup_fb_dummy_module(void)
 {
-	unregister_fblock_type(&fb_test_factory);
+	unregister_fblock_type(&fb_dummy_factory);
 }
 
-module_init(init_fb_test_module);
-module_exit(cleanup_fb_test_module);
+module_init(init_fb_dummy_module);
+module_exit(cleanup_fb_dummy_module);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");

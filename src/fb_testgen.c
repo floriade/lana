@@ -25,15 +25,15 @@ static int __init init_fbtestgen_module(void)
 	struct sk_buff *skb;
 
 	/* Only xt_user is actually doing all this, just for testing purpose here. */
-	fb1 = build_fblock_object("test", "fb1");
+	fb1 = build_fblock_object("dummy", "fb1");
 	if (!fb1)
 		return -ENOMEM;
-	fb2 = build_fblock_object("test", "fb2");
+	fb2 = build_fblock_object("dummy", "fb2");
 	if (!fb2) {
 		unregister_fblock_namespace(fb1);
 		return -ENOMEM;
 	}
-	fb3 = build_fblock_object("test", "fb3");
+	fb3 = build_fblock_object("dummy", "fb3");
 	if (!fb3) {
 		unregister_fblock_namespace(fb1);
 		unregister_fblock_namespace(fb2);
