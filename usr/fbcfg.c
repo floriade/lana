@@ -11,7 +11,6 @@
  * Subject to the GPL.
  */
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -202,7 +201,7 @@ static void send_netlink(struct lananlmsg *lmsg)
 		return;
 
 	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_USERCTL);
-	if (sock < 0)
+	if (unlikely(sock < 0))
 		panic("Cannot get NETLINK_USERCTL socket from kernel! "
 		      "Modules not loaded?!\n");
 

@@ -150,7 +150,7 @@ void do_ethernet(int argc, char **argv)
 	struct msghdr msg;
 	struct vlinknlmsg *vmsg;
 
-	if (argc == 0)
+	if (unlikely(argc == 0))
 		usage();
 	if (!strncmp("add", argv[0], strlen("add")) && argc == 4)
 		cmd = VLINKNLCMD_ADD_DEVICE;
@@ -164,7 +164,7 @@ void do_ethernet(int argc, char **argv)
 		usage();
 
 	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_VLINK);
-	if (sock < 0)
+	if (unlikely(sock < 0))
 		panic("Cannot get NETLINK_VLINK socket from kernel! "
 		      "Modules not loaded?!\n");
 
@@ -174,7 +174,9 @@ void do_ethernet(int argc, char **argv)
 	src_addr.nl_pid = getpid();
 	src_addr.nl_groups = 0;
 
-	bind(sock, (struct sockaddr *) &src_addr, sizeof(src_addr));
+	ret = bind(sock, (struct sockaddr *) &src_addr, sizeof(src_addr));
+	if (unlikely(ret))
+		panic("Cannot bind socket!\n");
 
 	memset(&dest_addr, 0, sizeof(dest_addr));
 	dest_addr.nl_family = AF_NETLINK;
@@ -212,7 +214,7 @@ void do_ethernet(int argc, char **argv)
 	msg.msg_iovlen = 1;
 
 	ret = sendmsg(sock, &msg, 0);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		panic("Cannot send NETLINK message to the kernel!\n");
 
 	close(sock);
