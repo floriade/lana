@@ -51,9 +51,11 @@ int init_userctl_system(void)
 		return -ENOMEM;
 	return 0;
 }
+EXPORT_SYMBOL_GPL(init_userctl_system);
 
 void cleanup_userctl_system(void)
 {
 	netlink_kernel_release(userctl_sock);
 }
+EXPORT_SYMBOL_GPL(cleanup_userctl_system);
 

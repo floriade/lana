@@ -30,5 +30,8 @@ struct lananlmsg {
 	char buff[1500];
 };
 
+extern int init_userctl_system(void);
+extern void cleanup_userctl_system(void);
+
 #endif /* XT_USER_H */
 

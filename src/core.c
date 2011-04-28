@@ -18,6 +18,7 @@
 #include "xt_engine.h"
 #include "xt_builder.h"
 #include "xt_sched.h"
+#include "xt_user.h"
 
 struct proc_dir_entry *lana_proc_dir;
 EXPORT_SYMBOL(lana_proc_dir);
@@ -45,8 +46,13 @@ static int __init init_lana_core_module(void)
 	ret = init_ppesched_system();
 	if (ret)
 		goto err5;
+	ret = init_userctl_system();
+	if (ret)
+		goto err6;
 	printk(KERN_INFO "[lana] core up and running!\n");
 	return 0;
+err6:
+	cleanup_ppesched_system();
 err5:
 	cleanup_fblock_builder();
 err4:
@@ -63,6 +69,7 @@ err:
 static void __exit cleanup_lana_core_module(void)
 {
 	printk(KERN_INFO "[lana] halting core ...\n");
+	cleanup_userctl_system();
 	cleanup_worker_engines();
 	cleanup_fblock_tables();
 	cleanup_ppesched_system();
