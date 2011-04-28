@@ -9,6 +9,8 @@
 #ifndef XT_FBLOCK_H
 #define XT_FBLOCK_H
 
+#ifdef __KERNEL__
+
 #include <linux/if.h>
 #include <linux/cpu.h>
 #include <linux/module.h>
@@ -34,8 +36,12 @@ enum path_type {
 #define FBLOCK_DOWN_PREPARE	0x0004
 #define FBLOCK_DOWN		0x0005
 
+#endif /* __KERNEL__ */
+
 #define FBNAMSIZ		IFNAMSIZ
 #define TYPNAMSIZ		FBNAMSIZ
+
+#ifdef __KERNEL__
 
 struct fblock_bind_msg {
 	enum path_type dir;
@@ -164,4 +170,5 @@ static inline void put_fblock(struct fblock *fb)
 	kfree_fblock(fb);
 }
 
+#endif /* __KERNEL__ */
 #endif /* XT_FBLOCK_H */

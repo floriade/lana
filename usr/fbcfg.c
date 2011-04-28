@@ -77,6 +77,29 @@ static inline void whine(char *msg, ...)
 	va_end(vl);
 }
 
+static void *xzmalloc(size_t size)
+{
+	void *ptr;
+
+	if (unlikely(size == 0))
+		panic("xzmalloc: zero size\n");
+
+	ptr = malloc(size);
+	if (unlikely(ptr == NULL))
+		panic("xzmalloc: out of memory (allocating %lu bytes)\n",
+		      (u_long) size);
+	memset(ptr, 0, size);
+
+	return ptr;
+}
+
+static void xfree(void *ptr)
+{
+	if (unlikely(ptr == NULL))
+		panic("xfree: NULL pointer given as argument\n");
+	free(ptr);
+}
+
 void check_for_root_maybe_die(void)
 {
 	if (geteuid() != 0)
@@ -167,42 +190,140 @@ static void do_preload(int argc, char **argv)
 		panic("Preload failed!\n");
 }
 
-static int send_netlink()
+static void send_netlink(struct lananlmsg *lmsg)
 {
-	int sock;
+	int sock, ret;
 	struct sockaddr_nl src_addr, dest_addr;
 	struct nlmsghdr *nlh;
 	struct iovec iov;
 	struct msghdr msg;
 
+	if (unlikely(!lmsg))
+		return;
 
 	sock = socket(PF_NETLINK, SOCK_RAW, NETLINK_USERCTL);
 	if (sock < 0)
 		panic("Cannot get NETLINK_USERCTL socket from kernel! "
 		      "Modules not loaded?!\n");
+
+	memset(&src_addr, 0, sizeof(src_addr));
+	src_addr.nl_family = AF_NETLINK;
+	src_addr.nl_pad = 0;
+	src_addr.nl_pid = getpid();
+	src_addr.nl_groups = 0;
+
+	ret = bind(sock, (struct sockaddr *) &src_addr, sizeof(src_addr));
+	if (unlikely(ret))
+		panic("Cannot bind socket!\n");
+
+	memset(&dest_addr, 0, sizeof(dest_addr));
+	dest_addr.nl_family = AF_NETLINK;
+	dest_addr.nl_pad = 0;
+	dest_addr.nl_pid = 0;
+	dest_addr.nl_groups = 0;
+
+	nlh = xzmalloc(NLMSG_SPACE(sizeof(*lmsg)));
+	nlh->nlmsg_len = NLMSG_SPACE(sizeof(*lmsg));
+	nlh->nlmsg_pid = getpid();
+	nlh->nlmsg_type = USERCTLGRP_CONF;
+	nlh->nlmsg_flags = NLM_F_REQUEST;
+
+	memcpy(NLMSG_DATA(nlh), lmsg, sizeof(*lmsg));
+
+	iov.iov_base = nlh;
+	iov.iov_len = nlh->nlmsg_len;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.msg_name = &dest_addr;
+	msg.msg_namelen = sizeof(dest_addr);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+
+	ret = sendmsg(sock, &msg, 0);
+	if (unlikely(ret < 0))
+		panic("Cannot send NETLINK message to the kernel!\n");
+
+	close(sock);
+	xfree(nlh);
 }
 
 static void do_add(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_add *msg;
+
 	if (argc != 2)
 		usage();
-	send_netlink();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_ADD;
+	msg = (struct lananlmsg_add *) lmsg.buff;
+	strlcpy(msg->name, argv[0], sizeof(msg->name));
+	strlcpy(msg->type, argv[1], sizeof(msg->type));
+	send_netlink(&lmsg);
 }
 
 static void do_set(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_set *msg;
+
+	if (argc != 2)
+		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_SET;
+	msg = (struct lananlmsg_set *) lmsg.buff;
+	strlcpy(msg->name, argv[0], sizeof(msg->name));
+	strlcpy(msg->option, argv[1], sizeof(msg->option));
+	send_netlink(&lmsg);
 }
 
 static void do_rm(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_rm *msg;
+
+	if (argc != 1)
+		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_RM;
+	msg = (struct lananlmsg_rm *) lmsg.buff;
+	strlcpy(msg->name, argv[0], sizeof(msg->name));
+	send_netlink(&lmsg);
 }
 
 static void do_bind(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_bind *msg;
+
+	if (argc != 2)
+		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_BIND;
+	msg = (struct lananlmsg_bind *) lmsg.buff;
+	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
+	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	send_netlink(&lmsg);
 }
 
 static void do_unbind(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_unbind *msg;
+
+	if (argc != 2)
+		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_UNBIND;
+	msg = (struct lananlmsg_unbind *) lmsg.buff;
+	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
+	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	send_netlink(&lmsg);
 }
 
 int main(int argc, char **argv)
