@@ -26,7 +26,7 @@ enum userctl_groups {
 #define USERCTLGRP_MAX		(__USERCTLGRP_MAX - 1)
 
 struct lananlmsg {
-	u32 cmd;
+	uint32_t cmd;
 	char buff[1500];
 };
 
