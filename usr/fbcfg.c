@@ -81,6 +81,8 @@ void check_for_root_maybe_die(void)
 {
 	if (geteuid() != 0)
 		panic("Uhhuh, not root?! \n");
+	if (geteuid() != getuid())
+		panic("Uhhuh, not root?! \n");
 }
 
 static void usage(void)
@@ -210,5 +212,6 @@ int main(int argc, char **argv)
 		do_unbind(--argc, ++argv);
 	else
 		usage();
+
 	return 0;
 }
