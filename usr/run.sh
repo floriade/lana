@@ -1,6 +1,6 @@
 #!/bin/sh
 
-export FBCFG_PRELOAD_SRCH_DIR=../src/
+export FBCFG_PRELOAD_DIR=../src/
 
 ./fbcfg preload lana
 ./fbcfg preload sd_rr
