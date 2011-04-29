@@ -44,6 +44,7 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 			  void *args)
 {
+	int ret = NOTIFY_OK;
 	unsigned long flags;
 	struct fblock_bind_msg *msg;
 	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
@@ -57,6 +58,8 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
 			fb_priv->port[msg->dir] = msg->idp;
+		else
+			ret = NOTIFY_BAD;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		break;
 	case FBLOCK_UNBIND_IDP:
@@ -64,6 +67,8 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == msg->idp)
 			fb_priv->port[msg->dir] = IDP_UNKNOWN;
+		else
+			ret = NOTIFY_BAD;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		break;
 	case FBLOCK_XCHG_IDP:
@@ -76,7 +81,7 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		break;
 	}
 
-	return NOTIFY_OK;
+	return ret;
 }
 
 static struct fblock *fb_dummy_ctor(char *name)

@@ -168,6 +168,7 @@ EXPORT_SYMBOL_GPL(search_fblock);
  */
 int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 {
+	int ret;
 	struct fblock_bind_msg msg;
 	/* Hack: we let the fb think that this belongs to his own chain to
 	 * get the reference back to itself. */
@@ -182,12 +183,29 @@ int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_EGRESS;
 	msg.idp = fb2->idp;
 	fbn.self = fb1;
-	fb1->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	if (ret != NOTIFY_OK) {
+		put_fblock(fb1);
+		put_fblock(fb2);
+		return -EBUSY;
+	}
 
 	msg.dir = TYPE_INGRESS;
 	msg.idp = fb1->idp;
 	fbn.self = fb2;
-	fb2->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	ret = fb2->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	if (ret != NOTIFY_OK) {
+		/* Release previous binding */
+		msg.dir = TYPE_EGRESS;
+		msg.idp = fb2->idp;
+		fbn.self = fb1;
+		ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+		if (ret != NOTIFY_OK)
+			panic("Cannot release previously bound fblock!\n");
+		put_fblock(fb1);
+		put_fblock(fb2);
+		return -EBUSY;
+	}
 
 	/* We don't give refcount back! */
 	return 0;
@@ -209,6 +227,7 @@ EXPORT_SYMBOL_GPL(fblock_bind);
  */
 int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
 {
+	int ret;
 	struct fblock_bind_msg msg;
 	/* Hack: we let the fb think that this belongs to his own chain to
 	 * get the reference back to itself. */
@@ -222,12 +241,22 @@ int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_EGRESS;
 	msg.idp = fb2->idp;
 	fbn.self = fb1;
-	fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	if (ret != NOTIFY_OK) {
+		/* We are not bound to fb2 */
+		return -EBUSY;
+	}
 
 	msg.dir = TYPE_INGRESS;
 	msg.idp = fb1->idp;
 	fbn.self = fb2;
-	fb2->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	ret = fb2->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	if (ret != NOTIFY_OK) {
+		/* We are not bound to fb1, but fb1 was bound to us, so only
+		 * release fb1 */
+		put_fblock(fb1);
+		return -EBUSY;
+	}
 
 	put_fblock(fb2);
 	put_fblock(fb1);

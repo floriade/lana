@@ -95,7 +95,7 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_UNBIND: {
-//			int ret;
+			int ret;
 			idp_t id1, id2;
 			struct fblock *fb1, *fb2;
 			struct lananlmsg_unbind *msg = (struct lananlmsg_unbind *) lmsg->buff;
@@ -114,12 +114,12 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				put_fblock(fb1);
 				return -EINVAL;
 			}
-//			ret = fblock_unbind(fb1, fb2);
-//			if (ret) {
-//				put_fblock(fb1);
-//				put_fblock(fb2);
-//				return ret;
-//			}
+			ret = fblock_unbind(fb1, fb2);
+			if (ret) {
+				put_fblock(fb1);
+				put_fblock(fb2);
+				return ret;
+			}
 			printk(KERN_INFO "[lana] %s >|< %s!\n",
 			       msg->name1, msg->name2);
 			put_fblock(fb1);
