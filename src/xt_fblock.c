@@ -267,8 +267,6 @@ int register_fblock(struct fblock *p, idp_t idp)
 		rcu_assign_pointer(p0->next, p);
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-
-	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(register_fblock);
@@ -293,8 +291,6 @@ int register_fblock_namespace(struct fblock *p)
 		rcu_assign_pointer(p0->next, p);
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-
-	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
 	return register_to_fblock_namespace(p->name, p->idp);
 }
 EXPORT_SYMBOL_GPL(register_fblock_namespace);
@@ -332,8 +328,6 @@ int unregister_fblock(struct fblock *p)
 		}
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-
-	printk("[lana] (%s) unloaded!\n", p->name);
 	call_rcu(&p->rcu, free_fblock_rcu);
 	return ret;
 }
@@ -363,8 +357,6 @@ void unregister_fblock_namespace(struct fblock *p)
 		}
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-
-	printk("[lana] (%u,%s) unloaded!\n", p->idp, p->name);
 	unregister_from_fblock_namespace(p->name);
 	call_rcu(&p->rcu, free_fblock_rcu);
 }
