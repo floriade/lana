@@ -42,13 +42,9 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			fb = build_fblock_object(msg->type, msg->name);
 			if (!fb)
 				return -ENOMEM;
-			printk(KERN_INFO "[lana] %s::%s added!\n",
-			       msg->name, msg->type);
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
 			struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
-			printk(KERN_INFO "[lana] %s -> %s!\n",
-			       msg->name, msg->option);
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
 			idp_t id;
@@ -61,7 +57,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			if (!fb)
 				return -EINVAL;
 			unregister_fblock_namespace(fb);
-			printk(KERN_INFO "[lana] %s removed!\n", msg->name);
 		} break;
 	case NETLINK_USERCTL_CMD_BIND: {
 			int ret;
@@ -89,8 +84,7 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				put_fblock(fb2);
 				return ret;
 			}
-			printk(KERN_INFO "[lana] %s >=< %s!\n",
-			       msg->name1, msg->name2);
+
 			put_fblock(fb1);
 			put_fblock(fb2);
 		} break;
@@ -120,8 +114,7 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				put_fblock(fb2);
 				return ret;
 			}
-			printk(KERN_INFO "[lana] %s >|< %s!\n",
-			       msg->name1, msg->name2);
+
 			put_fblock(fb1);
 			put_fblock(fb2);
 		} break;
