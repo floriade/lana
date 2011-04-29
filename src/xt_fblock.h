@@ -11,6 +11,7 @@
 
 #ifdef __KERNEL__
 
+#include <linux/proc_fs.h>
 #include <linux/if.h>
 #include <linux/cpu.h>
 #include <linux/module.h>
@@ -42,6 +43,8 @@ enum path_type {
 #define TYPNAMSIZ		FBNAMSIZ
 
 #ifdef __KERNEL__
+
+extern struct proc_dir_entry *fblock_proc_dir;
 
 struct fblock_bind_msg {
 	enum path_type dir;

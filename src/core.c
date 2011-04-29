@@ -22,6 +22,8 @@
 
 struct proc_dir_entry *lana_proc_dir;
 EXPORT_SYMBOL(lana_proc_dir);
+struct proc_dir_entry *fblock_proc_dir;
+EXPORT_SYMBOL(fblock_proc_dir);
 
 static int __init init_lana_core_module(void)
 {
@@ -31,9 +33,12 @@ static int __init init_lana_core_module(void)
 	lana_proc_dir = proc_mkdir("lana", init_net.proc_net);
 	if (!lana_proc_dir)
 		return -ENOMEM;
+	fblock_proc_dir = proc_mkdir("fblock", lana_proc_dir);
+	if (!fblock_proc_dir)
+		goto err;
 	ret = init_vlink_system();
 	if (ret)
-		goto err;
+		goto err1;
 	ret = init_worker_engines();
 	if (ret)
 		goto err2;
@@ -61,6 +66,8 @@ err3:
 	cleanup_worker_engines();
 err2:
 	cleanup_vlink_system();
+err1:
+	remove_proc_entry("fblock", lana_proc_dir);
 err:
 	remove_proc_entry("lana", init_net.proc_net);
 	return -ENOMEM;
@@ -75,6 +82,7 @@ static void __exit cleanup_lana_core_module(void)
 	cleanup_ppesched_system();
 	cleanup_fblock_builder();
 	cleanup_vlink_system();
+	remove_proc_entry("fblock", lana_proc_dir);
 	remove_proc_entry("lana", init_net.proc_net);
 	printk(KERN_INFO "[lana] core shut down!\n");
 }
