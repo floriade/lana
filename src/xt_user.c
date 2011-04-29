@@ -44,7 +44,7 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				return -ENOMEM;
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
-			struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
+			//struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
 			idp_t id;

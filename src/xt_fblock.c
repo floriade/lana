@@ -207,6 +207,18 @@ int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 		return -EBUSY;
 	}
 
+	ret = subscribe_to_remote_fblock(fb1, fb2);
+	if (ret) {
+		__fblock_unbind(fb1, fb2);
+		return -ENOMEM;
+	}
+
+	ret = subscribe_to_remote_fblock(fb2, fb1);
+	if (ret) {
+		__fblock_unbind(fb1, fb2);
+		return -ENOMEM;
+	}
+
 	/* We don't give refcount back! */
 	return 0;
 }
@@ -257,6 +269,9 @@ int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
 		put_fblock(fb1);
 		return -EBUSY;
 	}
+
+	unsubscribe_from_remote_fblock(fb1, fb2);
+	unsubscribe_from_remote_fblock(fb2, fb1);
 
 	put_fblock(fb2);
 	put_fblock(fb1);
