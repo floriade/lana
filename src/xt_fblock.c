@@ -30,8 +30,8 @@ struct idp_elem {
 	struct rcu_head rcu;
 } ____cacheline_aligned;
 
-static struct critbit_tree idpmap;         /* string -> idp translation map */
-static struct fblock **fblmap_head = NULL; /* idp -> fblock translation map */
+static struct critbit_tree idpmap;
+static struct fblock **fblmap_head = NULL;
 static spinlock_t fblmap_head_lock;
 
 static atomic64_t idp_counter;
