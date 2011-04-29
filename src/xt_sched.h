@@ -12,8 +12,11 @@
 #include <linux/spinlock.h>
 #include <linux/skbuff.h>
 #include <linux/module.h>
+#include <linux/proc_fs.h>
 
 #include "xt_fblock.h"
+
+extern struct proc_dir_entry *sched_proc_dir;
 
 struct ppesched_discipline_ops {
 	int (*discipline_init)(void);
