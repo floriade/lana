@@ -22,7 +22,7 @@ obj-m    += lana.o
 
 # Test modules
 obj-m    += fb_dummy.o
-obj-m    += fb_testgen.o
+obj-m    += testskb.o
 
 # Real modules
 obj-m    += sd_blackhole.o

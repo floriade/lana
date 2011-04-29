@@ -17,7 +17,10 @@
 #include <net/netlink.h>
 #include <net/sock.h>
 
+#include "xt_idp.h"
 #include "xt_user.h"
+#include "xt_fblock.h"
+#include "xt_builder.h"
 
 static struct sock *userctl_sock = NULL;
 
@@ -34,28 +37,93 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	switch (lmsg->cmd) {
 	case NETLINK_USERCTL_CMD_ADD: {
+			struct fblock *fb;
 			struct lananlmsg_add *msg = (struct lananlmsg_add *) lmsg->buff;
-			printk(KERN_INFO "[lana] Adding %s::%s!\n",
+			fb = build_fblock_object(msg->type, msg->name);
+			if (!fb)
+				return -ENOMEM;
+			printk(KERN_INFO "[lana] %s::%s added!\n",
 			       msg->name, msg->type);
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
 			struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
-			printk(KERN_INFO "[lana] Setting %s -> %s!\n",
+			printk(KERN_INFO "[lana] %s -> %s!\n",
 			       msg->name, msg->option);
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
+			idp_t id;
+			struct fblock *fb;
 			struct lananlmsg_rm *msg = (struct lananlmsg_rm *) lmsg->buff;
-			printk(KERN_INFO "[lana] Removing %s!\n", msg->name);
+			id = get_fblock_namespace_mapping(msg->name);
+			if (id == IDP_UNKNOWN)
+				return -EINVAL;
+			fb = search_fblock(id);
+			if (!fb)
+				return -EINVAL;
+			unregister_fblock_namespace(fb);
+			printk(KERN_INFO "[lana] %s removed!\n", msg->name);
 		} break;
 	case NETLINK_USERCTL_CMD_BIND: {
+			int ret;
+			idp_t id1, id2;
+			struct fblock *fb1, *fb2;
 			struct lananlmsg_bind *msg = (struct lananlmsg_bind *) lmsg->buff;
-			printk(KERN_INFO "[lana] Binding %s >=< %s!\n",
+
+			id1 = get_fblock_namespace_mapping(msg->name1);
+			if (id1 == IDP_UNKNOWN)
+				return -EINVAL;
+			id2 = get_fblock_namespace_mapping(msg->name2);
+			if (id2 == IDP_UNKNOWN)
+				return -EINVAL;
+			fb1 = search_fblock(id1);
+			if (!fb1)
+				return -EINVAL;
+			fb2 = search_fblock(id2);
+			if (!fb2) {
+				put_fblock(fb1);
+				return -EINVAL;
+			}
+			ret = fblock_bind(fb1, fb2);
+			if (ret) {
+				put_fblock(fb1);
+				put_fblock(fb2);
+				return ret;
+			}
+			printk(KERN_INFO "[lana] %s >=< %s!\n",
 			       msg->name1, msg->name2);
+			put_fblock(fb1);
+			put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_UNBIND: {
+//			int ret;
+			idp_t id1, id2;
+			struct fblock *fb1, *fb2;
 			struct lananlmsg_unbind *msg = (struct lananlmsg_unbind *) lmsg->buff;
-			printk(KERN_INFO "[lana] Unbinding %s >|< %s!\n",
+
+			id1 = get_fblock_namespace_mapping(msg->name1);
+			if (id1 == IDP_UNKNOWN)
+				return -EINVAL;
+			id2 = get_fblock_namespace_mapping(msg->name2);
+			if (id2 == IDP_UNKNOWN)
+				return -EINVAL;
+			fb1 = search_fblock(id1);
+			if (!fb1)
+				return -EINVAL;
+			fb2 = search_fblock(id2);
+			if (!fb2) {
+				put_fblock(fb1);
+				return -EINVAL;
+			}
+//			ret = fblock_unbind(fb1, fb2);
+//			if (ret) {
+//				put_fblock(fb1);
+//				put_fblock(fb2);
+//				return ret;
+//			}
+			printk(KERN_INFO "[lana] %s >|< %s!\n",
 			       msg->name1, msg->name2);
+			put_fblock(fb1);
+			put_fblock(fb2);
 		} break;
 	default:
 		printk("[lana] Unknown command!\n");
