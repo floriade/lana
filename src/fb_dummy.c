@@ -58,7 +58,6 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
 			fb_priv->port[msg->dir] = msg->idp;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		printk("[lana] Bound fb %p to %u!\n", fb, msg->idp);
 		break;
 	case FBLOCK_UNBIND_IDP:
 		msg = args;
@@ -66,14 +65,12 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		if (fb_priv->port[msg->dir] == msg->idp)
 			fb_priv->port[msg->dir] = IDP_UNKNOWN;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		printk("[lana] Unbound fb %p to %u!\n", fb, msg->idp);
 		break;
 	case FBLOCK_XCHG_IDP:
 		msg = args;
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		fb_priv->port[msg->dir] = msg->idp;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		printk("[lana] Xchg fb %p to %u!\n", fb, msg->idp);
 		break;
 	default:
 		break;
