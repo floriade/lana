@@ -129,8 +129,8 @@ extern int fblock_bind(struct fblock *fb1, struct fblock *fb2);
 extern int __fblock_bind(struct fblock *fb1, struct fblock *fb2);
 
 /* Unbinds two fblock objects, decrements refcount each. */
-//extern int fblock_unbind(struct fblock *fb1, struct fblock *fb2);
-//extern int __fblock_unbind(struct fblock *fb1, struct fblock *fb2);
+extern int fblock_unbind(struct fblock *fb1, struct fblock *fb2);
+extern int __fblock_unbind(struct fblock *fb1, struct fblock *fb2);
 
 /* Lookup idp by fblock name. */
 extern idp_t get_fblock_namespace_mapping(char *name);

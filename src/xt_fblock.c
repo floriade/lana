@@ -189,9 +189,7 @@ int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 	fbn.self = fb2;
 	fb2->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
 
-	put_fblock(fb2);
-	put_fblock(fb1);
-
+	/* We don't give refcount back! */
 	return 0;
 }
 EXPORT_SYMBOL_GPL(__fblock_bind);
@@ -205,6 +203,48 @@ int fblock_bind(struct fblock *fb1, struct fblock *fb2)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(fblock_bind);
+
+/*
+ * fb1 on top of fb2 in the stack
+ */
+int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
+{
+	struct fblock_bind_msg msg;
+	/* Hack: we let the fb think that this belongs to his own chain to
+	 * get the reference back to itself. */
+	struct fblock_notifier fbn;
+
+	/* We still have refcnt, we drop it on exit! */
+
+	memset(&fbn, 0, sizeof(fbn));
+	memset(&msg, 0, sizeof(msg));
+
+	msg.dir = TYPE_EGRESS;
+	msg.idp = fb2->idp;
+	fbn.self = fb1;
+	fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+
+	msg.dir = TYPE_INGRESS;
+	msg.idp = fb1->idp;
+	fbn.self = fb2;
+	fb2->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+
+	put_fblock(fb2);
+	put_fblock(fb1);
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(__fblock_unbind);
+
+int fblock_unbind(struct fblock *fb1, struct fblock *fb2)
+{
+	int ret;
+	rcu_read_lock();
+	ret = __fblock_unbind(fb1, fb2);
+	rcu_read_unlock();
+	return ret;
+}
+EXPORT_SYMBOL_GPL(fblock_unbind);
 
 /*
  * register_fblock is called when the idp is preknown to the
