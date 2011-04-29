@@ -92,37 +92,56 @@ struct fblock {
 	rwlock_t lock; /* Used in notifiers */
 } ____cacheline_aligned;
 
+/*
+ * Note: __* variants do not hold the rcu_read_lock!
+ */
+
+/* Allocate/free a new fblock object. */
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
+/* Initialize/cleanup a fblock object. */
 extern int init_fblock(struct fblock *fb, char *name, void *priv,
 		       struct fblock_ops *ops);
 extern void cleanup_fblock(struct fblock *fb);
 extern void cleanup_fblock_ctor(struct fblock *fb);
 
+/*
+ * Registers a fblock object to the stack. Latter variant allocates 
+ * a new unused idp, former uses a given _free_ idp.
+ */
+extern int register_fblock(struct fblock *p, idp_t idp);
 extern int register_fblock_namespace(struct fblock *p);
-extern int register_fblock_idp(struct fblock *p, idp_t idp);
 
+/*
+ * Unregisters a fblock object from the stack. Former variant does not 
+ * release the idp to name mapping, latter variant frees it, too.
+ */
 extern int unregister_fblock(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
 
-extern int xchg_fblock_idp(idp_t idp, struct fblock *new);
-extern int xchg_fblock(struct fblock *old, struct fblock *new);
-
+/* Returns fblock object specified by idp. */
 extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *__search_fblock(idp_t idp);
 
+/* Binds two fblock objects, increments refcount each. */
 extern int fblock_bind(struct fblock *fb1, struct fblock *fb2);
 extern int __fblock_bind(struct fblock *fb1, struct fblock *fb2);
 
+/* Unbinds two fblock objects, decrements refcount each. */
+//extern int fblock_unbind(struct fblock *fb1, struct fblock *fb2);
+//extern int __fblock_unbind(struct fblock *fb1, struct fblock *fb2);
+
+/* Lookup idp by fblock name. */
 extern idp_t get_fblock_namespace_mapping(char *name);
 extern idp_t __get_fblock_namespace_mapping(char *name);
 
+/*
+ * Maps existing fblock name to a new idp, can be used if object has been
+ * removed via unregister_fblock.
+ */
 extern int change_fblock_namespace_mapping(char *name, idp_t new); 
 extern int __change_fblock_namespace_mapping(char *name, idp_t new);
-
-extern int init_fblock_tables(void);
-extern void cleanup_fblock_tables(void);
 
 extern int subscribe_to_remote_fblock(struct fblock *us,
 				      struct fblock *remote);
@@ -172,6 +191,9 @@ static inline void put_fblock(struct fblock *fb)
 	cleanup_fblock(fb);
 	kfree_fblock(fb);
 }
+
+extern int init_fblock_tables(void);
+extern void cleanup_fblock_tables(void);
 
 #endif /* __KERNEL__ */
 #endif /* XT_FBLOCK_H */

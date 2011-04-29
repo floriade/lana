@@ -207,12 +207,12 @@ int fblock_bind(struct fblock *fb1, struct fblock *fb2)
 EXPORT_SYMBOL_GPL(fblock_bind);
 
 /*
- * register_fblock_idp is called when the idp is preknown to the
+ * register_fblock is called when the idp is preknown to the
  * caller and has already been registered previously. The previous
  * registration has then called unregister_fblock to remove the 
  * fblock but to keep the namespace and idp number.
  */
-int register_fblock_idp(struct fblock *p, idp_t idp)
+int register_fblock(struct fblock *p, idp_t idp)
 {
 	struct fblock *p0;
 	unsigned long flags;
@@ -231,7 +231,7 @@ int register_fblock_idp(struct fblock *p, idp_t idp)
 	printk("[lana] (%u,%s) loaded!\n", p->idp, p->name);
 	return 0;
 }
-EXPORT_SYMBOL_GPL(register_fblock_idp);
+EXPORT_SYMBOL_GPL(register_fblock);
 
 /*
  * register_fblock_namespace is called when a new functional block
