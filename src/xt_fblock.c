@@ -492,14 +492,14 @@ static int procfs_fblocks(char *page, char **start, off_t offset,
 	off_t len = 0;
 	struct fblock *fb;
 
-	len += sprintf(page + len, "name type addr idp\n");
+	len += sprintf(page + len, "name type addr idp refcnt\n");
 	rcu_read_lock();
 	for (i = 0; i < HASHTSIZ; ++i) {
 		fb = rcu_dereference_raw(fblmap_head[i]);
 		while (fb) {
-			len += sprintf(page + len, "%s %s %p %u\n",
+			len += sprintf(page + len, "%s %s %p %u %d\n",
 				       fb->name, fb->factory->type,
-				       fb, fb->idp);
+				       fb, fb->idp, atomic_read(&fb->refcnt));
 			fb = rcu_dereference_raw(fb->next);
 		}
 	}
