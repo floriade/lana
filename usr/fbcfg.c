@@ -115,7 +115,7 @@ static void usage(void)
 	printf("  preload <module>             - preload module\n");
 	printf("  add <name> <type>            - add fblock instance\n");
 	printf("  set <name> <key=val>         - set option for fblock\n");
-	printf("  rm <name>                    - remove fblock from stack\n");
+	printf("  rm <name>                    - remove fblock from stack if unbound\n");
 	printf("  bind <name1> <name2>         - bind two fblocks\n");
 	printf("  unbind <name1> <name2>       - unbind two fblocks\n");
 	printf("  xchg <name1> <name2>         - exchange fb1 with fb2\n");
