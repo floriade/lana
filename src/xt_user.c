@@ -56,7 +56,13 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			fb = search_fblock(id);
 			if (!fb)
 				return -EINVAL;
+			if (atomic_read(&fb->refcnt) > 2) {
+				/* Still in use by others */
+				put_fblock(fb);
+				return -EBUSY;
+			}
 			unregister_fblock_namespace(fb);
+			put_fblock(fb);
 		} break;
 	case NETLINK_USERCTL_CMD_BIND: {
 			int ret;
