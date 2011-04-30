@@ -188,6 +188,49 @@ struct fblock *search_fblock_n(char *name)
 }
 EXPORT_SYMBOL_GPL(search_fblock_n);
 
+/* opt_string must be of type "key=val" and 0-terminated */
+int __fblock_set_option(struct fblock *fb, char *opt_string)
+{
+	int ret = 0;
+	char *val = opt_string;
+	struct fblock_opt_msg msg;
+	/* Hack: we let the fb think that this belongs to his own chain to
+	 * get the reference back to itself. */
+	struct fblock_notifier fbn;
+
+	memset(&fbn, 0, sizeof(fbn));
+	memset(&msg, 0, sizeof(msg));
+
+	msg.key = opt_string;
+	while (*val != '=' && *val != '\0')
+		val++;
+	if (*val == '\0')
+		return -EINVAL;
+	val++;
+	*(val - 1) = '\0';
+	msg.val = val;
+	fbn.self = fb;
+
+	get_fblock(fb);
+	ret = fb->ops->event_rx(&fbn.nb, FBLOCK_SET_OPT, &msg);
+	put_fblock(fb);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(__fblock_set_option);
+
+int fblock_set_option(struct fblock *fb, char *opt_string)
+{
+	int ret;
+	if (unlikely(!opt_string || !fb))
+		return -EINVAL;
+	rcu_read_lock();
+	ret = __fblock_set_option(fb, opt_string);
+	rcu_read_unlock();
+	return ret;
+}
+EXPORT_SYMBOL_GPL(fblock_set_option);
+
 /*
  * fb1 on top of fb2 in the stack
  */

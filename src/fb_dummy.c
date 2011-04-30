@@ -46,37 +46,34 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 {
 	int ret = NOTIFY_OK;
 	unsigned long flags;
-	struct fblock_bind_msg *msg;
 	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
 	struct fb_dummy_priv *fb_priv = fb->private_data;
 
 	printk("Got event %lu on %p!\n", cmd, fb);
 
 	switch (cmd) {
-	case FBLOCK_BIND_IDP:
-		msg = args;
+	case FBLOCK_BIND_IDP: {
+		struct fblock_bind_msg *msg = args;
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
 			fb_priv->port[msg->dir] = msg->idp;
 		else
 			ret = NOTIFY_BAD;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		break;
-	case FBLOCK_UNBIND_IDP:
-		msg = args;
+		} break;
+	case FBLOCK_UNBIND_IDP: {
+		struct fblock_bind_msg *msg = args;
 		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == msg->idp)
 			fb_priv->port[msg->dir] = IDP_UNKNOWN;
 		else
 			ret = NOTIFY_BAD;
 		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		break;
-	case FBLOCK_XCHG_IDP:
-		msg = args;
-		spin_lock_irqsave(&fb_priv->lock, flags);
-		fb_priv->port[msg->dir] = msg->idp;
-		spin_unlock_irqrestore(&fb_priv->lock, flags);
-		break;
+		} break;
+	case FBLOCK_SET_OPT: {
+		struct fblock_opt_msg *msg = args;
+		printk("Set option %s to %s!\n", msg->key, msg->val);
+		} break;
 	default:
 		break;
 	}

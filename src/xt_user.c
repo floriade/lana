@@ -37,117 +37,125 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 
 	switch (lmsg->cmd) {
 	case NETLINK_USERCTL_CMD_ADD: {
-			struct fblock *fb;
-			struct lananlmsg_add *msg =
-				(struct lananlmsg_add *) lmsg->buff;
-			fb = build_fblock_object(msg->type, msg->name);
-			if (!fb)
-				return -ENOMEM;
+		struct fblock *fb;
+		struct lananlmsg_add *msg =
+			(struct lananlmsg_add *) lmsg->buff;
+		fb = build_fblock_object(msg->type, msg->name);
+		if (!fb)
+			return -ENOMEM;
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
-//			struct lananlmsg_set *msg =
-//				(struct lananlmsg_set *) lmsg->buff;
+		int ret;
+		struct fblock *fb;
+		struct lananlmsg_set *msg =
+			(struct lananlmsg_set *) lmsg->buff;
+		fb = search_fblock_n(msg->name);
+		if (!fb)
+			return -EINVAL;
+		ret = fblock_set_option(fb, msg->option);
+		put_fblock(fb);
+		return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_REPLACE: {
-//			struct lananlmsg_replace *msg =
-//				(struct lananlmsg_replace *) lmsg->buff;
+//		struct lananlmsg_replace *msg =
+//			(struct lananlmsg_replace *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
-			int ret;
-			struct fblock *fb1, *fb2;
-			struct lananlmsg_subscribe *msg = 
-				(struct lananlmsg_subscribe *) lmsg->buff;
-			fb1 = search_fblock_n(msg->name1);
-			if (!fb1)
-				return -EINVAL;
-			fb2 = search_fblock_n(msg->name2);
-			if (!fb2) {
-				put_fblock(fb1);
-				return -EINVAL;
-			}
-			/*
-			 * fb1 is remote block, fb2 is the one that
-			 * wishes to be notified.
-			 */
-			ret = subscribe_to_remote_fblock(fb2, fb1);
+		int ret;
+		struct fblock *fb1, *fb2;
+		struct lananlmsg_subscribe *msg = 
+			(struct lananlmsg_subscribe *) lmsg->buff;
+		fb1 = search_fblock_n(msg->name1);
+		if (!fb1)
+			return -EINVAL;
+		fb2 = search_fblock_n(msg->name2);
+		if (!fb2) {
+			put_fblock(fb1);
+			return -EINVAL;
+		}
+		/*
+		 * fb1 is remote block, fb2 is the one that
+		 * wishes to be notified.
+		 */
+		ret = subscribe_to_remote_fblock(fb2, fb1);
+		put_fblock(fb1);
+		put_fblock(fb2);
+		return ret;
+		} break;
+	case NETLINK_USERCTL_CMD_UNSUBSCRIBE: {
+		struct fblock *fb1, *fb2;
+		struct lananlmsg_unsubscribe *msg = 
+			(struct lananlmsg_unsubscribe *) lmsg->buff;
+		fb1 = search_fblock_n(msg->name1);
+		if (!fb1)
+			return -EINVAL;
+		fb2 = search_fblock_n(msg->name2);
+		if (!fb2) {
+			put_fblock(fb1);
+			return -EINVAL;
+		}
+		unsubscribe_from_remote_fblock(fb2, fb1);
+		put_fblock(fb1);
+		put_fblock(fb2);
+		} break;
+	case NETLINK_USERCTL_CMD_RM: {
+		struct fblock *fb;
+		struct lananlmsg_rm *msg =
+			(struct lananlmsg_rm *) lmsg->buff;
+		fb = search_fblock_n(msg->name);
+		if (!fb)
+			return -EINVAL;
+		if (atomic_read(&fb->refcnt) > 2) {
+			/* Still in use by others */
+			put_fblock(fb);
+			return -EBUSY;
+		}
+		unregister_fblock_namespace(fb);
+		put_fblock(fb);
+		} break;
+	case NETLINK_USERCTL_CMD_BIND: {
+		int ret;
+		struct fblock *fb1, *fb2;
+		struct lananlmsg_bind *msg =
+			(struct lananlmsg_bind *) lmsg->buff;
+		fb1 = search_fblock_n(msg->name1);
+		if (!fb1)
+			return -EINVAL;
+		fb2 = search_fblock_n(msg->name2);
+		if (!fb2) {
+			put_fblock(fb1);
+			return -EINVAL;
+		}
+		ret = fblock_bind(fb1, fb2);
+		if (ret) {
 			put_fblock(fb1);
 			put_fblock(fb2);
 			return ret;
-		} break;
-	case NETLINK_USERCTL_CMD_UNSUBSCRIBE: {
-			struct fblock *fb1, *fb2;
-			struct lananlmsg_unsubscribe *msg = 
-				(struct lananlmsg_unsubscribe *) lmsg->buff;
-			fb1 = search_fblock_n(msg->name1);
-			if (!fb1)
-				return -EINVAL;
-			fb2 = search_fblock_n(msg->name2);
-			if (!fb2) {
-				put_fblock(fb1);
-				return -EINVAL;
-			}
-			unsubscribe_from_remote_fblock(fb2, fb1);
-			put_fblock(fb1);
-			put_fblock(fb2);
-		} break;
-	case NETLINK_USERCTL_CMD_RM: {
-			struct fblock *fb;
-			struct lananlmsg_rm *msg =
-				(struct lananlmsg_rm *) lmsg->buff;
-			fb = search_fblock_n(msg->name);
-			if (!fb)
-				return -EINVAL;
-			if (atomic_read(&fb->refcnt) > 2) {
-				/* Still in use by others */
-				put_fblock(fb);
-				return -EBUSY;
-			}
-			unregister_fblock_namespace(fb);
-			put_fblock(fb);
-		} break;
-	case NETLINK_USERCTL_CMD_BIND: {
-			int ret;
-			struct fblock *fb1, *fb2;
-			struct lananlmsg_bind *msg =
-				(struct lananlmsg_bind *) lmsg->buff;
-			fb1 = search_fblock_n(msg->name1);
-			if (!fb1)
-				return -EINVAL;
-			fb2 = search_fblock_n(msg->name2);
-			if (!fb2) {
-				put_fblock(fb1);
-				return -EINVAL;
-			}
-			ret = fblock_bind(fb1, fb2);
-			if (ret) {
-				put_fblock(fb1);
-				put_fblock(fb2);
-				return ret;
-			}
-			put_fblock(fb1);
-			put_fblock(fb2);
+		}
+		put_fblock(fb1);
+		put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_UNBIND: {
-			int ret;
-			struct fblock *fb1, *fb2;
-			struct lananlmsg_unbind *msg =
-				(struct lananlmsg_unbind *) lmsg->buff;
-			fb1 = search_fblock_n(msg->name1);
-			if (!fb1)
-				return -EINVAL;
-			fb2 = search_fblock_n(msg->name2);
-			if (!fb2) {
-				put_fblock(fb1);
-				return -EINVAL;
-			}
-			ret = fblock_unbind(fb1, fb2);
-			if (ret) {
-				put_fblock(fb1);
-				put_fblock(fb2);
-				return ret;
-			}
+		int ret;
+		struct fblock *fb1, *fb2;
+		struct lananlmsg_unbind *msg =
+			(struct lananlmsg_unbind *) lmsg->buff;
+		fb1 = search_fblock_n(msg->name1);
+		if (!fb1)
+			return -EINVAL;
+		fb2 = search_fblock_n(msg->name2);
+		if (!fb2) {
+			put_fblock(fb1);
+			return -EINVAL;
+		}
+		ret = fblock_unbind(fb1, fb2);
+		if (ret) {
 			put_fblock(fb1);
 			put_fblock(fb2);
+			return ret;
+		}
+		put_fblock(fb1);
+		put_fblock(fb2);
 		} break;
 	default:
 		printk("[lana] Unknown command!\n");

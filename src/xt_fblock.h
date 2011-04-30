@@ -33,7 +33,7 @@ enum path_type {
 
 #define FBLOCK_BIND_IDP		0x0001
 #define FBLOCK_UNBIND_IDP	0x0002
-#define FBLOCK_XCHG_IDP		0x0003
+#define FBLOCK_SET_OPT		0x0003
 #define FBLOCK_DOWN_PREPARE	0x0004
 #define FBLOCK_DOWN		0x0005
 
@@ -49,6 +49,11 @@ extern struct proc_dir_entry *fblock_proc_dir;
 struct fblock_bind_msg {
 	enum path_type dir;
 	idp_t idp;
+};
+
+struct fblock_opt_msg {
+	char *key;
+	char *val;
 };
 
 struct fblock;
@@ -125,6 +130,10 @@ extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *__search_fblock(idp_t idp);
 extern struct fblock *search_fblock_n(char *name);
 extern struct fblock *__search_fblock_n(char *name);
+
+/* Notify fblock of new option. */
+extern int fblock_set_option(struct fblock *fb, char *opt_string);
+extern int __fblock_set_option(struct fblock *fb, char *opt_string);
 
 /* Binds two fblock objects, increments refcount each. */
 extern int fblock_bind(struct fblock *fb1, struct fblock *fb2);
