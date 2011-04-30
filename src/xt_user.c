@@ -45,20 +45,50 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				return -ENOMEM;
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
-			//struct lananlmsg_set *msg =
-			//	(struct lananlmsg_set *) lmsg->buff;
+//			struct lananlmsg_set *msg =
+//				(struct lananlmsg_set *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_REPLACE: {
-			//struct lananlmsg_replace *msg =
-			//	(struct lananlmsg_set *) lmsg->buff;
+//			struct lananlmsg_replace *msg =
+//				(struct lananlmsg_replace *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
-			//struct lananlmsg_subscribe *msg = 
-			//	(struct lananlmsg_set *) lmsg->buff;
+			int ret;
+			struct fblock *fb1, *fb2;
+			struct lananlmsg_subscribe *msg = 
+				(struct lananlmsg_subscribe *) lmsg->buff;
+			fb1 = search_fblock_n(msg->name1);
+			if (!fb1)
+				return -EINVAL;
+			fb2 = search_fblock_n(msg->name2);
+			if (!fb2) {
+				put_fblock(fb1);
+				return -EINVAL;
+			}
+			/*
+			 * fb1 is remote block, fb2 is the one that
+			 * wishes to be notified.
+			 */
+			ret = subscribe_to_remote_fblock(fb2, fb1);
+			put_fblock(fb1);
+			put_fblock(fb2);
+			return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_UNSUBSCRIBE: {
-			//struct lananlmsg_unsubscribe *msg = 
-			//	(struct lananlmsg_set *) lmsg->buff;
+			struct fblock *fb1, *fb2;
+			struct lananlmsg_unsubscribe *msg = 
+				(struct lananlmsg_unsubscribe *) lmsg->buff;
+			fb1 = search_fblock_n(msg->name1);
+			if (!fb1)
+				return -EINVAL;
+			fb2 = search_fblock_n(msg->name2);
+			if (!fb2) {
+				put_fblock(fb1);
+				return -EINVAL;
+			}
+			unsubscribe_from_remote_fblock(fb2, fb1);
+			put_fblock(fb1);
+			put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
 			struct fblock *fb;

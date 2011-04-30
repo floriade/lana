@@ -437,6 +437,9 @@ int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
 	struct fblock_notifier *fn = kmalloc(sizeof(*fn), GFP_ATOMIC);
 	if (!fn)
 		return -ENOMEM;
+	/* hold ref */
+	get_fblock(us);
+	get_fblock(remote);
 	write_lock(&us->lock);
 	fn->self = us;
 	fn->remote = remote;
@@ -476,6 +479,9 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 		fblock_unregister_foreign_subscriber(remote, &fn->nb);
 		kfree(fn);
 	}
+	/* drop ref */
+	put_fblock(us);
+	put_fblock(remote);
 }
 EXPORT_SYMBOL_GPL(unsubscribe_from_remote_fblock);
 
