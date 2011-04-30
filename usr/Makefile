@@ -25,9 +25,9 @@ CFLAGS      += -Wall -Werror -Wundef -Wstrict-prototypes -Wuninitialized
 
 INCLUDE      = -I../src/
 
-fbcfg-libs   =
-fbcfg-objs   = fbcfg.o
-fbcfg-targ   = fbcfg
+fbctl-libs   =
+fbctl-objs   = fbctl.o
+fbctl-targ   = fbctl
 
 vlink-libs   =
 vlink-objs   = vlink.o
@@ -35,27 +35,27 @@ vlink-targ   = vlink
 
 all: build
 
-build: build_vlink build_fbcfg
+build: build_vlink build_fbctl
 
 build_vlink: $(vlink-objs)
 	@$(LD) $(vlink-targ) $(vlink-objs) $(vlink-libs)
 
-build_fbcfg: $(fbcfg-objs)
-	@$(LD) $(fbcfg-targ) $(fbcfg-objs) $(fbcfg-libs)
+build_fbctl: $(fbctl-objs)
+	@$(LD) $(fbctl-targ) $(fbctl-objs) $(fbctl-libs)
 
 %.o: %.c
 	@$(CC) $(CFLAGS) $(INCLUDE) $<
 
 install:
 	@install -D $(vlink-targ) $(DESTDIR)/$(BINDIR)/$(vlink-targ)
-	@install -D $(fbcfg-targ) $(DESTDIR)/$(BINDIR)/$(fbcfg-targ)
+	@install -D $(fbctl-targ) $(DESTDIR)/$(BINDIR)/$(fbctl-targ)
 
 uninstall:
 	@rm $(DESTDIR)/$(BINDIR)/$(vlink-targ)
-	@rm $(DESTDIR)/$(BINDIR)/$(fbcfg-targ)
+	@rm $(DESTDIR)/$(BINDIR)/$(fbctl-targ)
 
 clean:
-	@rm *.o *~ $(vlink-targ) $(fbcfg-targ)
+	@rm *.o *~ $(vlink-targ) $(fbctl-targ)
 
 help:
 	@echo "make <targets>"
