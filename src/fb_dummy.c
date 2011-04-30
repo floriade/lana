@@ -105,7 +105,7 @@ static struct fblock *fb_dummy_ctor(char *name)
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
-
+	__module_get(THIS_MODULE);
 	return fb;
 err3:
 	cleanup_fblock_ctor(fb);
@@ -119,6 +119,7 @@ err:
 static void fb_dummy_dtor(struct fblock *fb)
 {
 	kfree(fb->private_data);
+	module_put(THIS_MODULE);
 }
 
 static struct fblock_ops fb_dummy_ops = {

@@ -57,12 +57,14 @@ static struct critbit_node_cache critbit_cache = { 0 };
 
 static inline struct critbit_node *critbit_alloc_node_aligned(gfp_t flags)
 {
+	__module_get(THIS_MODULE);
 	return kmem_cache_alloc(critbit_cache.cache, flags);
 }
 
 static inline void critbit_free_node(struct critbit_node *p)
 {
 	kmem_cache_free(critbit_cache.cache, p);
+	module_put(THIS_MODULE);
 }
 
 int __critbit_contains(struct critbit_tree *tree, const char *elem)
