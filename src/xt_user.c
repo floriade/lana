@@ -38,18 +38,33 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 	switch (lmsg->cmd) {
 	case NETLINK_USERCTL_CMD_ADD: {
 			struct fblock *fb;
-			struct lananlmsg_add *msg = (struct lananlmsg_add *) lmsg->buff;
+			struct lananlmsg_add *msg =
+				(struct lananlmsg_add *) lmsg->buff;
 			fb = build_fblock_object(msg->type, msg->name);
 			if (!fb)
 				return -ENOMEM;
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
-			//struct lananlmsg_set *msg = (struct lananlmsg_set *) lmsg->buff;
+			//struct lananlmsg_set *msg =
+			//	(struct lananlmsg_set *) lmsg->buff;
+		} break;
+	case NETLINK_USERCTL_CMD_REPLACE: {
+			//struct lananlmsg_replace *msg =
+			//	(struct lananlmsg_set *) lmsg->buff;
+		} break;
+	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
+			//struct lananlmsg_subscribe *msg = 
+			//	(struct lananlmsg_set *) lmsg->buff;
+		} break;
+	case NETLINK_USERCTL_CMD_UNSUBSCRIBE: {
+			//struct lananlmsg_unsubscribe *msg = 
+			//	(struct lananlmsg_set *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
 			idp_t id;
 			struct fblock *fb;
-			struct lananlmsg_rm *msg = (struct lananlmsg_rm *) lmsg->buff;
+			struct lananlmsg_rm *msg =
+				(struct lananlmsg_rm *) lmsg->buff;
 			id = get_fblock_namespace_mapping(msg->name);
 			if (id == IDP_UNKNOWN)
 				return -EINVAL;
@@ -68,8 +83,8 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			int ret;
 			idp_t id1, id2;
 			struct fblock *fb1, *fb2;
-			struct lananlmsg_bind *msg = (struct lananlmsg_bind *) lmsg->buff;
-
+			struct lananlmsg_bind *msg =
+				(struct lananlmsg_bind *) lmsg->buff;
 			id1 = get_fblock_namespace_mapping(msg->name1);
 			if (id1 == IDP_UNKNOWN)
 				return -EINVAL;
@@ -90,7 +105,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				put_fblock(fb2);
 				return ret;
 			}
-
 			put_fblock(fb1);
 			put_fblock(fb2);
 		} break;
@@ -98,8 +112,8 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			int ret;
 			idp_t id1, id2;
 			struct fblock *fb1, *fb2;
-			struct lananlmsg_unbind *msg = (struct lananlmsg_unbind *) lmsg->buff;
-
+			struct lananlmsg_unbind *msg =
+				(struct lananlmsg_unbind *) lmsg->buff;
 			id1 = get_fblock_namespace_mapping(msg->name1);
 			if (id1 == IDP_UNKNOWN)
 				return -EINVAL;
@@ -120,7 +134,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 				put_fblock(fb2);
 				return ret;
 			}
-
 			put_fblock(fb1);
 			put_fblock(fb2);
 		} break;
