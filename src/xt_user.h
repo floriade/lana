@@ -58,13 +58,29 @@ struct lananlmsg_unbind {
 	char name2[FBNAMSIZ];
 };
 
-struct lananlmsg {
-	uint32_t cmd;
-	uint8_t buff[USERCTL_BUF_LEN];
+struct lananlmsg_replace {
+	char name1[FBNAMSIZ];
+	char name2[FBNAMSIZ];
+	int drop_priv;
+};
+
+struct lananlmsg_subscribe {
+	char name1[FBNAMSIZ];
+	char name2[FBNAMSIZ];
+};
+
+struct lananlmsg_unsubscribe {
+	char name1[FBNAMSIZ];
+	char name2[FBNAMSIZ];
 };
 
 extern int init_userctl_system(void);
 extern void cleanup_userctl_system(void);
+
+struct lananlmsg {
+	uint32_t cmd;
+	uint8_t buff[USERCTL_BUF_LEN];
+};
 
 #endif /* XT_USER_H */
 

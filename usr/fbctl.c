@@ -337,18 +337,23 @@ static void do_unbind(int argc, char **argv)
 	send_netlink(&lmsg);
 }
 
-/*
-printf("  preload <module>             - preload module\n");
-        printf("  add <name> <type>            - add fblock instance\n");
-        printf("  set <name> <key=val>         - set option for fblock\n");
-        printf("  rm <name>                    - remove fblock from stack if unbound\n");
-        printf("  bind <name1> <name2>         - bind two fblocks\n");
-        printf("  unbind <name1> <name2>       - unbind two fblocks\n");
-        printf("  replace <name1> <name2>      - exchange fb1 with fb2 (*)\n");
-        printf("  replace_drop <name1> <name2> - exchange fb1 with fb2 (*)\n");
-        printf("  subscribe <name1> <name2>    - subscribe fb2 to fb1 (+)\n");
-        printf("  unsubscribe <name1> <name2>  - unsubscribe fb2 from fb1 (+)\n");
-*/
+static void do_replace(int argc, char **argv, int drop)
+{
+	if (argc != 2)
+		usage();
+}
+
+static void do_subscribe(int argc, char **argv)
+{
+	if (argc != 2)
+		usage();
+}
+
+static void do_unsubscribe(int argc, char **argv)
+{
+	if (argc != 2)
+		usage();
+}
 
 int main(int argc, char **argv)
 {
@@ -373,6 +378,14 @@ int main(int argc, char **argv)
 		do_bind(--argc, ++argv);
 	else if (!strncmp("unbind", argv[0], strlen("unbind")))
 		do_unbind(--argc, ++argv);
+	else if (!strncmp("replace", argv[0], strlen("replace")))
+		do_replace(--argc, ++argv, 0);
+	else if (!strncmp("replace-drop", argv[0], strlen("replace-drop")))
+		do_replace(--argc, ++argv, 1);
+	else if (!strncmp("subscribe", argv[0], strlen("subscribe")))
+		do_subscribe(--argc, ++argv);
+	else if (!strncmp("unsubscribe", argv[0], strlen("unsubscribe")))
+		do_unsubscribe(--argc, ++argv);
 	else
 		usage();
 
