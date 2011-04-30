@@ -61,14 +61,10 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			//	(struct lananlmsg_set *) lmsg->buff;
 		} break;
 	case NETLINK_USERCTL_CMD_RM: {
-			idp_t id;
 			struct fblock *fb;
 			struct lananlmsg_rm *msg =
 				(struct lananlmsg_rm *) lmsg->buff;
-			id = get_fblock_namespace_mapping(msg->name);
-			if (id == IDP_UNKNOWN)
-				return -EINVAL;
-			fb = search_fblock(id);
+			fb = search_fblock_n(msg->name);
 			if (!fb)
 				return -EINVAL;
 			if (atomic_read(&fb->refcnt) > 2) {
@@ -81,20 +77,13 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		} break;
 	case NETLINK_USERCTL_CMD_BIND: {
 			int ret;
-			idp_t id1, id2;
 			struct fblock *fb1, *fb2;
 			struct lananlmsg_bind *msg =
 				(struct lananlmsg_bind *) lmsg->buff;
-			id1 = get_fblock_namespace_mapping(msg->name1);
-			if (id1 == IDP_UNKNOWN)
-				return -EINVAL;
-			id2 = get_fblock_namespace_mapping(msg->name2);
-			if (id2 == IDP_UNKNOWN)
-				return -EINVAL;
-			fb1 = search_fblock(id1);
+			fb1 = search_fblock_n(msg->name1);
 			if (!fb1)
 				return -EINVAL;
-			fb2 = search_fblock(id2);
+			fb2 = search_fblock_n(msg->name2);
 			if (!fb2) {
 				put_fblock(fb1);
 				return -EINVAL;
@@ -110,20 +99,13 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		} break;
 	case NETLINK_USERCTL_CMD_UNBIND: {
 			int ret;
-			idp_t id1, id2;
 			struct fblock *fb1, *fb2;
 			struct lananlmsg_unbind *msg =
 				(struct lananlmsg_unbind *) lmsg->buff;
-			id1 = get_fblock_namespace_mapping(msg->name1);
-			if (id1 == IDP_UNKNOWN)
-				return -EINVAL;
-			id2 = get_fblock_namespace_mapping(msg->name2);
-			if (id2 == IDP_UNKNOWN)
-				return -EINVAL;
-			fb1 = search_fblock(id1);
+			fb1 = search_fblock_n(msg->name1);
 			if (!fb1)
 				return -EINVAL;
-			fb2 = search_fblock(id2);
+			fb2 = search_fblock_n(msg->name2);
 			if (!fb2) {
 				put_fblock(fb1);
 				return -EINVAL;

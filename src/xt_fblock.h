@@ -120,9 +120,11 @@ extern int register_fblock_namespace(struct fblock *p);
 extern int unregister_fblock(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
 
-/* Returns fblock object specified by idp. */
+/* Returns fblock object specified by idp or name. */
 extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *__search_fblock(idp_t idp);
+extern struct fblock *search_fblock_n(char *name);
+extern struct fblock *__search_fblock_n(char *name);
 
 /* Binds two fblock objects, increments refcount each. */
 extern int fblock_bind(struct fblock *fb1, struct fblock *fb2);
