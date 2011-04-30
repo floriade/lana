@@ -562,7 +562,7 @@ int init_fblock_tables(void)
 	if (!fblock_cache)
 		goto err2;
 	atomic64_set(&idp_counter, 0);
-	fblocks_proc = create_proc_read_entry("fblocks", 0444, lana_proc_dir,
+	fblocks_proc = create_proc_read_entry("fblocks", 0400, lana_proc_dir,
 					      procfs_fblocks, NULL);
 	if (!fblocks_proc)
 		goto err3;

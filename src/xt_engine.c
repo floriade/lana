@@ -232,7 +232,7 @@ int init_worker_engines(void)
 		atomic64_set(&ppe->load, 0);
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
-		ppe->proc = create_proc_read_entry(name, 0444, lana_proc_dir,
+		ppe->proc = create_proc_read_entry(name, 0400, lana_proc_dir,
 						   engine_procfs_stats, ppe);
 		if (!ppe->proc) {
 			ret = -ENOMEM;

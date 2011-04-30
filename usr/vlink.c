@@ -100,10 +100,7 @@ static void xfree(void *ptr)
 
 void check_for_root_maybe_die(void)
 {
-	if (geteuid() != 0)
-		/* Naughty! This incident will be reported to Santa! */
-		panic("Uhhuh, not root?! \n");
-	if (geteuid() != getuid())
+	if (geteuid() != 0 || geteuid() != getuid())
 		panic("Uhhuh, not root?! \n");
 }
 

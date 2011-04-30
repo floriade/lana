@@ -101,9 +101,7 @@ static void xfree(void *ptr)
 
 void check_for_root_maybe_die(void)
 {
-	if (geteuid() != 0)
-		panic("Uhhuh, not root?! \n");
-	if (geteuid() != getuid())
+	if (geteuid() != 0 || geteuid() != getuid())
 		panic("Uhhuh, not root?! \n");
 }
 
@@ -129,7 +127,7 @@ static void usage(void)
 	printf("      <name2> now point to the same functional block. If\n");
 	printf("      both are of the same type, private data will be\n");
 	printf("      transferred to <name2>. If this is unwanted, use\n");
-	printf("      'replace_drop'.\n");
+	printf("      'replace_drop' instead.\n");
 	printf("  (+) 'subscribe' is used to receive events from other\n");
 	printf("      functional blocks.\n");
 	printf("\n");
@@ -338,6 +336,19 @@ static void do_unbind(int argc, char **argv)
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
 	send_netlink(&lmsg);
 }
+
+/*
+printf("  preload <module>             - preload module\n");
+        printf("  add <name> <type>            - add fblock instance\n");
+        printf("  set <name> <key=val>         - set option for fblock\n");
+        printf("  rm <name>                    - remove fblock from stack if unbound\n");
+        printf("  bind <name1> <name2>         - bind two fblocks\n");
+        printf("  unbind <name1> <name2>       - unbind two fblocks\n");
+        printf("  replace <name1> <name2>      - exchange fb1 with fb2 (*)\n");
+        printf("  replace_drop <name1> <name2> - exchange fb1 with fb2 (*)\n");
+        printf("  subscribe <name1> <name2>    - subscribe fb2 to fb1 (+)\n");
+        printf("  unsubscribe <name1> <name2>  - unsubscribe fb2 from fb1 (+)\n");
+*/
 
 int main(int argc, char **argv)
 {

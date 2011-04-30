@@ -168,7 +168,7 @@ int init_ppesched_system(void)
 	ppesched_lock = __SPIN_LOCK_UNLOCKED(ppesched_lock);
 	memset(ppesched_discipline_table, 0,
 	       sizeof(ppesched_discipline_table));
-	ppesched_proc = create_proc_entry("ppesched", 0666, lana_proc_dir);
+	ppesched_proc = create_proc_entry("ppesched", 0600, lana_proc_dir);
 	if (!ppesched_proc)
 		return -ENOMEM;
 	ppesched_proc->read_proc = ppesched_procfs_read;

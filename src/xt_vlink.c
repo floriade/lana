@@ -319,7 +319,7 @@ int init_vlink_system(void)
 		ret = -ENOMEM;
 		goto err;
 	}
-	vlink_proc = create_proc_read_entry("vlink", 0444, lana_proc_dir,
+	vlink_proc = create_proc_read_entry("vlink", 0400, lana_proc_dir,
 					    vlink_procfs, NULL);
 	if (!vlink_proc)
 		goto err2;
