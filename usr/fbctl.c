@@ -339,20 +339,51 @@ static void do_unbind(int argc, char **argv)
 
 static void do_replace(int argc, char **argv, int drop)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_replace *msg;
+
 	if (argc != 2)
 		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_REPLACE;
+	msg = (struct lananlmsg_replace *) lmsg.buff;
+	msg->drop_priv = drop;
+	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
+	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	send_netlink(&lmsg);
 }
 
 static void do_subscribe(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_subscribe *msg;
+
 	if (argc != 2)
 		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_SUBSCRIBE;
+	msg = (struct lananlmsg_subscribe *) lmsg.buff;
+	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
+	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	send_netlink(&lmsg);
 }
 
 static void do_unsubscribe(int argc, char **argv)
 {
+	struct lananlmsg lmsg;
+	struct lananlmsg_unsubscribe *msg;
+
 	if (argc != 2)
 		usage();
+
+	memset(&lmsg, 0, sizeof(lmsg));
+	lmsg.cmd = NETLINK_USERCTL_CMD_UNSUBSCRIBE;
+	msg = (struct lananlmsg_unsubscribe *) lmsg.buff;
+	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
+	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	send_netlink(&lmsg);
 }
 
 int main(int argc, char **argv)
