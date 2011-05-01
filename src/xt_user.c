@@ -77,9 +77,19 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			put_fblock(fb2);
 			return -EBUSY;
 		}
+		unregister_fblock_namespace_no_rcu(fb2);
+		ret = fblock_migrate(fb2, fb1);
+		if (ret) {
+			put_fblock(fb1);
+			put_fblock(fb2);
+			return -EIO;
+		}
+		unregister_fblock(fb1);
+		put_fblock(fb1);
+		ret = register_fblock(fb2, fb2->idp);
+		put_fblock(fb2);
+		return ret;
 #if 0
-		unregister_from_fblock_namespace(fb2->name);
-		unregister_fblock_no_rcu(fb2);
 		/* Now fb2 cannot be used anymore. */
 		fb2->idp = fb1->idp;
 		strlcpy(fb2->name, fb1->name,sizeof(fb2->name));
@@ -96,8 +106,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		/* Copy subscribtions */
 		/* Drop fb1, register fb2 as fb1 */
 #endif
-		put_fblock(fb1);
-		put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
 		int ret;

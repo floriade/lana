@@ -70,6 +70,7 @@ struct fblock_factory {
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
+	void (*dtor_no_free_priv)(struct fblock *fb);
 } ____cacheline_aligned;
 
 struct fblock_notifier {
@@ -105,6 +106,11 @@ struct fblock {
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
+enum cleanup_mode {
+	CLEAN_FREE_PRIV,
+	CLEAN_NOFREE_PRIV,
+};
+
 /* Initialize/cleanup a fblock object. */
 extern int init_fblock(struct fblock *fb, char *name, void *priv,
 		       struct fblock_ops *ops);
@@ -123,14 +129,18 @@ extern int register_fblock_namespace(struct fblock *p);
  * release the idp to name mapping, latter variant frees it, too.
  */
 extern int unregister_fblock(struct fblock *p);
-extern int unregister_fblock_no_rcu(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
+extern void unregister_fblock_namespace_no_rcu(struct fblock *p);
 
 /* Returns fblock object specified by idp or name. */
 extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *__search_fblock(idp_t idp);
 extern struct fblock *search_fblock_n(char *name);
 extern struct fblock *__search_fblock_n(char *name);
+
+/* Migrate state from src to dst and drop of dst states */
+extern int fblock_migrate(struct fblock *dst, struct fblock *src);
+extern int __fblock_migrate(struct fblock *dst, struct fblock *src);
 
 /* Notify fblock of new option. */
 extern int fblock_set_option(struct fblock *fb, char *opt_string);

@@ -120,6 +120,11 @@ static void fb_dummy_dtor(struct fblock *fb)
 	module_put(THIS_MODULE);
 }
 
+static void fb_dummy_dtor_no_free_priv(struct fblock *fb)
+{
+	module_put(THIS_MODULE);
+}
+
 static struct fblock_ops fb_dummy_ops = {
 	.netfb_rx = fb_dummy_netrx,
 	.event_rx = fb_dummy_event,
@@ -129,6 +134,7 @@ static struct fblock_factory fb_dummy_factory = {
 	.type = "dummy",
 	.ctor = fb_dummy_ctor,
 	.dtor = fb_dummy_dtor,
+	.dtor_no_free_priv = fb_dummy_dtor_no_free_priv,
 	.owner = THIS_MODULE,
 };
 
