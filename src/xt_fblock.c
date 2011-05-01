@@ -488,9 +488,8 @@ static void free_fblock_rcu(struct rcu_head *rp)
  * fblock translation table, but not from the namespace. The idp can then
  * later be reused, e.g. by another fblock.
  */
-int unregister_fblock(struct fblock *p)
+void unregister_fblock(struct fblock *p)
 {
-	int ret = -ENOENT;
 	struct fblock *p0;
 	unsigned long flags;
 
@@ -503,7 +502,6 @@ int unregister_fblock(struct fblock *p)
 		while ((p1 = rcu_dereference_raw(p0->next))) {
 			if (p1 == p) {
 				rcu_assign_pointer(p0->next, p1->next);
-				ret = 0;
 				break;
 			}
 			p0 = p1;
@@ -511,7 +509,6 @@ int unregister_fblock(struct fblock *p)
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 	call_rcu(&p->rcu, free_fblock_rcu);
-	return ret;
 }
 EXPORT_SYMBOL_GPL(unregister_fblock);
 
