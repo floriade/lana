@@ -81,6 +81,10 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ret = fblock_migrate(fb2, fb1);
 		if (ret) {
 			put_fblock(fb1);
+			/* We loose fb2 */
+			printk("[lana] fblock migration failed! "
+			       "Destination fblock lost!\n");
+			put_fblock(fb2);
 			put_fblock(fb2);
 			return -EIO;
 		}

@@ -123,9 +123,10 @@ static void usage(void)
 	printf("\n");
 	printf("Note (*):\n");
 	printf("  (*) 'replace' drops functional block <name1> and replaces\n");
-	printf("      it with functional block <name2> where <name1> and\n");
-	printf("      <name2> now point to the same functional block. If\n");
-	printf("      both are of the same type, private data will be\n");
+	printf("      it with functional block <name2> where <name1>\n");
+	printf("      now points to the new functional block and <name2>\n");
+	printf("      will be dropped in the namespace.\n");
+	printf("      If both are of the same type, private data will be\n");
 	printf("      transferred to <name2>. If this is unwanted, use\n");
 	printf("      'replace_drop' instead.\n");
 	printf("  (+) 'subscribe' is used to receive events from other\n");
