@@ -47,7 +47,7 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 {
 	int ret = NOTIFY_OK;
 	unsigned long flags;
-	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
+	struct fblock *fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
 	struct fb_dummy_priv *fb_priv = rcu_dereference_raw(fb->private_data);
 
 	printk("Got event %lu on %p!\n", cmd, fb);

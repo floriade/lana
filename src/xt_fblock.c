@@ -231,6 +231,16 @@ int fblock_set_option(struct fblock *fb, char *opt_string)
 }
 EXPORT_SYMBOL_GPL(fblock_set_option);
 
+/* Must already hold write_lock */
+static void fblock_update_selfref(struct fblock_notifier *head,
+				  struct fblock *self)
+{
+	while (rcu_dereference_raw(head) != NULL) {
+		rcu_assign_pointer(head->self, self);
+		rcu_assign_pointer(head, head->next);
+	}
+}
+
 /*
  * Migrate src to dst, both are of same type, working data is
  * transferred to dst and droped from src. src gets dsts old data,
@@ -257,11 +267,12 @@ int fblock_migrate(struct fblock *dst, struct fblock *src)
 	rcu_assign_pointer(dst->private_data, src->private_data);
 	rcu_assign_pointer(src->private_data, priv_old);
 
-	/* Update all refs to self */
-
 	rcu_assign_pointer(not_old, dst->notifiers);
 	rcu_assign_pointer(dst->notifiers, src->notifiers);
 	rcu_assign_pointer(src->notifiers, not_old);
+
+	fblock_update_selfref(dst->notifiers, dst);
+	fblock_update_selfref(src->notifiers, src);
 
 	rcu_assign_pointer(sub_old, dst->others);
 	rcu_assign_pointer(dst->others, src->others);
