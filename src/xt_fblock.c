@@ -231,15 +231,53 @@ int fblock_set_option(struct fblock *fb, char *opt_string)
 }
 EXPORT_SYMBOL_GPL(fblock_set_option);
 
-int __fblock_migrate(struct fblock *dst, struct fblock *src)
-{
-	return 0;
-}
-EXPORT_SYMBOL_GPL(__fblock_migrate);
-
+/*
+ * Migrate src to dst, both are of same type, working data is
+ * transferred to dst and droped from src. src gets dsts old data,
+ * so that on free, we do not need to explicitly ignore srcs
+ * private data and dsts remaining data.
+ */
 int fblock_migrate(struct fblock *dst, struct fblock *src)
 {
-	return __fblock_migrate(dst, src);
+	void *priv_old;
+	int ref_old;
+	struct fblock_notifier *not_old;
+	struct fblock_subscrib *sub_old;
+
+	get_fblock(dst);
+	get_fblock(src);
+
+	write_lock(&dst->lock);
+	write_lock(&src->lock);
+
+	dst->idp = src->idp;
+	strlcpy(dst->name, src->name, sizeof(dst->name));
+
+	rcu_assign_pointer(priv_old, dst->private_data);
+	rcu_assign_pointer(dst->private_data, src->private_data);
+	rcu_assign_pointer(src->private_data, priv_old);
+
+	/* Update all refs to self */
+
+	rcu_assign_pointer(not_old, dst->notifiers);
+	rcu_assign_pointer(dst->notifiers, src->notifiers);
+	rcu_assign_pointer(src->notifiers, not_old);
+
+	rcu_assign_pointer(sub_old, dst->others);
+	rcu_assign_pointer(dst->others, src->others);
+	rcu_assign_pointer(src->others, sub_old);
+
+	ref_old = atomic_read(&dst->refcnt);
+	atomic_set(&dst->refcnt, atomic_read(&src->refcnt));
+	atomic_set(&src->refcnt, ref_old);
+
+	write_unlock(&src->lock);
+	write_unlock(&dst->lock);
+
+	put_fblock(dst);
+	put_fblock(src);
+
+	return 0;
 }
 EXPORT_SYMBOL_GPL(fblock_migrate);
 
@@ -511,10 +549,11 @@ int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
 	fn->self = us;
 	fn->remote = remote;
 	init_fblock_subscriber(us, &fn->nb);
-	fn->next = us->notifiers;
-	us->notifiers = fn;
+	fn->next = rcu_dereference_raw(us->notifiers);
+	rcu_assign_pointer(us->notifiers, fn);
 	write_unlock(&us->lock);
-	return fblock_register_foreign_subscriber(remote, &us->notifiers->nb);
+	return fblock_register_foreign_subscriber(remote,
+			&rcu_dereference_raw(us->notifiers)->nb);
 }
 EXPORT_SYMBOL_GPL(subscribe_to_remote_fblock);
 
@@ -523,12 +562,12 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 	int found = 0;
 	struct fblock_notifier *fn;
 
-	if (unlikely(!us->notifiers))
+	if (unlikely(!rcu_dereference_raw(us->notifiers)))
 		return;
 	write_lock(&us->lock);
-	fn = us->notifiers;
+	fn = rcu_dereference_raw(us->notifiers);
 	if (fn->remote == remote)
-		us->notifiers = us->notifiers->next;
+		rcu_assign_pointer(us->notifiers, us->notifiers->next);
 	else {
 		struct fblock_notifier *f1;
 		while ((f1 = fn->next)) {
@@ -599,13 +638,13 @@ void cleanup_fblock(struct fblock *fb)
 {
 	notify_fblock_subscribers(fb, FBLOCK_DOWN, &fb->idp);
 	fb->factory->dtor(fb);
-	kfree(fb->others);
+	kfree(rcu_dereference_raw(fb->others));
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock);
 
 void cleanup_fblock_ctor(struct fblock *fb)
 {
-	kfree(fb->others);
+	kfree(rcu_dereference_raw(fb->others));
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock_ctor);
 

@@ -78,38 +78,24 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			return -EBUSY;
 		}
 		unregister_fblock_namespace_no_rcu(fb2);
-		ret = fblock_migrate(fb2, fb1);
-		if (ret) {
-			put_fblock(fb1);
-			/* We loose fb2 */
-			printk("[lana] fblock migration failed! "
-			       "Destination fblock lost!\n");
-			put_fblock(fb2);
-			put_fblock(fb2);
-			return -EIO;
+		if (!strncmp(fb1->factory->type, fb2->factory->type,
+			     sizeof(fb1->factory->type)) && !msg->drop_priv) {
+			ret = fblock_migrate(fb2, fb1);
+			if (ret) {
+				put_fblock(fb1);
+				/* We loose fb2 */
+				printk("[lana] fblock migration failed! "
+				       "Destination fblock lost!\n");
+				put_fblock(fb2);
+				put_fblock(fb2);
+				return -EIO;
+			}
 		}
 		unregister_fblock(fb1);
 		put_fblock(fb1);
 		ret = register_fblock(fb2, fb2->idp);
 		put_fblock(fb2);
 		return ret;
-#if 0
-		/* Now fb2 cannot be used anymore. */
-		fb2->idp = fb1->idp;
-		strlcpy(fb2->name, fb1->name,sizeof(fb2->name));
-		/* Care about private data transfer ... */
-		if (!strncmp(fb1->factory->type, fb2->factory->type,
-			     sizeof(fb1->factory->type)) && !drop_priv) {
-			/* Free our private_data */
-			rcu_assign_pointer(fb2->private_data,
-					   fb1->private_data);
-			/* Now, make sure, we don't free private_data */
-		} else {
-			/* Free fb1 private_data */
-		}
-		/* Copy subscribtions */
-		/* Drop fb1, register fb2 as fb1 */
-#endif
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
 		int ret;

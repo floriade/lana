@@ -70,7 +70,6 @@ struct fblock_factory {
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
-	void (*dtor_no_free_priv)(struct fblock *fb);
 } ____cacheline_aligned;
 
 struct fblock_notifier {
@@ -182,7 +181,7 @@ static inline int
 fblock_register_foreign_subscriber(struct fblock *us,
 				   struct notifier_block *remote)
 {
-	return atomic_notifier_chain_register(&us->others->subscribers,
+	return atomic_notifier_chain_register(&rcu_dereference_raw(us->others)->subscribers,
 					      remote);
 }
 
@@ -190,15 +189,17 @@ static inline void
 fblock_unregister_foreign_subscriber(struct fblock *us,
 				     struct notifier_block *remote)
 {
-	atomic_notifier_chain_unregister(&us->others->subscribers, remote);
+	atomic_notifier_chain_unregister(&rcu_dereference_raw(us->others)->subscribers,
+					 remote);
 }
 
 static inline int notify_fblock_subscribers(struct fblock *us,
 					    unsigned long cmd, void *arg)
 {
-	if (unlikely(!us->others))
+	if (unlikely(!rcu_dereference_raw(us->others)))
 		return -ENOENT;
-	return atomic_notifier_call_chain(&us->others->subscribers, cmd, arg);
+	return atomic_notifier_call_chain(&rcu_dereference_raw(us->others)->subscribers,
+					  cmd, arg);
 }
 
 static inline void get_fblock(struct fblock *fb)
