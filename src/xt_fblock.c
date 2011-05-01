@@ -247,9 +247,24 @@ static void fblock_update_selfref(struct fblock_notifier *head,
  * so that on free, we do not need to explicitly ignore srcs
  * private data and dsts remaining data.
  */
-int fblock_migrate(struct fblock *dst, struct fblock *src)
+void fblock_migrate_p(struct fblock *dst, struct fblock *src)
 {
 	void *priv_old;
+
+	get_fblock(dst);
+	get_fblock(src);
+
+	rcu_assign_pointer(priv_old, dst->private_data);
+	rcu_assign_pointer(dst->private_data, src->private_data);
+	rcu_assign_pointer(src->private_data, priv_old);
+
+	put_fblock(dst);
+	put_fblock(src);
+}
+EXPORT_SYMBOL_GPL(fblock_migrate_p);
+
+void fblock_migrate_r(struct fblock *dst, struct fblock *src)
+{
 	int ref_old;
 	struct fblock_notifier *not_old;
 	struct fblock_subscrib *sub_old;
@@ -262,10 +277,6 @@ int fblock_migrate(struct fblock *dst, struct fblock *src)
 
 	dst->idp = src->idp;
 	strlcpy(dst->name, src->name, sizeof(dst->name));
-
-	rcu_assign_pointer(priv_old, dst->private_data);
-	rcu_assign_pointer(dst->private_data, src->private_data);
-	rcu_assign_pointer(src->private_data, priv_old);
 
 	rcu_assign_pointer(not_old, dst->notifiers);
 	rcu_assign_pointer(dst->notifiers, src->notifiers);
@@ -287,10 +298,8 @@ int fblock_migrate(struct fblock *dst, struct fblock *src)
 
 	put_fblock(dst);
 	put_fblock(src);
-
-	return 0;
 }
-EXPORT_SYMBOL_GPL(fblock_migrate);
+EXPORT_SYMBOL_GPL(fblock_migrate_r);
 
 /*
  * fb1 on top of fb2 in the stack

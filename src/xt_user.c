@@ -79,18 +79,9 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		}
 		unregister_fblock_namespace_no_rcu(fb2);
 		if (!strncmp(fb1->factory->type, fb2->factory->type,
-			     sizeof(fb1->factory->type)) && !msg->drop_priv) {
-			ret = fblock_migrate(fb2, fb1);
-			if (ret) {
-				put_fblock(fb1);
-				/* We loose fb2 */
-				printk("[lana] fblock migration failed! "
-				       "Destination fblock lost!\n");
-				put_fblock(fb2);
-				put_fblock(fb2);
-				return -EIO;
-			}
-		}
+			     sizeof(fb1->factory->type)) && !msg->drop_priv)
+			fblock_migrate_p(fb2, fb1);
+		fblock_migrate_r(fb2, fb1);
 		unregister_fblock(fb1);
 		put_fblock(fb1);
 		ret = register_fblock(fb2, fb2->idp);
