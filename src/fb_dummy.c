@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/spinlock.h>
 #include <linux/notifier.h>
+#include <linux/rcupdate.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -30,7 +31,7 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 			  enum path_type *dir)
 {
 	unsigned long flags;
-	struct fb_dummy_priv *fb_priv = fb->private_data;
+	struct fb_dummy_priv *fb_priv = rcu_dereference_raw(fb->private_data);
 
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 
@@ -47,7 +48,7 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	int ret = NOTIFY_OK;
 	unsigned long flags;
 	struct fblock *fb = container_of(self, struct fblock_notifier, nb)->self;
-	struct fb_dummy_priv *fb_priv = fb->private_data;
+	struct fb_dummy_priv *fb_priv = rcu_dereference_raw(fb->private_data);
 
 	printk("Got event %lu on %p!\n", cmd, fb);
 
@@ -115,7 +116,7 @@ err:
 
 static void fb_dummy_dtor(struct fblock *fb)
 {
-	kfree(fb->private_data);
+	kfree(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
 }
 

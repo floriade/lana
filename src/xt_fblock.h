@@ -123,6 +123,7 @@ extern int register_fblock_namespace(struct fblock *p);
  * release the idp to name mapping, latter variant frees it, too.
  */
 extern int unregister_fblock(struct fblock *p);
+extern int unregister_fblock_no_rcu(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
 
 /* Returns fblock object specified by idp or name. */

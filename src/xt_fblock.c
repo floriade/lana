@@ -445,6 +445,32 @@ int unregister_fblock(struct fblock *p)
 }
 EXPORT_SYMBOL_GPL(unregister_fblock);
 
+int unregister_fblock_no_rcu(struct fblock *p)
+{
+	int ret = -ENOENT;
+	struct fblock *p0;
+	unsigned long flags;
+
+	spin_lock_irqsave(&fblmap_head_lock, flags);
+	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
+	if (p0 == p)
+		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
+	else if (p0) {
+		struct fblock *p1;
+		while ((p1 = rcu_dereference_raw(p0->next))) {
+			if (p1 == p) {
+				rcu_assign_pointer(p0->next, p1->next);
+				ret = 0;
+				break;
+			}
+			p0 = p1;
+		}
+	}
+	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(unregister_fblock_no_rcu);
+
 /*
  * Removes the functional block from the system along with its namespace
  * mapping.
@@ -553,7 +579,7 @@ int init_fblock(struct fblock *fb, char *name, void *priv,
 {
 	write_lock(&fb->lock);
 	strlcpy(fb->name, name, sizeof(fb->name));
-	fb->private_data = priv;
+	rcu_assign_pointer(fb->private_data, priv);
 	fb->ops = ops;
 	fb->others = kmalloc(sizeof(*(fb->others)), GFP_ATOMIC);
 	if (!fb->others)

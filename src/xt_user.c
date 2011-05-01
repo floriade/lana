@@ -57,8 +57,47 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_REPLACE: {
-//		struct lananlmsg_replace *msg =
-//			(struct lananlmsg_replace *) lmsg->buff;
+		int ret;
+		struct fblock *fb1, *fb2;
+		struct lananlmsg_replace *msg =
+			(struct lananlmsg_replace *) lmsg->buff;
+		fb1 = search_fblock_n(msg->name1);
+		if (!fb1)
+			return -EINVAL;
+		fb2 = search_fblock_n(msg->name2);
+		if (!fb2) {
+			put_fblock(fb1);
+			return -EINVAL;
+		}
+		if (atomic_read(&fb2->refcnt) > 2) {
+			/* Still in use by others */
+			put_fblock(fb1);
+			printk(KERN_ERR "[lana] %s is still in use by others. "
+			       "Drop refs first!\n", fb2->name);
+			put_fblock(fb2);
+			return -EBUSY;
+		}
+#if 0
+		unregister_from_fblock_namespace(fb2->name);
+		unregister_fblock_no_rcu(fb2);
+		/* Now fb2 cannot be used anymore. */
+		fb2->idp = fb1->idp;
+		strlcpy(fb2->name, fb1->name,sizeof(fb2->name));
+		/* Care about private data transfer ... */
+		if (!strncmp(fb1->factory->type, fb2->factory->type,
+			     sizeof(fb1->factory->type)) && !drop_priv) {
+			/* Free our private_data */
+			rcu_assign_pointer(fb2->private_data,
+					   fb1->private_data);
+			/* Now, make sure, we don't free private_data */
+		} else {
+			/* Free fb1 private_data */
+		}
+		/* Copy subscribtions */
+		/* Drop fb1, register fb2 as fb1 */
+#endif
+		put_fblock(fb1);
+		put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
 		int ret;
