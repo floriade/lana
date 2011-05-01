@@ -74,9 +74,9 @@ struct fblock_factory {
 
 struct fblock_notifier {
 	struct fblock *self;
-	struct fblock *remote;
 	struct notifier_block nb;
 	struct fblock_notifier *next;
+	idp_t remote;
 } ____cacheline_aligned;
 
 struct fblock_subscrib {
