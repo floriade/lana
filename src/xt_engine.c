@@ -136,7 +136,7 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	len += sprintf(page + len, "engine: %p\n", ppe);
 	len += sprintf(page + len, "cpu: %u, numa node: %d\n",
 		       ppe->cpu, cpu_to_node(ppe->cpu));
-	len += sprintf(page + len, "load: %lu\n",
+	len += sprintf(page + len, "load: %lld\n",
 		       atomic64_read(&ppe->load));
 	for (i = 0; i < NUM_TYPES; ++i) {
 		do {

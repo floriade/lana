@@ -105,11 +105,6 @@ struct fblock {
 extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
-enum cleanup_mode {
-	CLEAN_FREE_PRIV,
-	CLEAN_NOFREE_PRIV,
-};
-
 /* Initialize/cleanup a fblock object. */
 extern int init_fblock(struct fblock *fb, char *name, void *priv,
 		       struct fblock_ops *ops);

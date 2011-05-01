@@ -231,7 +231,7 @@ static int __vlink_invoke(struct vlink_subsys *n,
 			  struct vlinknlmsg *vmsg,
 			  struct nlmsghdr *nlh)
 {
-	int ret;
+	int ret = 0;
 	struct vlink_callback *hb, *hn;
 
 	hb = n->head;

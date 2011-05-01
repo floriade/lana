@@ -137,7 +137,7 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 	discipline = kzalloc(32, GFP_KERNEL);
 	if (!discipline)
 		return -ENOMEM;
-	len = min(sizeof(discipline), count);
+	len = min(sizeof(discipline), (size_t) count);
 	if (copy_from_user(discipline, buffer, len)) {
 		ret = -EFAULT;
 		goto out;
