@@ -139,7 +139,6 @@ extern struct fblock *__search_fblock_n(char *name);
 
 /* Migrate state from src to dst and drop of dst states */
 extern int fblock_migrate(struct fblock *dst, struct fblock *src);
-extern int __fblock_migrate(struct fblock *dst, struct fblock *src);
 
 /* Notify fblock of new option. */
 extern int fblock_set_option(struct fblock *fb, char *opt_string);
