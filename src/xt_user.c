@@ -14,6 +14,7 @@
 #include <linux/socket.h>
 #include <linux/net.h>
 #include <linux/skbuff.h>
+#include <linux/rcupdate.h>
 #include <net/netlink.h>
 #include <net/sock.h>
 
@@ -40,6 +41,11 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		struct fblock *fb;
 		struct lananlmsg_add *msg =
 			(struct lananlmsg_add *) lmsg->buff;
+		fb = search_fblock_n(msg->name);
+		if (fb) {
+			put_fblock(fb);
+			return -EINVAL;
+		}
 		fb = build_fblock_object(msg->type, msg->name);
 		if (!fb)
 			return -ENOMEM;
