@@ -297,7 +297,7 @@ static int critbit_node_cache_init(void)
 	atomic_set(&critbit_cache.refcnt, 1);
 	critbit_cache.cache = kmem_cache_create("critbit",
 						sizeof(struct critbit_node),
-						0, SLAB_HWCACHE_ALIGN,
+						0, SLAB_HWCACHE_ALIGN | SLAB_POISON,
 						critbit_ctor);
 	if (!critbit_cache.cache)
 		return -ENOMEM;

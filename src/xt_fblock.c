@@ -702,7 +702,8 @@ int init_fblock_tables(void)
 	if (!fblmap_head)
 		goto err;
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
-					 0, SLAB_HWCACHE_ALIGN, ctor_fblock);
+					 0, SLAB_HWCACHE_ALIGN | SLAB_POISON,
+					 ctor_fblock);
 	if (!fblock_cache)
 		goto err2;
 	atomic64_set(&idp_counter, 0);

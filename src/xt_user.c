@@ -89,8 +89,8 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			fblock_migrate_p(fb2, fb1);
 		fblock_migrate_r(fb2, fb1);
 		unregister_fblock(fb1);
-		put_fblock(fb1);
 		ret = register_fblock(fb2, fb2->idp);
+		put_fblock(fb1);
 		put_fblock(fb2);
 		return ret;
 		} break;
