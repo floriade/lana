@@ -614,14 +614,14 @@ EXPORT_SYMBOL_GPL(unsubscribe_from_remote_fblock);
 static void ctor_fblock(void *obj)
 {
 	struct fblock *p = obj;
-	atomic_set(&p->refcnt, 1);
+	memset(p, 0, sizeof(*p));
 	rwlock_init(&p->lock);
 	p->idp = IDP_UNKNOWN;
-	p->next = NULL;
-	p->private_data = NULL;
-	p->ops = NULL;
-	p->notifiers = NULL;
-	p->others = NULL;
+//	p->next = NULL;
+//	p->private_data = NULL;
+//	p->ops = NULL;
+//	p->notifiers = NULL;
+//	p->others = NULL;
 }
 
 struct fblock *alloc_fblock(gfp_t flags)
@@ -654,6 +654,7 @@ int init_fblock(struct fblock *fb, char *name, void *priv,
 		return -ENOMEM;
 	ATOMIC_INIT_NOTIFIER_HEAD(&fb->others->subscribers);
 	write_unlock(&fb->lock);
+	atomic_set(&fb->refcnt, 1);
 	return 0;
 }
 EXPORT_SYMBOL_GPL(init_fblock);
