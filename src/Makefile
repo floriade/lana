@@ -27,6 +27,7 @@ obj-m    += testskb.o
 # Real modules
 obj-m    += sd_blackhole.o
 obj-m    += sd_rr.o
+obj-m    += sd_single.o
 obj-m    += fb_ethvlink.o
 
 MDIR     := /lib/modules/$(shell uname -r)
