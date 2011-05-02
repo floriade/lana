@@ -673,20 +673,29 @@ EXPORT_SYMBOL_GPL(cleanup_fblock_ctor);
 static int procfs_fblocks(char *page, char **start, off_t offset,
 			  int count, int *eof, void *data)
 {
-	int i;
+	int i, has_sub;
 	off_t len = 0;
 	struct fblock *fb;
+	struct fblock_notifier *fn;
 
-	len += sprintf(page + len, "name type addr idp refcnt next\n");
+	len += sprintf(page + len, "name type addr idp refcnt next subscr\n");
 	rcu_read_lock();
 	for (i = 0; i < HASHTSIZ; ++i) {
 		fb = rcu_dereference_raw(fblmap_head[i]);
 		while (fb) {
-			len += sprintf(page + len, "%s %s %p %u %d %p\n",
+			has_sub = 0;
+			len += sprintf(page + len, "%s %s %p %u %d %p [",
 				       fb->name, fb->factory->type,
 				       fb, fb->idp,
 				       atomic_read(&fb->refcnt),
 				       rcu_dereference_raw(fb->next));
+			fn = rcu_dereference_raw(fb->notifiers);
+			while (fn) {
+				len += sprintf(page + len, "%u ", fn->remote);
+				rcu_assign_pointer(fn, fn->next);
+				has_sub = 1;
+			}
+			len += sprintf(page + len - has_sub, "]\n");
 			fb = rcu_dereference_raw(fb->next);
 		}
 	}
