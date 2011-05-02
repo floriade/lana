@@ -55,15 +55,36 @@ struct critbit_node_cache {
 
 static struct critbit_node_cache critbit_cache = { 0 };
 
+static void critbit_ctor(void *obj)
+{
+	struct critbit_node *node = obj;
+	node->child[0] = node->child[1] = NULL;
+}
+
 static inline struct critbit_node *critbit_alloc_node_aligned(gfp_t flags)
 {
-	__module_get(THIS_MODULE);
-	return kmem_cache_alloc(critbit_cache.cache, flags);
+	struct critbit_node *cn;
+#ifndef __USE_KMALLOC
+	cn = kmem_cache_alloc(critbit_cache.cache, flags);
+	if (likely(cn))
+		__module_get(THIS_MODULE);
+#else
+	cn = kmalloc(sizeof(*cn), flags);
+	if (likely(cn)) {
+		critbit_ctor(cn);
+		__module_get(THIS_MODULE);
+	}
+#endif
+	return cn;
 }
 
 static inline void critbit_free_node(struct critbit_node *p)
 {
+#ifndef __USE_KMALLOC
 	kmem_cache_free(critbit_cache.cache, p);
+#else
+	kfree(p);
+#endif
 	module_put(THIS_MODULE);
 }
 
@@ -285,12 +306,6 @@ int critbit_delete(struct critbit_tree *tree, const char *elem)
 	return ret;
 }
 EXPORT_SYMBOL(critbit_delete);
-
-static void critbit_ctor(void *obj)
-{
-	struct critbit_node *node = obj;
-	node->child[0] = node->child[1] = NULL;
-}
 
 static int critbit_node_cache_init(void)
 {

@@ -628,8 +628,19 @@ static void ctor_fblock(void *obj)
 
 struct fblock *alloc_fblock(gfp_t flags)
 {
-	__module_get(THIS_MODULE);
-	return kmem_cache_alloc(fblock_cache, flags);
+	struct fblock *fb;
+#ifndef __USE_KMALLOC
+	fb = kmem_cache_alloc(fblock_cache, flags);
+	if (likely(fb))
+		__module_get(THIS_MODULE);
+#else
+	fb = kmalloc(sizeof(*fb), flags);
+	if (fb) {
+		ctor_fblock(fb);
+		__module_get(THIS_MODULE);
+	}
+#endif
+	return fb;
 }
 EXPORT_SYMBOL_GPL(alloc_fblock);
 
@@ -651,7 +662,11 @@ EXPORT_SYMBOL_GPL(init_fblock);
 
 void kfree_fblock(struct fblock *p)
 {
+#ifndef __USE_KMALLOC
 	kmem_cache_free(fblock_cache, p);
+#else
+	kfree(p);
+#endif
 	module_put(THIS_MODULE);
 }
 EXPORT_SYMBOL_GPL(kfree_fblock);
