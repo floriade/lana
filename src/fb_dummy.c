@@ -97,7 +97,7 @@ static struct fblock *fb_dummy_ctor(char *name)
 	struct fblock *fb;
 	struct fb_dummy_priv *fb_priv;
 
-	fb = alloc_fblock(GFP_ATOMIC);
+	fb = alloc_fblock(GFP_ATOMIC |  __GFP_ZERO);
 	if (!fb)
 		return NULL;
 	fb_priv = kmalloc(sizeof(*fb_priv), GFP_ATOMIC);

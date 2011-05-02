@@ -192,7 +192,7 @@ different_byte_found:
 	newotherbits ^= 255;
 	c = p[newbyte];
 	newdirection = (1 + (newotherbits | c)) >> 8;
-	newnode = critbit_alloc_node_aligned(GFP_ATOMIC);
+	newnode = critbit_alloc_node_aligned(GFP_ATOMIC | __GFP_ZERO);
 	if (!newnode)
 		return -ENOMEM;
 	newnode->byte = newbyte;
