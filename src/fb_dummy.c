@@ -36,7 +36,9 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 	rcu_read_lock();
 	fb_priv = rcu_dereference_raw(fb->private_data);
 
+#ifdef __DEBUG
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
+#endif
 
 	spin_lock_irqsave(&fb_priv->lock, flags);
 	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
@@ -58,7 +60,9 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
 	fb_priv = rcu_dereference_raw(fb->private_data);
 
+#ifdef __DEBUG
 	printk("Got event %lu on %p!\n", cmd, fb);
+#endif
 
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
