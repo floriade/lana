@@ -197,6 +197,8 @@ static inline int notify_fblock_subscribers(struct fblock *us,
 					  cmd, arg);
 }
 
+extern void free_fblock_rcu(struct rcu_head *rp);
+
 static inline void get_fblock(struct fblock *fb)
 {
 	atomic_inc(&fb->refcnt);
@@ -206,8 +208,7 @@ static inline void put_fblock(struct fblock *fb)
 {
 	if (likely(!atomic_dec_and_test(&fb->refcnt)))
 		return;
-	cleanup_fblock(fb);
-	kfree_fblock(fb);
+	call_rcu(&fb->rcu, free_fblock_rcu);
 }
 
 extern int init_fblock_tables(void);

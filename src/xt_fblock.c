@@ -49,7 +49,6 @@ static inline idp_t provide_new_fblock_idp(void)
 static int register_to_fblock_namespace(char *name, idp_t val)
 {
 	struct idp_elem *elem;
-
 	if (critbit_contains(&idpmap, name))
 		return -EEXIST;
 	elem = kzalloc(sizeof(*elem), GFP_ATOMIC);
@@ -57,7 +56,6 @@ static int register_to_fblock_namespace(char *name, idp_t val)
 		return -ENOMEM;
 	strlcpy(elem->name, name, sizeof(elem->name));
 	elem->idp = val;
-
 	return critbit_insert(&idpmap, elem->name);
 }
 
@@ -71,7 +69,6 @@ static int unregister_from_fblock_namespace(char *name)
 {
 	int ret;
 	struct idp_elem *elem;
-
 	elem = struct_of(critbit_get(&idpmap, name), struct idp_elem);
 	if (!elem)
 		return -ENOENT;
@@ -79,7 +76,6 @@ static int unregister_from_fblock_namespace(char *name)
 	if (ret)
 		return ret;
 	call_rcu(&elem->rcu, fblock_namespace_do_free_rcu);
-
 	return 0;
 }
 
@@ -477,11 +473,13 @@ int register_fblock_namespace(struct fblock *p)
 }
 EXPORT_SYMBOL_GPL(register_fblock_namespace);
 
-static void free_fblock_rcu(struct rcu_head *rp)
+void free_fblock_rcu(struct rcu_head *rp)
 {
 	struct fblock *p = container_of(rp, struct fblock, rcu);
-	put_fblock(p);
+	cleanup_fblock(p);
+        kfree_fblock(p);
 }
+EXPORT_SYMBOL_GPL(free_fblock_rcu);
 
 /*
  * unregister_fblock releases the functional block _only_ from the idp to
@@ -508,7 +506,7 @@ void unregister_fblock(struct fblock *p)
 		}
 	}
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-	call_rcu(&p->rcu, free_fblock_rcu);
+	put_fblock(p);
 }
 EXPORT_SYMBOL_GPL(unregister_fblock);
 
@@ -538,7 +536,7 @@ static void __unregister_fblock_namespace(struct fblock *p, int rcu)
 	spin_unlock_irqrestore(&fblmap_head_lock, flags);
 	unregister_from_fblock_namespace(p->name);
 	if (rcu)
-		call_rcu(&p->rcu, free_fblock_rcu);
+		put_fblock(p);
 }
 
 void unregister_fblock_namespace(struct fblock *p)
