@@ -27,6 +27,7 @@ static struct sock *userctl_sock = NULL;
 
 static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
+	int ret = 0;
 	struct lananlmsg *lmsg;
 
 	if (security_netlink_recv(skb, CAP_NET_ADMIN))
@@ -51,7 +52,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			return -ENOMEM;
 		} break;
 	case NETLINK_USERCTL_CMD_SET: {
-		int ret;
 		struct fblock *fb;
 		struct lananlmsg_set *msg =
 			(struct lananlmsg_set *) lmsg->buff;
@@ -60,10 +60,8 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 			return -EINVAL;
 		ret = fblock_set_option(fb, msg->option);
 		put_fblock(fb);
-		return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_REPLACE: {
-		int ret;
 		struct fblock *fb1, *fb2;
 		struct lananlmsg_replace *msg =
 			(struct lananlmsg_replace *) lmsg->buff;
@@ -92,10 +90,8 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ret = register_fblock(fb2, fb2->idp);
 		put_fblock(fb1);
 		put_fblock(fb2);
-		return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_SUBSCRIBE: {
-		int ret;
 		struct fblock *fb1, *fb2;
 		struct lananlmsg_subscribe *msg = 
 			(struct lananlmsg_subscribe *) lmsg->buff;
@@ -114,7 +110,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		ret = subscribe_to_remote_fblock(fb2, fb1);
 		put_fblock(fb1);
 		put_fblock(fb2);
-		return ret;
 		} break;
 	case NETLINK_USERCTL_CMD_UNSUBSCRIBE: {
 		struct fblock *fb1, *fb2;
@@ -148,7 +143,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		put_fblock(fb);
 		} break;
 	case NETLINK_USERCTL_CMD_BIND: {
-		int ret;
 		struct fblock *fb1, *fb2;
 		struct lananlmsg_bind *msg =
 			(struct lananlmsg_bind *) lmsg->buff;
@@ -170,7 +164,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		put_fblock(fb2);
 		} break;
 	case NETLINK_USERCTL_CMD_UNBIND: {
-		int ret;
 		struct fblock *fb1, *fb2;
 		struct lananlmsg_unbind *msg =
 			(struct lananlmsg_unbind *) lmsg->buff;
@@ -196,7 +189,7 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		break;
 	}
 
-	return 0;
+	return ret;
 }
 
 static void userctl_rcv(struct sk_buff *skb)
