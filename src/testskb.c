@@ -12,25 +12,33 @@
 #include <linux/module.h>
 #include <linux/skbuff.h>
 #include <linux/cpu.h>
+#include <linux/jiffies.h>
 
 #include "xt_skb.h"
 #include "xt_idp.h"
 #include "xt_sched.h"
 
+#define PKTS 1400000UL
+
 static int __init init_fbtestgen_module(void)
 {
+	unsigned long num = PKTS;
+	unsigned long a, b;
 	struct sk_buff *skb;
-
-	skb = alloc_skb(250, GFP_ATOMIC);
-	if (!skb)
-		return -ENOMEM;
-
-	write_next_idp_to_skb(skb, IDP_UNKNOWN, 1);
-	/* Assuming scheduler is loaded! */
 	ppesched_init();
-	ppesched_sched(skb, TYPE_EGRESS);
-	printk(KERN_INFO "skb enqueued!\n");
 
+	a = jiffies;
+	while (num--) {
+		skb = alloc_skb(96, GFP_ATOMIC);
+		if (unlikely(!skb))
+			return -ENOMEM;
+		write_next_idp_to_skb(skb, IDP_UNKNOWN, 1 /* idp 1 */);
+		ppesched_sched(skb, TYPE_EGRESS);
+	}
+	b = jiffies;
+
+	printk(KERN_INFO "test done, %lu pkts in %u us!\n", PKTS,
+	       jiffies_to_usecs(b - a));
 	return 0;
 }
 
