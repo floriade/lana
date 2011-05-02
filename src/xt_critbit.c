@@ -323,7 +323,7 @@ static int critbit_node_cache_init(void)
 
 static void critbit_node_cache_destroy(void)
 {
-	synchronize_rcu();
+	rcu_barrier();
 	kmem_cache_destroy(critbit_cache.cache);
 }
 

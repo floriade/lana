@@ -759,7 +759,7 @@ void cleanup_fblock_tables(void)
 	remove_proc_entry("fblocks", lana_proc_dir);
 	put_critbit_cache();
 	kfree(fblmap_head);
-	synchronize_rcu();
+	rcu_barrier();
 	kmem_cache_destroy(fblock_cache);
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock_tables);
