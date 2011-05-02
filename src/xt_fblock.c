@@ -718,7 +718,8 @@ int init_fblock_tables(void)
 	if (!fblmap_head)
 		goto err;
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
-					 0, SLAB_HWCACHE_ALIGN | SLAB_POISON,
+					 0, SLAB_HWCACHE_ALIGN |
+					 SLAB_MEM_SPREAD | SLAB_RECLAIM_ACCOUNT,
 					 ctor_fblock);
 	if (!fblock_cache)
 		goto err2;
