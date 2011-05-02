@@ -617,11 +617,6 @@ static void ctor_fblock(void *obj)
 	memset(p, 0, sizeof(*p));
 	rwlock_init(&p->lock);
 	p->idp = IDP_UNKNOWN;
-//	p->next = NULL;
-//	p->private_data = NULL;
-//	p->ops = NULL;
-//	p->notifiers = NULL;
-//	p->others = NULL;
 }
 
 struct fblock *alloc_fblock(gfp_t flags)
