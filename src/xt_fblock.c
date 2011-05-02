@@ -562,13 +562,17 @@ int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
 	/* hold ref */
 	get_fblock(us);
 	get_fblock(remote);
+
 	write_lock(&us->lock);
+
 	fn->self = us;
 	fn->remote = remote->idp;
 	init_fblock_subscriber(us, &fn->nb);
 	fn->next = rcu_dereference_raw(us->notifiers);
 	rcu_assign_pointer(us->notifiers, fn);
+
 	write_unlock(&us->lock);
+
 	return fblock_register_foreign_subscriber(remote,
 			&rcu_dereference_raw(us->notifiers)->nb);
 }
@@ -602,6 +606,7 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 		fblock_unregister_foreign_subscriber(remote, &fn->nb);
 		kfree(fn);
 	}
+
 	/* drop ref */
 	put_fblock(us);
 	put_fblock(remote);

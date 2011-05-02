@@ -31,7 +31,10 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 			  enum path_type *dir)
 {
 	unsigned long flags;
-	struct fb_dummy_priv *fb_priv = rcu_dereference_raw(fb->private_data);
+	struct fb_dummy_priv *fb_priv;
+
+	rcu_read_lock();
+	fb_priv = rcu_dereference_raw(fb->private_data);
 
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 
@@ -39,6 +42,7 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
 	spin_unlock_irqrestore(&fb_priv->lock, flags);
 
+	rcu_read_unlock();
 	return PPE_SUCCESS;
 }
 
@@ -47,8 +51,12 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 {
 	int ret = NOTIFY_OK;
 	unsigned long flags;
-	struct fblock *fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
-	struct fb_dummy_priv *fb_priv = rcu_dereference_raw(fb->private_data);
+	struct fblock *fb;
+	struct fb_dummy_priv *fb_priv;
+
+	rcu_read_lock();
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
+	fb_priv = rcu_dereference_raw(fb->private_data);
 
 	printk("Got event %lu on %p!\n", cmd, fb);
 
@@ -79,6 +87,7 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		break;
 	}
 
+	rcu_read_unlock();
 	return ret;
 }
 
