@@ -349,9 +349,9 @@ static void do_replace(int argc, char **argv, int drop)
 	memset(&lmsg, 0, sizeof(lmsg));
 	lmsg.cmd = NETLINK_USERCTL_CMD_REPLACE;
 	msg = (struct lananlmsg_replace *) lmsg.buff;
-	msg->drop_priv = drop;
 	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
+	msg->drop_priv = !!drop;
 	send_netlink(&lmsg);
 }
 

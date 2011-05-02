@@ -21,6 +21,7 @@ ETCDIR       = etc
 
 CFLAGS      += -O2 -fno-delete-null-pointer-checks -std=gnu99 -pedantic
 CFLAGS      += -fstack-protector -D_FORTIFY_SOURCE=2 -fPIE -D_REENTRANT
+CFLAGS      += -fno-strict-aliasing
 CFLAGS      += -Wall -Werror -Wundef -Wstrict-prototypes -Wuninitialized
 
 INCLUDE      = -I../src/

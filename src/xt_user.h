@@ -64,7 +64,7 @@ struct lananlmsg_unbind {
 struct lananlmsg_replace {
 	char name1[FBNAMSIZ];
 	char name2[FBNAMSIZ];
-	int drop_priv;
+	uint8_t drop_priv;
 };
 
 struct lananlmsg_subscribe {
