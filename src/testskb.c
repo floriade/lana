@@ -16,6 +16,7 @@
 #include "xt_skb.h"
 #include "xt_idp.h"
 #include "xt_sched.h"
+#include "xt_engine.h"
 
 #define PKTS 1400000UL
 
@@ -31,11 +32,13 @@ static int __init init_fbtestgen_module(void)
 			return -ENOMEM;
 		if (num > 1400000UL - 4)
 			time_mark_skb_first(skb);
-		if (num < 4)
+		if (num < 3)
 			time_mark_skb_last(skb);
 		skb_put(skb, 64);
 		write_next_idp_to_skb(skb, IDP_UNKNOWN, 1 /* idp 1 */);
 		ppesched_sched(skb, TYPE_EGRESS);
+		if (num > 1400000UL - 1)
+			wake_engine(0);
 	}
 
 	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);
