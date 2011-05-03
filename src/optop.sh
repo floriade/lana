@@ -2,9 +2,9 @@
 
 opcontrol --init
 if [ $# -eq 0 ] ; then
-        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux
+        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu
 else
-        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --event=$@
+        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu --event=$@
 fi
 opcontrol --status
 

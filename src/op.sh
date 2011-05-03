@@ -5,11 +5,12 @@ insmod sd_single.ko
 insmod fb_dummy.ko
 ../usr/fbctl add fb1 dummy
 
+opcontrol --shutdown
 opcontrol --init
 if [ $# -eq 0 ] ; then
-	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux
+	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu
 else
-	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --event=$@
+	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu --event=$@
 fi
 opcontrol --status
 opcontrol --start
