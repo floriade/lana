@@ -1,5 +1,7 @@
 #!/bin/sh
 
+opcontrol --reset
+opcontrol --shutdown
 opcontrol --init
 if [ $# -eq 0 ] ; then
         opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu
@@ -16,6 +18,4 @@ while true; do
 	opreport -l -p ./ 2> /dev/zero | head -40
 	opcontrol --reset
 done
-
-opcontrol --shutdown
 
