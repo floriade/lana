@@ -104,6 +104,10 @@ static int engine_thread(void *arg)
 		ppeq = next_filled_ppe_queue(ppeq);
 		ppe_queues_reduce_load(ppe);
 		skb = skb_dequeue(&ppeq->queue);
+		if (skb_is_time_marked_first(skb))
+			ppe->jiffies = jiffies;
+		if (skb_is_time_marked_last(skb))
+			ppe->jiffies = jiffies - ppe->jiffies;
 		ret = process_packet(skb, ppeq->type);
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
@@ -139,6 +143,8 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 		       ppe->cpu, cpu_to_node(ppe->cpu));
 	len += sprintf(page + len, "load: %lld\n",
 		       atomic64_read(&ppe->load));
+	len += sprintf(page + len, "skbt: %u us\n",
+		       jiffies_to_usecs(ppe->jiffies));
 	for (i = 0; i < NUM_TYPES; ++i) {
 		do {
 			sstart = u64_stats_fetch_begin(&ppe->inqs.ptrs[i]->stats.syncp);
@@ -225,6 +231,7 @@ int init_worker_engines(void)
 		struct worker_engine *ppe;
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
+		ppe->jiffies = 0;
 		ppe->inqs.head = NULL;
 		memset(&ppe->inqs, 0, sizeof(ppe->inqs));
 		ret = init_ppe_squeue(&ppe->inqs, ppe->cpu);

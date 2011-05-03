@@ -51,6 +51,7 @@ struct worker_engine {
 	struct ppe_squeue inqs;
 	wait_queue_head_t wait_queue;
 	atomic64_t load;
+	unsigned long jiffies;
 } ____cacheline_aligned_in_smp;
 
 extern int init_worker_engines(void);

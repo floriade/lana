@@ -29,6 +29,10 @@ static int __init init_fbtestgen_module(void)
 		skb = alloc_skb(96, GFP_ATOMIC);
 		if (unlikely(!skb))
 			return -ENOMEM;
+		if (num > 1400000UL - 4)
+			time_mark_skb_first(skb);
+		if (num < 4)
+			time_mark_skb_last(skb);
 		skb_put(skb, 64);
 		write_next_idp_to_skb(skb, IDP_UNKNOWN, 1 /* idp 1 */);
 		ppesched_sched(skb, TYPE_EGRESS);

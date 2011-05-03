@@ -12,8 +12,8 @@
 #include <linux/skbuff.h>
 #include "xt_idp.h"
 
-#define LANA_IS_MARKED_FIRST	(1 << 0)
-#define LANA_IS_MARKED_LAST	(1 << 1)
+#define MARKER_TIME_MARKED_FIRST	(1 << 0)
+#define MARKER_TIME_MARKED_LAST		(1 << 1)
 
 struct sock_lana_inf {
 	idp_t   idp_dst;
@@ -38,27 +38,28 @@ static inline idp_t read_next_idp_from_skb(struct sk_buff *skb)
 	return SKB_LANA_INF(skb)->idp_dst;
 }
 
-/* For testing purpose ... */
-static inline void mark_skb_last(struct sk_buff *skb)
+static inline void time_mark_skb_last(struct sk_buff *skb)
 {
 	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
-	sli->marker |= LANA_IS_MARKED_LAST;
+	sli->marker |= MARKER_TIME_MARKED_LAST;
 }
 
-static inline int skb_is_marked_last(struct sk_buff *skb)
+static inline int skb_is_time_marked_last(struct sk_buff *skb)
 {
-	return (SKB_LANA_INF(skb)->marker & LANA_IS_MARKED_LAST) == LANA_IS_MARKED_LAST;
+	return (SKB_LANA_INF(skb)->marker &
+		MARKER_TIME_MARKED_LAST) == MARKER_TIME_MARKED_LAST;
 }
 
-static inline void mark_skb_first(struct sk_buff *skb)
+static inline void time_mark_skb_first(struct sk_buff *skb)
 {
 	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
-	sli->marker |= LANA_IS_MARKED_FIRST;
+	sli->marker |= MARKER_TIME_MARKED_FIRST;
 }
 
-static inline int skb_is_marked_first(struct sk_buff *skb)
+static inline int skb_is_time_marked_first(struct sk_buff *skb)
 {
-	return (SKB_LANA_INF(skb)->marker & LANA_IS_MARKED_FIRST) == LANA_IS_MARKED_FIRST;
+	return (SKB_LANA_INF(skb)->marker &
+		MARKER_TIME_MARKED_FIRST) == MARKER_TIME_MARKED_FIRST;
 }
 
 #endif /* XT_SKB_H */
