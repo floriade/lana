@@ -93,12 +93,13 @@ static int engine_thread(void *arg)
 	       "on CPU%u!\n", smp_processor_id());
 
 	ppeq = first_ppe_queue(ppe);
-	while (1) {
-		wait_event_interruptible(ppe->wait_queue,
-					 (kthread_should_stop() ||
-					  ppe_queues_have_load(ppe)));
-		if (unlikely(kthread_should_stop()))
-			break;
+	while (likely(!kthread_should_stop())) {
+		if (!ppe_queues_have_load(ppe)) {
+			wait_event_interruptible_timeout(ppe->wait_queue,
+						(kthread_should_stop() ||
+						 ppe_queues_have_load(ppe)), 1);
+			continue;
+		}
 
 		ppeq = next_filled_ppe_queue(ppeq);
 		ppe_queues_reduce_load(ppe);
