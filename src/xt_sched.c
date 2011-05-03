@@ -53,6 +53,11 @@ int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 	int ret;
 	unsigned long flags;
 	spin_lock_irqsave(&ppesched_lock, flags);
+	if (unlikely(ppesched_current == -1)) {
+		kfree_skb(skb);
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		return -EIO;
+	}
 	ret = ppesched_discipline_table[ppesched_current]->ops->discipline_sched(skb, dir);
 	spin_unlock_irqrestore(&ppesched_lock, flags);
 	return ret;
@@ -75,8 +80,10 @@ int ppesched_discipline_register(struct ppesched_discipline *pd)
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (!ppesched_discipline_table[i]) {
 			ppesched_discipline_table[i] = pd;
-			if (unlikely(ppesched_current == -1))
+			if (unlikely(ppesched_current == -1)) {
 				ppesched_current = i;
+				__module_get(pd->owner);
+			}
 			done = 1;
 			break;
 		}
@@ -93,8 +100,10 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (ppesched_discipline_table[i] == pd) {
 			ppesched_discipline_table[i] = NULL;
-			if (i == ppesched_current)
+			if (i == ppesched_current) {
 				ppesched_current = -1;
+				module_put(pd->owner);
+			}
 			break;
 		}
 	}
@@ -129,8 +138,7 @@ static int ppesched_procfs_read(char *page, char **start, off_t offset,
 static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 				 unsigned long count, void *data)
 {
-	int ret;
-	unsigned long res;
+	int ret, res;
 	size_t len;
 	char *discipline;
 
@@ -143,18 +151,22 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		goto out;
 	}
 	discipline[sizeof(discipline) - 1] = 0;
-	res = simple_strtoul(discipline, &discipline, 10);
-	if (res >= MAX_SCHED) {
+	res = simple_strtol(discipline, &discipline, 10);
+	if (res >= MAX_SCHED || res < -1) {
 		ret = -EINVAL;
 		goto out;
 	}
 	spin_lock(&ppesched_lock);
-	if (!ppesched_discipline_table[res]) {
+	if (res >= 0 && !ppesched_discipline_table[res]) {
 		spin_unlock(&ppesched_lock);
 		ret = -EINVAL;
 		goto out;
 	}
+	if (ppesched_current != -1)
+		module_put(ppesched_discipline_table[ppesched_current]->owner);
 	ppesched_current = res;
+	if (ppesched_current != -1)
+		__module_get(ppesched_discipline_table[res]->owner);
 	spin_unlock(&ppesched_lock);
 
 	return count;
