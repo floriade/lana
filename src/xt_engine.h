@@ -74,6 +74,15 @@ static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
 	atomic64_inc(&ppe->load);
 }
 
+static inline void enqueue_on_engine(struct sk_buff *skb,
+				     unsigned int cpu,
+				     enum path_type type)
+{
+	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+	skb_queue_tail(&ppe->inqs.ptrs[type]->queue, skb);
+	atomic64_inc(&ppe->load);
+}
+
 static inline void wake_engine(unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);

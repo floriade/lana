@@ -8,6 +8,8 @@
  * Subject to the GPL.
  */
 
+/* TODO: fix this mess */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/cache.h>
@@ -43,16 +45,7 @@ static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 		cpu = 0;
 	spin_unlock_irqrestore(&lock, flags);
 
-	switch (dir) {
-	case TYPE_EGRESS:
-		enqueue_egress_on_engine(skb, __cpu);
-		break;
-	case TYPE_INGRESS:
-		enqueue_ingress_on_engine(skb, __cpu);
-		break;
-	default:
-		return PPE_ERROR;
-	}
+	enqueue_on_engine(skb, __cpu, dir);
 	return PPE_SUCCESS;
 }
 

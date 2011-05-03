@@ -27,16 +27,7 @@ static int ppe_single_init(void)
 
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
-	switch (dir) {
-	case TYPE_EGRESS:
-		enqueue_egress_on_engine(skb, RUN_ON_CPU);
-		break;
-	case TYPE_INGRESS:
-		enqueue_ingress_on_engine(skb, RUN_ON_CPU);
-		break;
-	default:
-		return PPE_ERROR;
-	}
+	enqueue_on_engine(skb, RUN_ON_CPU, dir);
 	return PPE_SUCCESS;
 }
 
