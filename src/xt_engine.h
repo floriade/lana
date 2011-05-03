@@ -15,7 +15,7 @@
 #include <linux/sched.h>
 #include <linux/u64_stats_sync.h>
 #include <linux/atomic.h>
-#include <linux/timex.h>
+#include <linux/hrtimer.h>
 
 #include "xt_fblock.h"
 
@@ -52,7 +52,7 @@ struct worker_engine {
 	struct ppe_squeue inqs;
 	wait_queue_head_t wait_queue;
 	atomic64_t load;
-	cycles_t cycles;
+	ktime_t timef, timel;
 } ____cacheline_aligned_in_smp;
 
 extern int init_worker_engines(void);

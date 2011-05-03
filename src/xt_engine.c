@@ -22,7 +22,7 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/prefetch.h>
 #include <linux/sched.h>
-#include <linux/timex.h>
+#include <linux/hrtimer.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
@@ -104,9 +104,9 @@ static int engine_thread(void *arg)
 		ppe_queues_reduce_load(ppe);
 		skb = skb_dequeue(&ppeq->queue);
 		if (skb_is_time_marked_first(skb))
-			ppe->cycles = get_cycles();
+			ppe->timef = ktime_get();
 		if (skb_is_time_marked_last(skb))
-			ppe->cycles = get_cycles() - ppe->cycles;
+			ppe->timel = ktime_get();
 		ret = process_packet(skb, ppeq->type);
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
@@ -142,8 +142,8 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 		       ppe->cpu, cpu_to_node(ppe->cpu));
 	len += sprintf(page + len, "load: %ld\n",
 		       atomic64_read(&ppe->load));
-	len += sprintf(page + len, "cyc: %llu\n",
-		       ppe->cycles);
+	len += sprintf(page + len, "hrt: %llu us\n",
+		       ktime_us_delta(ppe->timel, ppe->timef));
 	for (i = 0; i < NUM_TYPES; ++i) {
 		do {
 			sstart = u64_stats_fetch_begin(&ppe->inqs.ptrs[i]->stats.syncp);
@@ -230,7 +230,6 @@ int init_worker_engines(void)
 		struct worker_engine *ppe;
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
-		ppe->cycles = 0;
 		ppe->inqs.head = NULL;
 		memset(&ppe->inqs, 0, sizeof(ppe->inqs));
 		ret = init_ppe_squeue(&ppe->inqs, ppe->cpu);
