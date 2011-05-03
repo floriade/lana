@@ -22,7 +22,6 @@
 
 struct fb_dummy_priv {
 	idp_t port[NUM_TYPES];
-	spinlock_t lock;
 };
 
 static struct fblock_ops fb_dummy_ops;
@@ -30,20 +29,14 @@ static struct fblock_ops fb_dummy_ops;
 static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 			  enum path_type *dir)
 {
-	unsigned long flags;
 	struct fb_dummy_priv *fb_priv;
 
 	rcu_read_lock();
 	fb_priv = rcu_dereference_raw(fb->private_data);
-
 #ifdef __DEBUG
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 #endif
-
-	spin_lock_irqsave(&fb_priv->lock, flags);
 	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
-	spin_unlock_irqrestore(&fb_priv->lock, flags);
-
 	rcu_read_unlock();
 	return PPE_SUCCESS;
 }
@@ -52,7 +45,6 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 			  void *args)
 {
 	int ret = NOTIFY_OK;
-	unsigned long flags;
 	struct fblock *fb;
 	struct fb_dummy_priv *fb_priv;
 
@@ -67,21 +59,17 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
 			fb_priv->port[msg->dir] = msg->idp;
 		else
 			ret = NOTIFY_BAD;
-		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		} break;
 	case FBLOCK_UNBIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		spin_lock_irqsave(&fb_priv->lock, flags);
 		if (fb_priv->port[msg->dir] == msg->idp)
 			fb_priv->port[msg->dir] = IDP_UNKNOWN;
 		else
 			ret = NOTIFY_BAD;
-		spin_unlock_irqrestore(&fb_priv->lock, flags);
 		} break;
 	case FBLOCK_SET_OPT: {
 		struct fblock_opt_msg *msg = args;
@@ -109,7 +97,6 @@ static struct fblock *fb_dummy_ctor(char *name)
 		goto err;
 	for (i = 0; i < NUM_TYPES; ++i)
 		fb_priv->port[i] = IDP_UNKNOWN;
-	spin_lock_init(&fb_priv->lock);
 	ret = init_fblock(fb, name, fb_priv, &fb_dummy_ops);
 	if (ret)
 		goto err2;

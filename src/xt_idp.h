@@ -11,7 +11,7 @@
 
 #include <linux/types.h>
 
-typedef __u32   idp32_t;
+typedef volatile __u32   idp32_t;
 typedef idp32_t idp_t;
 
 #define IDP_EXIT_PPE  0
