@@ -1,7 +1,11 @@
 #!/bin/sh
 
 opcontrol --init
-opcontrol --setup --vmlinux=../../linux-2.6/vmlinux
+if [ $# -eq 0 ] ; then
+        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux
+else
+        opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --event=$@
+fi
 opcontrol --status
 
 opcontrol --start
