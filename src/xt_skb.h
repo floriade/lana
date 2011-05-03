@@ -12,11 +12,15 @@
 #include <linux/skbuff.h>
 #include "xt_idp.h"
 
+#define LANA_IS_MARKED_FIRST	(1 << 0)
+#define LANA_IS_MARKED_LAST	(1 << 1)
+
 struct sock_lana_inf {
 	idp_t   idp_dst;
 	idp_t   idp_src;
 	__u32   flags;
 	__u32   errno;
+	__u32   marker;
 };
 
 #define SKB_LANA_INF(skb) ((struct sock_lana_inf *) ((skb)->cb))
@@ -32,6 +36,29 @@ static inline void write_next_idp_to_skb(struct sk_buff *skb, idp_t from,
 static inline idp_t read_next_idp_from_skb(struct sk_buff *skb)
 {
 	return SKB_LANA_INF(skb)->idp_dst;
+}
+
+/* For testing purpose ... */
+static inline void mark_skb_last(struct sk_buff *skb)
+{
+	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
+	sli->marker |= LANA_IS_MARKED_LAST;
+}
+
+static inline int skb_is_marked_last(struct sk_buff *skb)
+{
+	return (SKB_LANA_INF(skb)->marker & LANA_IS_MARKED_LAST) == LANA_IS_MARKED_LAST;
+}
+
+static inline void mark_skb_first(struct sk_buff *skb)
+{
+	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
+	sli->marker |= LANA_IS_MARKED_FIRST;
+}
+
+static inline int skb_is_marked_first(struct sk_buff *skb)
+{
+	return (SKB_LANA_INF(skb)->marker & LANA_IS_MARKED_FIRST) == LANA_IS_MARKED_FIRST;
 }
 
 #endif /* XT_SKB_H */
