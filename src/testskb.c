@@ -18,31 +18,50 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-#define PKTS 1400000UL
+#define PKTS 140000UL
+#define PKT_LEN 96
 
 static int __init init_fbtestgen_module(void)
 {
-	unsigned long num = PKTS;
-	struct sk_buff *skb;
+	unsigned long i;
+	struct sk_buff **skba;
 	ppesched_init();
 
-	while (num--) {
-		skb = alloc_skb(96, GFP_ATOMIC);
-		if (unlikely(!skb))
-			return -ENOMEM;
-		if (num > 1400000UL - 4)
-			time_mark_skb_first(skb);
-		if (num < 3)
-			time_mark_skb_last(skb);
-		skb_put(skb, 64);
-		write_next_idp_to_skb(skb, IDP_UNKNOWN, 1 /* idp 1 */);
-		ppesched_sched(skb, TYPE_EGRESS);
-		if (num > 1400000UL - 1)
-			wake_engine(0);
+	skba = kmalloc(sizeof(*skba) * PKTS, GFP_KERNEL);
+	if (!skba)
+		return -ENOMEM;
+	memset(skba, 0, sizeof(*skba) * PKTS);
+	for (i = 0; i < PKTS; ++i) {
+		skba[i] = alloc_skb(PKT_LEN, GFP_KERNEL);
+		if (unlikely(!skba[i]))
+			goto err;
+		skb_put(skba[i], 64);
 	}
 
+	time_mark_skb_first(skba[0]);
+	time_mark_skb_first(skba[1]);
+	time_mark_skb_first(skba[2]);
+	time_mark_skb_first(skba[3]);
+
+	time_mark_skb_last(skba[PKTS-1-3]);
+	time_mark_skb_last(skba[PKTS-1-2]);
+	time_mark_skb_last(skba[PKTS-1-1]);
+	time_mark_skb_last(skba[PKTS-1-0]);
+
+	for (i = 0; i < PKTS; ++i) {
+		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, 1);
+		ppesched_sched(skba[i], TYPE_EGRESS);
+	}
+
+	kfree(skba);
 	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);
 	return 0;
+err:
+	for (i = 0; i < PKTS; ++i) {
+		if (skba[i])
+			kfree_skb(skba[i]);
+	}
+	return -ENOMEM;
 }
 
 static void __exit cleanup_fbtestgen_module(void)
