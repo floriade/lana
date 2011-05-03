@@ -12,7 +12,6 @@
 #include <linux/module.h>
 #include <linux/skbuff.h>
 #include <linux/cpu.h>
-#include <linux/jiffies.h>
 
 #include "xt_skb.h"
 #include "xt_idp.h"
@@ -23,22 +22,19 @@
 static int __init init_fbtestgen_module(void)
 {
 	unsigned long num = PKTS;
-	unsigned long a, b;
 	struct sk_buff *skb;
 	ppesched_init();
 
-	a = jiffies;
 	while (num--) {
 		skb = alloc_skb(96, GFP_ATOMIC);
 		if (unlikely(!skb))
 			return -ENOMEM;
+		skb_put(skb, 64);
 		write_next_idp_to_skb(skb, IDP_UNKNOWN, 1 /* idp 1 */);
 		ppesched_sched(skb, TYPE_EGRESS);
 	}
-	b = jiffies;
 
-	printk(KERN_INFO "test done, %lu pkts in %u us!\n", PKTS,
-	       jiffies_to_usecs(b - a));
+	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);
 	return 0;
 }
 
