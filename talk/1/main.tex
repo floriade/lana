@@ -1,0 +1,199 @@
+\documentclass[black,white]{beamer}
+
+\usepackage{beamerthemesplit}
+\usepackage{epstopdf}
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{listings}
+
+\usefonttheme{professionalfonts}
+\usecolortheme{dove}
+\useoutertheme{infolines}
+\useinnertheme{rectangles}
+
+\setlength{\parindent}{0pt}
+\newcommand*\sfb[1]{\textbf{#1}}
+\definecolor{red2}{rgb}{.7,0,.39}
+\usebackgroundtemplate{
+	\includegraphics[width=\paperwidth,height=\paperheight]{img/bg.png}
+}
+
+\begin{document}
+
+\title[LANA for Embedded Devices]{\newline \newline \normalsize{Master Thesis} \newline
+				  \huge{\textcolor{red2}{Lightweight Autonomic Network Architecture for Embedded Devices}}}
+\author[Daniel Borkmann] {
+	\vspace*{-20pt}
+	\newline
+	Daniel Borkmann	\texttt{<dborkma@tik.ee.ethz.ch>}\\
+	\footnotesize{intermediate presentation}
+}
+\institute[ETH Zurich] {
+	Communication Systems Group\\
+	ETH Zurich\\\bigskip
+	Faculty of Computer Science, Mathematics and Natural Sciences\\
+	Leipzig University of Applied Sciences
+}
+\date[\today]{}
+
+\frame {
+	\titlepage
+}
+
+\frame {
+	\frametitle{\textcolor{red2}{Communication Systems Group, \newline ETH Zurich}}
+	\bigskip
+	\begin{itemize}
+		\item Communication Systems Group conducts \textbf{research on modeling, design, and implementation of communication systems} [1]:\medskip
+		\begin{itemize}
+			\item Wireless mobile networks and social networks\medskip
+			\item Network measurements and security\medskip
+			\item Future Internet architecture and protocols\medskip
+		\end{itemize}
+		\item \textbf{Thesis advisors:} Ariane Keller, Dr. Wolfgang Mühlbauer\medskip
+		\item \textbf{Professor:} Prof. Dr. Bernhard Plattner
+	\end{itemize}
+}
+
+\frame {
+	\frametitle{\textcolor{red2}{Table of Contents}}
+	\tableofcontents
+}
+
+\section{Introduction}
+\frame {
+	\frametitle{\textcolor{red2}{Introduction}}
+	\bigskip
+	\begin{itemize}
+		\item Thesis in \textbf{context of the EPiCS} research project [2]\medskip
+		\begin{itemize}
+			\item Concepts and foundations for self-aware and self-expressive systems\medskip
+			\item Hardware/software platform technologies for autonomic compute nodes\medskip
+			\item Self-aware network architectures\medskip
+		\end{itemize}
+		\item For communication purposes, the \textbf{Autonomic Network Architecture (ANA)} [3] will be used
+	\end{itemize}
+}
+
+\section{Basics of ANA}
+\frame {
+	\frametitle{\textcolor{red2}{Basic idea of ANA}}
+	\bigskip
+	\bigskip
+	\begin{itemize}
+		\item \textbf{No "one-size-fits-all" approach} as in classical network architectures\medskip
+		\item Network stack is composed by building block processing elements, called \textbf{Functional Blocks (FB)}\medskip
+		\item Idea of flexible UNIX Sockets for communication and packet forwarding between processing elements\medskip
+		\item Results in a graph of processing elements where the edges represent communication connections\medskip
+		\item Packets traverse specific paths of this graph
+	\end{itemize}
+}
+
+\frame {
+	\frametitle{\textcolor{red2}{Advantages of this idea}}
+	\bigskip
+	\begin{itemize}
+		\item \textbf{Smaller size of the network stack}\medskip
+		\item \textbf{Network stack reconfiguration during runtime}\medskip
+		\item Processing elements need no a-priori knowledge about their "neighboring" elements\medskip
+		\item Easier to adapt new technologies and protocols\medskip
+		\item Application developers do not need to care about underlying addressing schemes, i.e. IPv4 versus IPv6\medskip
+		\item \textbf{Not only suited for Internet!}
+	\end{itemize}
+}
+
+\section{Motivation}
+\frame {
+	\frametitle{\textcolor{red2}{Motivation}}
+	\bigskip
+	\bigskip
+	\begin{itemize}
+		\item \textbf{Autonomic Network Architecture important for \newline Embedded Systems [4]}\medskip
+		\item Limited resources require network stack adaptions to \newline different networking situations\medskip
+		\item Implementation of ANA rather resource-intensive, lightweight \newline redesign is needed\medskip
+		\item \textit{Short example:}\medskip
+		\begin{itemize}
+			\item Currently, packets are being copied between Functional Blocks
+			\item Can be avoided to save CPU processing resources
+		\end{itemize}
+	\end{itemize}
+}
+
+\section{Aims of this thesis}
+\frame {
+	\frametitle{\textcolor{red2}{Aims of this thesis}}
+	\bigskip
+	\begin{itemize}
+		\item \textbf{Lightweight redesign and implementation of ANA (LANA)}\medskip
+		\item \textit{Requirements:}\medskip
+		\begin{itemize}
+			\item Needs to outperform the original architecture regarding performance\medskip
+			\item Needs to run on embedded Linux devices\medskip
+			\item Functional Block adding/removal/swapping during runtime
+		\end{itemize}
+	\end{itemize}
+}
+
+\section{Fundamental changes in LANA}
+\frame {
+	\frametitle{\textcolor{red2}{Fundamental changes in LANA}}
+	% core machinery
+}
+
+\frame {
+	\frametitle{\textcolor{red2}{Fundamental changes in LANA}}
+	% architectural changes
+}
+
+\section{Architecture overview}
+\frame {
+	\frametitle{\textcolor{red2}{Architecture overview}}
+}
+
+\section{Performance Evaluation and Testing Tools}
+\frame {
+	\frametitle{\textcolor{red2}{Performance Evaluation and \newline Testing Tools}}
+}
+
+\section{Open Questions}
+\frame {
+	\frametitle{\textcolor{red2}{Open Questions}}
+}
+
+\section{Project Plan}
+\frame {
+	\frametitle{\textcolor{red2}{Project Plan}}
+}
+
+\section{Questions}
+\frame{
+	\frametitle{\textcolor{red2}{Questions}}
+	\bigskip
+	\bigskip
+	\begin{center}
+		\Large{Thanks for your attention! Questions?}
+	\end{center}
+}
+
+\section{Resources}
+\frame{
+	\frametitle{\textcolor{red2}{Resources}}
+	\bigskip
+	\bigskip
+	\medskip
+	\begin{description}
+		\item[ 1 ]\textbf{CSG, ETH Zurich}, \textcolor{blue}{\url{http://www.csg.ethz.ch/}} (3/2011)\medskip
+		\item[ 2 ]\textbf{EPiCS project}, \textcolor{blue}{\url{http://www.epics-project.eu/project.html}} (3/2011)\medskip
+		\item[ 3 ]\textbf{ANA project}, \textcolor{blue}{\url{http://www.ana-project.org/}} (3/2011)\medskip
+		\item[ 4 ]\textbf{Reconfigurable nodes for future networks}, A. Keller, B. Plattner,
+			E. Lübbers, M. Platzner, and C. Plessl in Proc. IEEE Globecom Workshop
+			on Network of the Future (FutureNet), pages 372–376. IEEE, Dec. 2010\medskip
+		\item[ 5 ]\textbf{netsniff-ng}, \textcolor{blue}{\url{http://www.netsniff-ng.org/}} (3/2011)
+	\end{description}
+}
+
+\end{document}
+
