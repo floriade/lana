@@ -8,6 +8,9 @@
 \usepackage[utf8]{inputenc}
 \usepackage[english]{babel}
 \usepackage{listings}
+\usepackage{array}
+\usepackage{color}
+\usepackage{colortbl}
 
 \usefonttheme{professionalfonts}
 \usecolortheme{dove}
@@ -64,6 +67,7 @@
 }
 
 \section{Introduction}
+\subsection{EPiCS Project}
 \frame {
 	\frametitle{\textcolor{red2}{Introduction}}
 	\bigskip
@@ -78,7 +82,7 @@
 	\end{itemize}
 }
 
-\section{Basics of ANA}
+\subsection{Basics of ANA}
 \frame {
 	\frametitle{\textcolor{red2}{Basic idea of ANA}}
 	\bigskip
@@ -86,8 +90,8 @@
 	\begin{itemize}
 		\item \textbf{No "one-size-fits-all" approach} as in classical network architectures\medskip
 		\item Network stack is composed by building block processing elements, called \textbf{Functional Blocks (FB)}\medskip
-		\item Idea of flexible UNIX Sockets for communication and packet forwarding between processing elements\medskip
-		\item Results in a graph of processing elements where the edges represent communication connections\medskip
+		\item Idea of flexible UNIX Sockets for communication and packet forwarding between Functional Blocks\medskip
+		\item Results in a graph of Functional Blocks where the edges represent communication connections\medskip
 		\item Packets traverse specific paths of this graph
 	\end{itemize}
 }
@@ -98,14 +102,14 @@
 	\begin{itemize}
 		\item \textbf{Smaller size of the network stack}\medskip
 		\item \textbf{Network stack reconfiguration during runtime}\medskip
-		\item Processing elements need no a-priori knowledge about their "neighboring" elements\medskip
+		\item Functional Blocks need no a-priori knowledge about their "neighbors"\medskip
 		\item Easier to adapt new technologies and protocols\medskip
 		\item Application developers do not need to care about underlying addressing schemes, i.e. IPv4 versus IPv6\medskip
 		\item \textbf{Not only suited for Internet!}
 	\end{itemize}
 }
 
-\section{Motivation}
+\subsection{Motivation}
 \frame {
 	\frametitle{\textcolor{red2}{Motivation}}
 	\bigskip
@@ -116,13 +120,13 @@
 		\item Implementation of ANA rather resource-intensive, lightweight \newline redesign is needed\medskip
 		\item \textit{Short example:}\medskip
 		\begin{itemize}
-			\item Currently, packets are being copied between Functional Blocks
+			\item Currently, packets are being copied between Functional Blocks\medskip
 			\item Can be avoided to save CPU processing resources
 		\end{itemize}
 	\end{itemize}
 }
 
-\section{Aims of this thesis}
+\subsection{Aims of this thesis}
 \frame {
 	\frametitle{\textcolor{red2}{Aims of this thesis}}
 	\bigskip
@@ -137,35 +141,92 @@
 	\end{itemize}
 }
 
-\section{Fundamental changes in LANA}
+\section{Architectural Changes}
+\subsection{Fundamental changes in LANA}
 \frame {
-	\frametitle{\textcolor{red2}{Fundamental changes in LANA}}
-	% core machinery
+	\frametitle{\textcolor{red2}{Fundamental changes in LANA \newline Core Machinery}}
+	\bigskip
+	\begin{tabular}{p{0.22\textwidth} p{0.35\textwidth} p{0.35\textwidth}}
+	\arrayrulecolor{gray}
+		\textbf{Criterion} & \textbf{Current implementation} & \textbf{New implementation}\\[1pt]
+		\hline\\[-2.1ex]
+		\textit{Message passing between FBs}                       & Memory is copied      & Memory is referenced\\[1pt]
+		\hline\\[-2.1ex]
+		\textit{API}                         & 3 Layers              & 1 Layer\\[1pt]
+		\hline\\[-2.1ex]
+		\textit{Threads\footnotemark[0]}     & 1 FB $\hat{=}$ 1 Thread     & "1 CPU $\hat{=}$ 1 Thread"\\[1pt]
+		\hline\\[-2.1ex]
+		\textit{Centrality\footnotemark[0]}  & Central MINMEX        & Cache-friendly, decentralized\\[1pt]
+		\hline\\[-2.1ex]
+		\textit{Address space}               & User- and Kernelspace & Kernelspace\\
+	\end{tabular}
+	\footnotetext{under the assumption that multiple CPUs are used}
 }
 
 \frame {
-	\frametitle{\textcolor{red2}{Fundamental changes in LANA}}
-	% architectural changes
+	\frametitle{\textcolor{red2}{Fundamental changes in LANA \newline Architectural changes}}
+	\bigskip
+	\begin{itemize}
+		\item New VLink layer for \textbf{virtual networking devices} and \newline \textbf{virtual networks}\medskip
+		\item Network stack changes announced via \textbf{Functional Block Notifier}\medskip
+		\item Better usage of \textbf{optimized and matured Kernel-APIs}\medskip
+		\item Two central userspace tools (\textit{vlink, fbctl}) for administration\medskip
+		\item Integration into \textbf{Linux Socket API}
+	\end{itemize}
 }
 
-\section{Architecture overview}
+\subsection{Architecture overview}
 \frame {
 	\frametitle{\textcolor{red2}{Architecture overview}}
+	% todo
 }
 
 \section{Performance Evaluation and Testing Tools}
 \frame {
 	\frametitle{\textcolor{red2}{Performance Evaluation and \newline Testing Tools}}
+	% todo: images
+	\bigskip
+	\begin{itemize}
+		\item \textbf{Measurement example scenario} (fig. 1)\medskip
+		\item Based on the \textbf{netsniff-ng networking toolkit} [5]\medskip
+		\item Is being extended with \textbf{trafgen}, a packet generator\medskip
+		\begin{itemize}
+			\item Used for performance evaluation, stress-testing, \newline debugging, and the development of LANA\medskip
+			\item Uses high-performance Zero-Copy Linux kernel API\medskip
+			\item First evaluation shows maximum 422.000 pps (fig. 2, \newline 64 Byte, Gigabit-Ethernet, 2.6 Ghz machine)\medskip
+		\end{itemize}
+		\item \textbf{ifpps} used to gather kernel networking statistics
+	\end{itemize}
 }
 
 \section{Open Questions}
 \frame {
 	\frametitle{\textcolor{red2}{Open Questions}}
+	\bigskip
+	\begin{itemize}
+		\item What about Userspace Functional Blocks?\medskip
+		\item How to find the correct path for network stack traversal?
+	\end{itemize}
 }
 
 \section{Project Plan}
 \frame {
 	\frametitle{\textcolor{red2}{Project Plan}}
+	\bigskip
+	\bigskip
+	\bigskip
+	\begin{itemize}
+		\item Introductory reading, setup of work environment: \textcolor{green}{\textbf{done}}
+		\item ANA compilation, test run, written own 'Brick': \textcolor{green}{\textbf{done}}
+		\item Architecture design: \textcolor{orange}{\textbf{in progress}}
+		\item Implementation of core components: \textcolor{orange}{\textbf{in progress}}
+		\item Implementation of 'Functional Blocks': \textcolor{red}{\textbf{to do}}
+		\item Testing, debugging: \textcolor{orange}{\textbf{in progress}}
+		\item Userspace tools, example applications and manpages: \textcolor{orange}{\textbf{in progress}}
+		\item Literature study: \textcolor{orange}{\textbf{in progress}}
+		\item Performance evaluation: \textcolor{orange}{\textbf{in progress}}
+		\item Final report: \textcolor{red}{\textbf{to do}}
+	\end{itemize}
 }
 
 \section{Questions}
