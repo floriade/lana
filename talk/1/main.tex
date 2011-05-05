@@ -46,6 +46,15 @@
 	\titlepage
 }
 
+
+\frame {
+	\frametitle{\textcolor{red2}{ETH Zurich}}
+	\begin{center}
+		\hspace*{-40pt}
+		\includegraphics[width=0.9\textwidth]{img/eth.png} \footnotesize{[Src: flickr.com]}
+	\end{center}
+}
+
 \frame {
 	\frametitle{\textcolor{red2}{Communication Systems Group, \newline ETH Zurich}}
 	\bigskip
@@ -71,6 +80,10 @@
 \frame {
 	\frametitle{\textcolor{red2}{Introduction}}
 	\bigskip
+	\bigskip
+	\bigskip
+	\bigskip
+	\bigskip
 	\begin{itemize}
 		\item Thesis in \textbf{context of the EPiCS} research project [2]\medskip
 		\begin{itemize}
@@ -80,6 +93,10 @@
 		\end{itemize}
 		\item For communication purposes, the \textbf{Autonomic Network Architecture (ANA)} [3] will be used
 	\end{itemize}
+
+	\vspace*{-20pt}
+	\hspace*{+200pt}
+	\includegraphics[width=0.35\textwidth]{img/ana.pdf}
 }
 
 \subsection{Basics of ANA}
@@ -130,6 +147,8 @@
 \frame {
 	\frametitle{\textcolor{red2}{Aims of this thesis}}
 	\bigskip
+	\bigskip
+	\bigskip
 	\begin{itemize}
 		\item \textbf{Lightweight redesign and implementation of ANA (LANA)}\medskip
 		\item \textit{Requirements:}\medskip
@@ -139,12 +158,16 @@
 			\item Functional Block adding/removal/swapping during runtime
 		\end{itemize}
 	\end{itemize}
+
+	\hspace*{+200pt}
+	\includegraphics[width=0.35\textwidth]{img/ml605.png}
 }
 
 \section{Architectural Changes}
 \subsection{Fundamental changes in LANA}
 \frame {
 	\frametitle{\textcolor{red2}{Fundamental changes in LANA \newline Core Machinery}}
+	\bigskip
 	\bigskip
 	\begin{tabular}{p{0.22\textwidth} p{0.35\textwidth} p{0.35\textwidth}}
 	\arrayrulecolor{gray}
@@ -154,17 +177,22 @@
 		\hline\\[-2.1ex]
 		\textit{API}                         & 3 Layers              & 1 Layer\\[1pt]
 		\hline\\[-2.1ex]
-		\textit{Threads\footnotemark[0]}     & 1 FB $\hat{=}$ 1 Thread     & "1 CPU $\hat{=}$ 1 Thread"\\[1pt]
+		\textit{Threads\footnotemark[1]}     & 1 FB $\hat{=}$ 1 Thread     & "1 CPU $\hat{=}$ 1 Thread"\\[1pt]
 		\hline\\[-2.1ex]
-		\textit{Centrality\footnotemark[0]}  & Central MINMEX        & Cache-friendly, decentralized\\[1pt]
+		\textit{Centrality\footnotemark[1]}  & Central MINMEX        & Cache-friendly, decentralized\\[1pt]
 		\hline\\[-2.1ex]
 		\textit{Address space}               & User- and Kernelspace & Kernelspace\\
 	\end{tabular}
-	\footnotetext{under the assumption that multiple CPUs are used}
+
+	\vspace*{-30pt}
+	\hspace*{+280pt}
+	\includegraphics[width=0.15\textwidth]{img/tux.png}
+	\footnotetext[1]{under the assumption that multiple CPUs are used}
 }
 
 \frame {
 	\frametitle{\textcolor{red2}{Fundamental changes in LANA \newline Architectural changes}}
+	\bigskip
 	\bigskip
 	\begin{itemize}
 		\item New VLink layer for \textbf{virtual networking devices} and \newline \textbf{virtual networks}\medskip
@@ -173,18 +201,24 @@
 		\item Two central userspace tools (\textit{vlink, fbctl}) for administration\medskip
 		\item Integration into \textbf{Linux Socket API}
 	\end{itemize}
+
+	\vspace*{-30pt}
+	\hspace*{+280pt}
+	\includegraphics[width=0.15\textwidth]{img/tux.png}
 }
 
 \subsection{Architecture overview}
 \frame {
 	\frametitle{\textcolor{red2}{Architecture overview}}
-	% todo
+	\begin{center}
+		\includegraphics[width=0.73\textwidth]{img/arch.png}
+	\end{center}
 }
 
 \section{Performance Evaluation and Testing Tools}
 \frame {
 	\frametitle{\textcolor{red2}{Performance Evaluation and \newline Testing Tools}}
-	% todo: images
+	\bigskip
 	\bigskip
 	\begin{itemize}
 		\item \textbf{Measurement example scenario} (fig. 1)\medskip
@@ -192,11 +226,20 @@
 		\item Is being extended with \textbf{trafgen}, a packet generator\medskip
 		\begin{itemize}
 			\item Used for performance evaluation, stress-testing, \newline debugging, and the development of LANA\medskip
-			\item Uses high-performance Zero-Copy Linux kernel API\medskip
-			\item First evaluation shows maximum 422.000 pps (fig. 2, \newline 64 Byte, Gigabit-Ethernet, 2.6 Ghz machine)\medskip
+			\item Uses high-performance Zero-Copy Linux API\medskip
+			\item First evaluation shows maximum 422.000 pps \newline (fig. 2, 64 Byte, Gigabit-Ethernet, 2.6 Ghz)\medskip
 		\end{itemize}
-		\item \textbf{ifpps} used to gather kernel networking statistics
+		\item \textbf{ifpps} used to gather kernel networking statistics\bigskip
 	\end{itemize}
+
+	\vspace*{-180pt}
+	\hspace*{+245pt}
+	\begin{minipage}[h]{0.3\textwidth}
+		\begin{flushright}
+			\includegraphics[width=0.9\textwidth]{img/scen.png}\\\medskip
+			\includegraphics[width=\textwidth]{img/tx.png}
+		\end{flushright}
+	\end{minipage}
 }
 
 \section{Open Questions}
@@ -245,15 +288,16 @@
 	\bigskip
 	\bigskip
 	\medskip
-	\begin{description}
-		\item[ 1 ]\textbf{CSG, ETH Zurich}, \textcolor{blue}{\url{http://www.csg.ethz.ch/}} (3/2011)\medskip
-		\item[ 2 ]\textbf{EPiCS project}, \textcolor{blue}{\url{http://www.epics-project.eu/project.html}} (3/2011)\medskip
-		\item[ 3 ]\textbf{ANA project}, \textcolor{blue}{\url{http://www.ana-project.org/}} (3/2011)\medskip
-		\item[ 4 ]\textbf{Reconfigurable nodes for future networks}, A. Keller, B. Plattner,
+	\vspace*{-10pt}
+	\begin{itemize}
+		\item [1]\textbf{CSG, ETH Zurich}, \textcolor{blue}{\url{http://www.csg.ethz.ch/}} (3/2011)\medskip
+		\item [2]\textbf{EPiCS project}, \textcolor{blue}{\url{http://www.epics-project.eu/}} (3/2011)\medskip
+		\item [3]\textbf{ANA project}, \textcolor{blue}{\url{http://www.ana-project.org/}} (3/2011)\medskip
+		\item [4]\textbf{Reconfigurable nodes for future networks}, A. Keller, B. Plattner,
 			E. Lübbers, M. Platzner, and C. Plessl in Proc. IEEE Globecom Workshop
 			on Network of the Future (FutureNet), pages 372–376. IEEE, Dec. 2010\medskip
-		\item[ 5 ]\textbf{netsniff-ng}, \textcolor{blue}{\url{http://www.netsniff-ng.org/}} (3/2011)
-	\end{description}
+		\item [5]\textbf{netsniff-ng}, \textcolor{blue}{\url{http://www.netsniff-ng.org/}} (3/2011)
+	\end{itemize}
 }
 
 \end{document}
