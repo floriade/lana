@@ -89,7 +89,7 @@
 		\begin{itemize}
 			\item Concepts and foundations for self-aware and self-expressive systems\medskip
 			\item Hardware/software platform technologies for autonomic compute nodes\medskip
-			\item Self-aware network architectures\medskip
+			\item Self-aware network architecture\medskip
 		\end{itemize}
 		\item For communication purposes, the \textbf{Autonomic Network Architecture (ANA)} [3] will be used
 	\end{itemize}
@@ -111,6 +111,18 @@
 		\item Results in a graph of Functional Blocks where the edges represent communication connections\medskip
 		\item Packets traverse specific paths of this graph
 	\end{itemize}
+}
+
+\frame {
+	\frametitle{\textcolor{red2}{Basic idea of ANA}}
+	\bigskip
+	\bigskip
+	\bigskip
+	\begin{center}
+		\includegraphics[width=0.20\textwidth]{img/stack_normal.pdf}
+		\hspace*{10pt}
+		\includegraphics[width=0.20\textwidth]{img/ana_stack.pdf}
+	\end{center}
 }
 
 \frame {
@@ -223,7 +235,7 @@
 	\begin{itemize}
 		\item \textbf{Measurement example scenario} (fig. 1)\medskip
 		\item Based on the \textbf{netsniff-ng networking toolkit} [5]\medskip
-		\item Is being extended with \textbf{trafgen}, a packet generator\medskip
+		\item Extended with \textbf{trafgen}, a packet generator\medskip
 		\begin{itemize}
 			\item Used for performance evaluation, stress-testing, \newline debugging, and the development of LANA\medskip
 			\item Uses high-performance Zero-Copy Linux API\medskip
