@@ -13,6 +13,6 @@ echo "-1" > /proc/net/lana/ppesched
 sleep 1
 
 rmmod fb_dummy
-rmmod sd_rr
+rmmod sd_single
 rmmod lana
 

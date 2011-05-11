@@ -1,7 +1,7 @@
 #!/bin/sh
 
 insmod lana.ko
-insmod sd_rr.ko
+insmod sd_single.ko
 insmod fb_dummy.ko
 
 ../usr/fbctl add fb1 dummy

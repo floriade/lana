@@ -66,6 +66,7 @@ int ppesched_discipline_register(struct ppesched_discipline *pd)
 			rcu_assign_pointer(pdt[i], pd);
 			if (unlikely(pc == -1)) {
 				pc = i;
+				smp_wmb();
 				__module_get(pd->owner);
 			}
 			return 0;
@@ -80,9 +81,10 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 	int i;
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (rcu_dereference_raw(pdt[i]) == pd) {
-			pdt[i] = NULL;
+			rcu_assign_pointer(pdt[i], NULL);
 			if (i == pc) {
 				pc = -1;
+				smp_wmb();
 				module_put(pd->owner);
 			}
 			break;
@@ -103,7 +105,7 @@ static int ppesched_procfs_read(char *page, char **start, off_t offset,
 		       "none");
 	len += sprintf(page + len, "name addr id\n");
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (pdt[i])
+		if (rcu_dereference_raw(pdt[i]))
 			len += sprintf(page + len, "%s %p %d\n",
 				       rcu_dereference_raw(pdt[i])->name,
 				       rcu_dereference_raw(pdt[i]), i);
@@ -134,6 +136,7 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		ret = -EINVAL;
 		goto out;
 	}
+
 	if (res >= 0 && !rcu_dereference_raw(pdt[res])) {
 		ret = -EINVAL;
 		goto out;
@@ -143,6 +146,7 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 	pc = res;
 	if (pc != -1)
 		__module_get(rcu_dereference_raw(pdt[res])->owner);
+	smp_wmb();
 out:
 	kfree(discipline);
 	return ret;
