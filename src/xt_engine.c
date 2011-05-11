@@ -49,12 +49,15 @@ static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
-	return atomic64_read(&ppe->load) != 0;
+	return ppe->load != 0;
 }
 
 static inline void ppe_queues_reduce_load(struct worker_engine *ppe)
 {
-	atomic64_dec(&ppe->load);
+	unsigned long old = ppe->load;
+	ppe->load--;
+	if (ppe->load > old)
+		ppe->load = 0;
 }
 
 static int process_packet(struct sk_buff *skb, enum path_type dir)
@@ -140,8 +143,7 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	len += sprintf(page + len, "engine: %p\n", ppe);
 	len += sprintf(page + len, "cpu: %u, numa node: %d\n",
 		       ppe->cpu, cpu_to_node(ppe->cpu));
-	len += sprintf(page + len, "load: %ld\n",
-		       atomic64_read(&ppe->load));
+	len += sprintf(page + len, "load: %ld\n", ppe->load);
 	len += sprintf(page + len, "hrt: %llu us\n",
 		       ktime_us_delta(ppe->timel, ppe->timef));
 	for (i = 0; i < NUM_TYPES; ++i) {
@@ -235,7 +237,7 @@ int init_worker_engines(void)
 		ret = init_ppe_squeue(&ppe->inqs, ppe->cpu);
 		if (ret < 0)
 			break;
-		atomic64_set(&ppe->load, 0);
+		ppe->load = 0;
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe->proc = create_proc_read_entry(name, 0400, lana_proc_dir,

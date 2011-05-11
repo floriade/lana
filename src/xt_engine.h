@@ -51,7 +51,7 @@ struct worker_engine {
 	struct task_struct *thread;
 	struct ppe_squeue inqs;
 	wait_queue_head_t wait_queue;
-	atomic64_t load;
+	unsigned long load;
 	ktime_t timef, timel;
 } ____cacheline_aligned_in_smp;
 
@@ -64,7 +64,7 @@ static inline void enqueue_egress_on_engine(struct sk_buff *skb,
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
 	skb_queue_tail(&ppe->inqs.ptrs[TYPE_EGRESS]->queue, skb);
-	atomic64_inc(&ppe->load);
+	ppe->load++;
 }
 
 static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
@@ -72,7 +72,7 @@ static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
 	skb_queue_tail(&ppe->inqs.ptrs[TYPE_INGRESS]->queue, skb);
-	atomic64_inc(&ppe->load);
+	ppe->load++;
 }
 
 static inline void enqueue_on_engine(struct sk_buff *skb,
@@ -81,7 +81,7 @@ static inline void enqueue_on_engine(struct sk_buff *skb,
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
 	skb_queue_tail(&ppe->inqs.ptrs[type]->queue, skb);
-	atomic64_inc(&ppe->load);
+	ppe->load++;
 }
 
 static inline void wake_engine(unsigned int cpu)
