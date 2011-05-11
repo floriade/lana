@@ -49,7 +49,7 @@ static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
-	return ppe->load > 1;
+	return ppe->load != 0;
 }
 
 static inline void ppe_queues_reduce_load(struct worker_engine *ppe)
@@ -104,15 +104,14 @@ static int engine_thread(void *arg)
 		}
 
 		ppeq = next_filled_ppe_queue(ppeq);
+		while ((skb = skb_dequeue(&ppeq->queue)) == NULL);
 		ppe_queues_reduce_load(ppe);
 
-		skb = skb_dequeue(&ppeq->queue);
 		if (skb_is_time_marked_first(skb))
 			ppe->timef = ktime_get();
+		ret = process_packet(skb, ppeq->type);
 		if (skb_is_time_marked_last(skb))
 			ppe->timel = ktime_get();
-
-		ret = process_packet(skb, ppeq->type);
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
