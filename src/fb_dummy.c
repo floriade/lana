@@ -13,6 +13,8 @@
 #include <linux/spinlock.h>
 #include <linux/notifier.h>
 #include <linux/rcupdate.h>
+#include <linux/seqlock.h>
+#include <linux/percpu.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -22,22 +24,30 @@
 
 struct fb_dummy_priv {
 	idp_t port[NUM_TYPES];
-};
+	seqlock_t lock;
+} ____cacheline_aligned;
 
 static struct fblock_ops fb_dummy_ops;
 
 static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 			  enum path_type *dir)
 {
-	struct fb_dummy_priv *fb_priv;
+	unsigned int seq;
+	struct fb_dummy_priv __percpu *fb_priv_cpu;
 
 	rcu_read_lock();
-	fb_priv = rcu_dereference_raw(fb->private_data);
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
+	rcu_read_unlock();
+
 #ifdef __DEBUG
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 #endif
-	write_next_idp_to_skb(skb, fb->idp, fb_priv->port[*dir]);
-	rcu_read_unlock();
+
+	do {
+		seq = read_seqbegin(&fb_priv_cpu->lock);
+		write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
+	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+
 	return PPE_SUCCESS;
 }
 
@@ -45,12 +55,15 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 			  void *args)
 {
 	int ret = NOTIFY_OK;
+	unsigned int cpu;
 	struct fblock *fb;
-	struct fb_dummy_priv *fb_priv;
+	struct fb_dummy_priv __percpu *fb_priv;
 
 	rcu_read_lock();
-	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier,
+					      nb)->self);
 	fb_priv = rcu_dereference_raw(fb->private_data);
+	rcu_read_unlock();
 
 #ifdef __DEBUG
 	printk("Got event %lu on %p!\n", cmd, fb);
@@ -59,16 +72,32 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		if (fb_priv->port[msg->dir] == IDP_UNKNOWN)
-			fb_priv->port[msg->dir] = msg->idp;
-		else
+		if (fb_priv->port[msg->dir] == IDP_UNKNOWN) {
+			get_online_cpus();
+			for_each_online_cpu(cpu) {
+				struct fb_dummy_priv *fb_priv_cpu;
+				fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = msg->idp;
+				write_sequnlock(&fb_priv_cpu->lock);
+			}
+			put_online_cpus();
+		} else
 			ret = NOTIFY_BAD;
 		} break;
 	case FBLOCK_UNBIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		if (fb_priv->port[msg->dir] == msg->idp)
-			fb_priv->port[msg->dir] = IDP_UNKNOWN;
-		else
+		if (fb_priv->port[msg->dir] == msg->idp) {
+			get_online_cpus();
+			for_each_online_cpu(cpu) {
+				struct fb_dummy_priv *fb_priv_cpu;
+				fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
+				write_sequnlock(&fb_priv_cpu->lock);
+			}
+			put_online_cpus();
+		} else
 			ret = NOTIFY_BAD;
 		} break;
 	case FBLOCK_SET_OPT: {
@@ -79,24 +108,34 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 		break;
 	}
 
-	rcu_read_unlock();
 	return ret;
 }
 
 static struct fblock *fb_dummy_ctor(char *name)
 {
 	int i, ret = 0;
+	unsigned int cpu;
 	struct fblock *fb;
-	struct fb_dummy_priv *fb_priv;
+	struct fb_dummy_priv __percpu *fb_priv;
 
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
 		return NULL;
-	fb_priv = kmalloc(sizeof(*fb_priv), GFP_ATOMIC);
+
+	fb_priv = alloc_percpu(struct fb_dummy_priv);
 	if (!fb_priv)
 		goto err;
-	for (i = 0; i < NUM_TYPES; ++i)
-		fb_priv->port[i] = IDP_UNKNOWN;
+
+	get_online_cpus();
+	for_each_online_cpu(cpu) {
+		struct fb_dummy_priv *fb_priv_cpu;
+		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		seqlock_init(&fb_priv_cpu->lock);
+		for (i = 0; i < NUM_TYPES; ++i)
+			fb_priv_cpu->port[i] = IDP_UNKNOWN;
+	}
+	put_online_cpus();
+
 	ret = init_fblock(fb, name, fb_priv, &fb_dummy_ops);
 	if (ret)
 		goto err2;
@@ -108,7 +147,7 @@ static struct fblock *fb_dummy_ctor(char *name)
 err3:
 	cleanup_fblock_ctor(fb);
 err2:
-	kfree(fb_priv);
+	free_percpu(fb_priv);
 err:
 	kfree_fblock(fb);
 	return NULL;
@@ -116,7 +155,7 @@ err:
 
 static void fb_dummy_dtor(struct fblock *fb)
 {
-	kfree(rcu_dereference_raw(fb->private_data));
+	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
 }
 
