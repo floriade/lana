@@ -60,9 +60,8 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	struct fb_dummy_priv __percpu *fb_priv;
 
 	rcu_read_lock();
-	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier,
-					      nb)->self);
-	fb_priv = rcu_dereference_raw(fb->private_data);
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
+	fb_priv = (struct fb_dummy_priv __percpu *) rcu_dereference_raw(fb->private_data);
 	rcu_read_unlock();
 
 #ifdef __DEBUG
@@ -72,33 +71,38 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		if (fb_priv->port[msg->dir] == IDP_UNKNOWN) {
-			get_online_cpus();
-			for_each_online_cpu(cpu) {
-				struct fb_dummy_priv *fb_priv_cpu;
-				fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_dummy_priv *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == IDP_UNKNOWN) {
 				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = msg->idp;
 				write_sequnlock(&fb_priv_cpu->lock);
+			} else {
+				ret = NOTIFY_BAD;
+				break;
 			}
-			put_online_cpus();
-		} else
-			ret = NOTIFY_BAD;
+		}
+		put_online_cpus();
 		} break;
 	case FBLOCK_UNBIND_IDP: {
 		struct fblock_bind_msg *msg = args;
-		if (fb_priv->port[msg->dir] == msg->idp) {
-			get_online_cpus();
-			for_each_online_cpu(cpu) {
-				struct fb_dummy_priv *fb_priv_cpu;
-				fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_dummy_priv *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == msg->idp) {
 				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
 				write_sequnlock(&fb_priv_cpu->lock);
+			} else {
+				ret = NOTIFY_BAD;
+				break;
 			}
 			put_online_cpus();
-		} else
-			ret = NOTIFY_BAD;
+		}
+		put_online_cpus();
 		} break;
 	case FBLOCK_SET_OPT: {
 		struct fblock_opt_msg *msg = args;

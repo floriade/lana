@@ -637,7 +637,7 @@ struct fblock *alloc_fblock(gfp_t flags)
 }
 EXPORT_SYMBOL_GPL(alloc_fblock);
 
-int init_fblock(struct fblock *fb, char *name, void *priv,
+int init_fblock(struct fblock *fb, char *name, void __percpu *priv,
 		struct fblock_ops *ops)
 {
 	write_lock(&fb->lock);

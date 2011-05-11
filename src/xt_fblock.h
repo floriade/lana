@@ -85,7 +85,7 @@ struct fblock_subscrib {
 
 struct fblock {
 	char name[FBNAMSIZ];
-	void *private_data;
+	void __percpu *private_data;
 	struct fblock_ops *ops;
 	struct fblock_factory *factory;
 	struct fblock_notifier *notifiers;
@@ -106,7 +106,7 @@ extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
 /* Initialize/cleanup a fblock object. */
-extern int init_fblock(struct fblock *fb, char *name, void *priv,
+extern int init_fblock(struct fblock *fb, char *name, void __percpu *priv,
 		       struct fblock_ops *ops);
 extern void cleanup_fblock(struct fblock *fb);
 extern void cleanup_fblock_ctor(struct fblock *fb);
