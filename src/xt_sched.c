@@ -41,6 +41,10 @@ int ppesched_init(void)
 		spin_unlock_irqrestore(&ppesched_lock, flags);
 		return -ENOENT;
 	}
+	if (!ppesched_discipline_table[ppesched_current]->ops->discipline_init) {
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		return 0;
+	}
 	ret = ppesched_discipline_table[ppesched_current]->ops->discipline_init();
 	spin_unlock_irqrestore(&ppesched_lock, flags);
 	return ret;
@@ -68,6 +72,10 @@ void ppesched_cleanup(void)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&ppesched_lock, flags);
+	if (!ppesched_discipline_table[ppesched_current]->ops->discipline_cleanup) {
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		return;
+	}
 	ppesched_discipline_table[ppesched_current]->ops->discipline_cleanup();
 	spin_unlock_irqrestore(&ppesched_lock, flags);
 }

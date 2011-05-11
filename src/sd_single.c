@@ -20,25 +20,14 @@
 /* TODO: change via procfs */
 #define RUN_ON_CPU 0
 
-static int ppe_single_init(void)
-{
-	return 0;
-}
-
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
 	enqueue_on_engine(skb, RUN_ON_CPU, dir);
 	return PPE_SUCCESS;
 }
 
-static void ppe_single_cleanup(void)
-{
-}
-
 static struct ppesched_discipline_ops ppe_single_ops __read_mostly = {
-	.discipline_init = ppe_single_init,
 	.discipline_sched = ppe_single_sched,
-	.discipline_cleanup = ppe_single_cleanup,
 };
 
 static struct ppesched_discipline ppe_single __read_mostly = {

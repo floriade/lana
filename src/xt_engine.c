@@ -49,7 +49,7 @@ static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
-	return ppe->load != 0;
+	return ppe->load > 1;
 }
 
 static inline void ppe_queues_reduce_load(struct worker_engine *ppe)
