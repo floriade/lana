@@ -57,8 +57,13 @@ int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 	unsigned long flags;
 	spin_lock_irqsave(&ppesched_lock, flags);
 	if (unlikely(pc == -1)) {
-		kfree_skb(skb);
 		spin_unlock_irqrestore(&ppesched_lock, flags);
+		kfree_skb(skb);
+		return -EIO;
+	}
+	if (unlikely(!pdt[pc]->ops->discipline_sched)) {
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		kfree_skb(skb);
 		return -EIO;
 	}
 	ret = pdt[pc]->ops->discipline_sched(skb, dir);
@@ -71,6 +76,10 @@ void ppesched_cleanup(void)
 {
 	unsigned long flags;
 	spin_lock_irqsave(&ppesched_lock, flags);
+	if (unlikely(pc == -1)) {
+		spin_unlock_irqrestore(&ppesched_lock, flags);
+		return;
+	}
 	if (!pdt[pc]->ops->discipline_cleanup) {
 		spin_unlock_irqrestore(&ppesched_lock, flags);
 		return;
