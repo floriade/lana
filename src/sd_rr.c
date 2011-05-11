@@ -14,14 +14,12 @@
 #include <linux/kernel.h>
 #include <linux/cache.h>
 #include <linux/cpumask.h>
-#include <linux/spinlock.h>
 
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-static unsigned long cpu;
+static volatile unsigned long cpu;
 static unsigned long cpu_max;
-static spinlock_t lock;
 static int initialized = 0;
 
 static int ppe_rr_init(void)
@@ -30,22 +28,16 @@ static int ppe_rr_init(void)
 		return 0;
 	cpu = 0;
 	cpu_max = num_online_cpus();
-	spin_lock_init(&lock);
 	initialized = 1;
 	return 0;
 }
 
 static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 {
-	unsigned long __cpu, flags;
-
-	spin_lock_irqsave(&lock, flags);
-	__cpu = cpu++;
+	cpu++;
 	if (cpu == cpu_max)
 		cpu = 0;
-	spin_unlock_irqrestore(&lock, flags);
-
-	enqueue_on_engine(skb, __cpu, dir);
+	enqueue_on_engine(skb, cpu, dir);
 	return PPE_SUCCESS;
 }
 

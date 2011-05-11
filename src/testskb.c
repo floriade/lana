@@ -51,6 +51,8 @@ static int __init init_fbtestgen_module(void)
 	for (i = 0; i < PKTS; ++i) {
 		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, 1);
 		ppesched_sched(skba[i], TYPE_EGRESS);
+		if (i == 0)
+			wake_engine(0);
 	}
 
 	kfree(skba);
