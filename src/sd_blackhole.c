@@ -17,11 +17,6 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-static int ppe_blackhole_init(void)
-{
-	return 0;
-}
-
 static int ppe_blackhole_sched(struct sk_buff *skb, enum path_type dir)
 {
 	/* ... entering the event horizon! */
@@ -29,14 +24,8 @@ static int ppe_blackhole_sched(struct sk_buff *skb, enum path_type dir)
 	return PPE_SUCCESS;
 }
 
-static void ppe_blackhole_cleanup(void)
-{
-}
-
 static struct ppesched_discipline_ops ppe_blackhole_ops __read_mostly = {
-	.discipline_init = ppe_blackhole_init,
 	.discipline_sched = ppe_blackhole_sched,
-	.discipline_cleanup = ppe_blackhole_cleanup,
 };
 
 static struct ppesched_discipline ppe_blackhole __read_mostly = {

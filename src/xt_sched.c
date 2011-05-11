@@ -18,96 +18,76 @@
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
 #include <linux/skbuff.h>
-#include <linux/spinlock.h>
+#include <linux/rcupdate.h>
 #include <linux/module.h>
 
 #include "xt_sched.h"
 
 #define MAX_SCHED 32
 
-static int ppesched_current = -1;
-static spinlock_t ppesched_lock;
-struct ppesched_discipline *ppesched_discipline_table[MAX_SCHED];
+static volatile int pc = -1;
+struct ppesched_discipline *pdt[MAX_SCHED];
 
 extern struct proc_dir_entry *lana_proc_dir;
 static struct proc_dir_entry *ppesched_proc;
 
 int ppesched_init(void)
 {
-	int ret;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
-	if (unlikely(ppesched_current == -1)) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	if (unlikely(pc == -1))
 		return -ENOENT;
-	}
-	ret = ppesched_discipline_table[ppesched_current]->ops->discipline_init();
-	spin_unlock_irqrestore(&ppesched_lock, flags);
-	return ret;
+	if (rcu_dereference_raw(pdt[pc])->ops->discipline_init)
+		return rcu_dereference_raw(pdt[pc])->ops->discipline_init();
+	return 0;
 }
 EXPORT_SYMBOL_GPL(ppesched_init);
 
-/* ppesched_current must be set previously! */
 int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 {
-	int ret;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
-	if (unlikely(ppesched_current == -1)) {
+	if (unlikely(pc == -1)) {
 		kfree_skb(skb);
-		spin_unlock_irqrestore(&ppesched_lock, flags);
 		return -EIO;
 	}
-	ret = ppesched_discipline_table[ppesched_current]->ops->discipline_sched(skb, dir);
-	spin_unlock_irqrestore(&ppesched_lock, flags);
-	return ret;
+	return rcu_dereference_raw(pdt[pc])->ops->discipline_sched(skb, dir);
 }
 EXPORT_SYMBOL_GPL(ppesched_sched);
 
 void ppesched_cleanup(void)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
-	ppesched_discipline_table[ppesched_current]->ops->discipline_cleanup();
-	spin_unlock_irqrestore(&ppesched_lock, flags);
+	if (rcu_dereference_raw(pdt[pc])->ops->discipline_cleanup)
+		rcu_dereference_raw(pdt[pc])->ops->discipline_cleanup();
 }
 EXPORT_SYMBOL_GPL(ppesched_cleanup);
 
 int ppesched_discipline_register(struct ppesched_discipline *pd)
 {
-	int i, done = 0;
-	spin_lock(&ppesched_lock);
+	int i;
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (!ppesched_discipline_table[i]) {
-			ppesched_discipline_table[i] = pd;
-			if (unlikely(ppesched_current == -1)) {
-				ppesched_current = i;
+		if (!rcu_dereference_raw(pdt[i])) {
+			rcu_assign_pointer(pdt[i], pd);
+			if (unlikely(pc == -1)) {
+				pc = i;
 				__module_get(pd->owner);
 			}
-			done = 1;
-			break;
+			return 0;
 		}
 	}
-	spin_unlock(&ppesched_lock);
-	return done ? 0 : -ENOMEM;
+	return -ENOMEM;
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_register);
 
 void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 {
 	int i;
-	spin_lock(&ppesched_lock);
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (ppesched_discipline_table[i] == pd) {
-			ppesched_discipline_table[i] = NULL;
-			if (i == ppesched_current) {
-				ppesched_current = -1;
+		if (rcu_dereference_raw(pdt[i]) == pd) {
+			pdt[i] = NULL;
+			if (i == pc) {
+				pc = -1;
 				module_put(pd->owner);
 			}
 			break;
 		}
 	}
-	spin_unlock(&ppesched_lock);
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_unregister);
 
@@ -117,19 +97,17 @@ static int ppesched_procfs_read(char *page, char **start, off_t offset,
 	int i;
 	off_t len = 0;
 
-	spin_lock(&ppesched_lock);
 	len += sprintf(page + len, "running: %s\n",
-		       ppesched_current != -1 ?
-		       ppesched_discipline_table[ppesched_current]->name :
+		       pc != -1 ?
+		       rcu_dereference_raw(pdt[pc])->name :
 		       "none");
 	len += sprintf(page + len, "name addr id\n");
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (ppesched_discipline_table[i])
+		if (pdt[i])
 			len += sprintf(page + len, "%s %p %d\n",
-				       ppesched_discipline_table[i]->name,
-				       ppesched_discipline_table[i], i);
+				       rcu_dereference_raw(pdt[i])->name,
+				       rcu_dereference_raw(pdt[i]), i);
 	}
-	spin_unlock(&ppesched_lock);
 
 	*eof = 1;
 	return len;
@@ -138,7 +116,7 @@ static int ppesched_procfs_read(char *page, char **start, off_t offset,
 static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 				 unsigned long count, void *data)
 {
-	int ret, res;
+	int ret = count, res;
 	size_t len;
 	char *discipline;
 
@@ -156,20 +134,15 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		ret = -EINVAL;
 		goto out;
 	}
-	spin_lock(&ppesched_lock);
-	if (res >= 0 && !ppesched_discipline_table[res]) {
-		spin_unlock(&ppesched_lock);
+	if (res >= 0 && !rcu_dereference_raw(pdt[res])) {
 		ret = -EINVAL;
 		goto out;
 	}
-	if (ppesched_current != -1)
-		module_put(ppesched_discipline_table[ppesched_current]->owner);
-	ppesched_current = res;
-	if (ppesched_current != -1)
-		__module_get(ppesched_discipline_table[res]->owner);
-	spin_unlock(&ppesched_lock);
-
-	return count;
+	if (pc != -1)
+		module_put(rcu_dereference_raw(pdt[pc])->owner);
+	pc = res;
+	if (pc != -1)
+		__module_get(rcu_dereference_raw(pdt[res])->owner);
 out:
 	kfree(discipline);
 	return ret;
@@ -177,9 +150,8 @@ out:
 
 int init_ppesched_system(void)
 {
-	ppesched_lock = __SPIN_LOCK_UNLOCKED(ppesched_lock);
-	memset(ppesched_discipline_table, 0,
-	       sizeof(ppesched_discipline_table));
+	memset(pdt, 0,
+	       sizeof(pdt));
 	ppesched_proc = create_proc_entry("ppesched", 0600, lana_proc_dir);
 	if (!ppesched_proc)
 		return -ENOMEM;

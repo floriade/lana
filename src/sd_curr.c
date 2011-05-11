@@ -16,25 +16,14 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-static int ppe_curr_init(void)
-{
-	return 0;
-}
-
 static int ppe_curr_sched(struct sk_buff *skb, enum path_type dir)
 {
 	enqueue_on_engine(skb, smp_processor_id(), dir);
 	return PPE_SUCCESS;
 }
 
-static void ppe_curr_cleanup(void)
-{
-}
-
 static struct ppesched_discipline_ops ppe_curr_ops __read_mostly = {
-	.discipline_init = ppe_curr_init,
 	.discipline_sched = ppe_curr_sched,
-	.discipline_cleanup = ppe_curr_cleanup,
 };
 
 static struct ppesched_discipline ppe_curr __read_mostly = {
