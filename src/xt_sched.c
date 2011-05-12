@@ -17,15 +17,14 @@
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
-#include <linux/spinlock.h>
+#include <linux/rcupdate.h>
 #include <linux/module.h>
 
 #include "xt_sched.h"
 
 #define MAX_SCHED 32
 
-static int pc = -1;
-static spinlock_t ppesched_lock;
+static volatile int pc = -1;
 static struct ppesched_discipline *pdt[MAX_SCHED];
 
 extern struct proc_dir_entry *lana_proc_dir;
@@ -33,68 +32,50 @@ static struct proc_dir_entry *ppesched_proc;
 
 int ppesched_init(void)
 {
-	int ret;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
-	if (unlikely(pc == -1)) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	struct ppesched_discipline *dis;
+	if (unlikely(pc == -1))
 		return -ENOENT;
-	}
-	if (!pdt[pc]->ops->discipline_init) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	dis = rcu_dereference_raw(pdt[pc]);
+	if (!dis->ops->discipline_init)
 		return 0;
-	}
-	ret = pdt[pc]->ops->discipline_init();
-	spin_unlock_irqrestore(&ppesched_lock, flags);
-	return ret;
+	return dis->ops->discipline_init();
 }
 EXPORT_SYMBOL_GPL(ppesched_init);
 
 int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 {
-	int ret;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
+	struct ppesched_discipline *dis;
 	if (unlikely(pc == -1)) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
 		kfree_skb(skb);
 		return -EIO;
 	}
-	if (!pdt[pc]->ops->discipline_sched) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	dis = rcu_dereference_raw(pdt[pc]);
+	if (unlikely(!dis || !dis->ops->discipline_sched)) {
 		kfree_skb(skb);
 		return -EIO;
 	}
-	ret = pdt[pc]->ops->discipline_sched(skb, dir);
-	spin_unlock_irqrestore(&ppesched_lock, flags);
-	return ret;
+	return dis->ops->discipline_sched(skb, dir);
 }
 EXPORT_SYMBOL_GPL(ppesched_sched);
 
 void ppesched_cleanup(void)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
-	if (unlikely(pc == -1)) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	struct ppesched_discipline *dis;
+	if (unlikely(pc == -1))
 		return;
-	}
-	if (!pdt[pc]->ops->discipline_cleanup) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
+	dis = rcu_dereference_raw(pdt[pc]);
+	if (!dis->ops->discipline_cleanup)
 		return;
-	}
-	pdt[pc]->ops->discipline_cleanup();
-	spin_unlock_irqrestore(&ppesched_lock, flags);
+	dis->ops->discipline_cleanup();
 }
 EXPORT_SYMBOL_GPL(ppesched_cleanup);
 
 int ppesched_discipline_register(struct ppesched_discipline *pd)
 {
 	int i, done = 0;
-	spin_lock(&ppesched_lock);
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (!pdt[i]) {
-			pdt[i] = pd;
+		if (!rcu_dereference_raw(pdt[i])) {
+			rcu_assign_pointer(pdt[i], pd);
 			if (unlikely(pc == -1)) {
 				pc = i;
 				barrier();
@@ -104,7 +85,6 @@ int ppesched_discipline_register(struct ppesched_discipline *pd)
 			break;
 		}
 	}
-	spin_unlock(&ppesched_lock);
 	return done ? 0 : -ENOMEM;
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_register);
@@ -112,11 +92,9 @@ EXPORT_SYMBOL_GPL(ppesched_discipline_register);
 void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 {
 	int i;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
 	for (i = 0; i < MAX_SCHED; ++i) {
-		if (pdt[i] == pd) {
-			pdt[i] = NULL;
+		if (rcu_dereference_raw(pdt[i]) == pd) {
+			rcu_assign_pointer(pdt[i], NULL);
 			if (i == pc) {
 				pc = -1;
 				barrier();
@@ -125,7 +103,6 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&ppesched_lock, flags);
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_unregister);
 
@@ -135,19 +112,17 @@ static int ppesched_procfs_read(char *page, char **start, off_t offset,
 	int i;
 	off_t len = 0;
 
-	spin_lock(&ppesched_lock);
 	len += sprintf(page + len, "running: %s\n",
 		       pc != -1 ?
-		       pdt[pc]->name :
+		       rcu_dereference_raw(pdt[pc])->name :
 		       "none");
 	len += sprintf(page + len, "name addr id\n");
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (pdt[i])
 			len += sprintf(page + len, "%s %p %d\n",
-				       pdt[i]->name,
-				       pdt[i], i);
+				       rcu_dereference_raw(pdt[i])->name,
+				       rcu_dereference_raw(pdt[i]), i);
 	}
-	spin_unlock(&ppesched_lock);
 
 	*eof = 1;
 	return len;
@@ -172,17 +147,13 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		goto out;
 	}
 	discipline[len - 1] = 0;
-
 	res = simple_strtol(discipline, NULL, 10);
 	if (res >= MAX_SCHED || res < -1) {
 		ret = -EINVAL;
 		goto out;
 	}
-
-	spin_lock(&ppesched_lock);
 	if (res >= 0) {
 		if (!pdt[res]) {
-			spin_unlock(&ppesched_lock);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -193,7 +164,6 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 	barrier();
 	if (pc != -1)
 		__module_get(pdt[pc]->owner);
-	spin_unlock(&ppesched_lock);
 	ret = len;
 out:
 	kfree(discipline);
@@ -203,8 +173,6 @@ out:
 int init_ppesched_system(void)
 {
 	int i;
-	pc = -1;
-	ppesched_lock = __SPIN_LOCK_UNLOCKED(ppesched_lock);
 	for (i = 0; i < MAX_SCHED; ++i)
 		pdt[i] = NULL;
 
