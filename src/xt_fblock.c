@@ -130,10 +130,8 @@ struct fblock *__search_fblock(idp_t idp)
 {
 	struct fblock *p0;
 	p0 = rcu_dereference_raw(fblmap_head[hash_idp(idp)]);
-	if (unlikely(!p0))
-		return NULL;
 	while (p0) {
-		if (p0->idp == idp) {
+		if (likely(p0->idp == idp)) {
 			get_fblock(p0);
 			return p0;
 		}
