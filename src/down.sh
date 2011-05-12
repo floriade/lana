@@ -10,9 +10,11 @@
 
 echo "-1" > /proc/net/lana/ppesched
 
-sleep 1
+#sleep 1
 
-rmmod fb_dummy
+#rmmod fb_dummy
 rmmod sd_blackhole
 rmmod lana
+
+echo "down"
 

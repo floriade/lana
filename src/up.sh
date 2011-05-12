@@ -2,7 +2,7 @@
 
 insmod lana.ko
 insmod sd_blackhole.ko
-insmod fb_dummy.ko
+#insmod fb_dummy.ko
 
 #../usr/fbctl add fb1 dummy
 #../usr/fbctl add fb2 dummy
@@ -12,3 +12,4 @@ insmod fb_dummy.ko
 
 #insmod testskb.ko
 
+echo "up"

@@ -91,20 +91,20 @@ EXPORT_SYMBOL_GPL(ppesched_cleanup);
 int ppesched_discipline_register(struct ppesched_discipline *pd)
 {
 	int i, done = 0;
-	unsigned long flags;
-	spin_lock_irqsave(&ppesched_lock, flags);
+	spin_lock(&ppesched_lock);
 	for (i = 0; i < MAX_SCHED; ++i) {
 		if (!pdt[i]) {
 			pdt[i] = pd;
 			if (unlikely(pc == -1)) {
 				pc = i;
+				barrier();
 				__module_get(pd->owner);
 			}
 			done = 1;
 			break;
 		}
 	}
-	spin_unlock_irqrestore(&ppesched_lock, flags);
+	spin_unlock(&ppesched_lock);
 	return done ? 0 : -ENOMEM;
 }
 EXPORT_SYMBOL_GPL(ppesched_discipline_register);
@@ -119,6 +119,7 @@ void ppesched_discipline_unregister(struct ppesched_discipline *pd)
 			pdt[i] = NULL;
 			if (i == pc) {
 				pc = -1;
+				barrier();
 				module_put(pd->owner);
 			}
 			break;
@@ -156,7 +157,6 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 				 unsigned long count, void *data)
 {
 	int ret, res;
-	unsigned long flags;
 	size_t len;
 	char *discipline;
 
@@ -172,15 +172,17 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		goto out;
 	}
 	discipline[len - 1] = 0;
-	res = simple_strtol(discipline, &discipline, 10);
+
+	res = simple_strtol(discipline, NULL, 10);
 	if (res >= MAX_SCHED || res < -1) {
 		ret = -EINVAL;
 		goto out;
 	}
-	spin_lock_irqsave(&ppesched_lock, flags);
+
+	spin_lock(&ppesched_lock);
 	if (res >= 0) {
 		if (!pdt[res]) {
-			spin_unlock_irqrestore(&ppesched_lock, flags);
+			spin_unlock(&ppesched_lock);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -188,11 +190,11 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 	if (pc != -1)
 		module_put(pdt[pc]->owner);
 	pc = res;
+	barrier();
 	if (pc != -1)
 		__module_get(pdt[pc]->owner);
-	spin_unlock_irqrestore(&ppesched_lock, flags);
-
-	ret = count;
+	spin_unlock(&ppesched_lock);
+	ret = len;
 out:
 	kfree(discipline);
 	return ret;
@@ -200,8 +202,12 @@ out:
 
 int init_ppesched_system(void)
 {
+	int i;
+	pc = -1;
 	ppesched_lock = __SPIN_LOCK_UNLOCKED(ppesched_lock);
-	memset(pdt, 0, sizeof(pdt));
+	for (i = 0; i < MAX_SCHED; ++i)
+		pdt[i] = NULL;
+
 	ppesched_proc = create_proc_entry("ppesched", 0600, lana_proc_dir);
 	if (!ppesched_proc)
 		return -ENOMEM;
