@@ -129,9 +129,8 @@ EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 struct fblock *__search_fblock(idp_t idp)
 {
 	struct fblock *p0;
-
 	p0 = rcu_dereference_raw(fblmap_head[hash_idp(idp)]);
-	if (!p0)
+	if (unlikely(!p0))
 		return NULL;
 	while (p0) {
 		if (p0->idp == idp) {
@@ -140,7 +139,6 @@ struct fblock *__search_fblock(idp_t idp)
 		}
 		p0 = rcu_dereference_raw(p0->next);
 	}
-
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(__search_fblock);

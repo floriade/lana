@@ -62,8 +62,9 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 	idp_t cont;
 	struct fblock *fb;
 
+	rcu_read_lock();
 	while ((cont = read_next_idp_from_skb(skb))) {
-		fb = search_fblock(cont);
+		fb = __search_fblock(cont);
 		if (unlikely(!fb)) {
 			ret = PPE_ERROR;
 			break;
@@ -73,6 +74,7 @@ static int process_packet(struct sk_buff *skb, enum path_type dir)
 		if (ret == PPE_DROPPED)
 			break;
 	}
+	rcu_read_unlock();
 
 	return ret;
 }
