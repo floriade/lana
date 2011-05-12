@@ -37,7 +37,7 @@ static int __init init_fbtestgen_module(void)
 		if (unlikely(!skba[i]))
 			goto err;
 		skb_put(skba[i], 64);
-		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, 1);
+		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, IDP_UNKNOWN /*1*/);
 	}
 
 	time_mark_skb_first(skba[0]);

@@ -37,22 +37,16 @@ struct ppe_queue {
 	enum path_type type;
 	struct sk_buff_head queue;
 	struct worker_estats stats;
-	struct ppe_queue *next;
-} ____cacheline_aligned;
-
-struct ppe_squeue {
-	struct ppe_queue *head;
-	struct ppe_queue *ptrs[NUM_QUEUES];
-} ____cacheline_aligned;
+};
 
 struct worker_engine {
 	unsigned int cpu;
 	struct proc_dir_entry *proc;
 	struct task_struct *thread;
-	struct ppe_squeue inqs;
+	struct ppe_queue inqs[NUM_QUEUES];
 	wait_queue_head_t wait_queue;
 	ktime_t timef, timel;
-};
+} ____cacheline_aligned;
 
 extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);
@@ -62,14 +56,14 @@ static inline void enqueue_egress_on_engine(struct sk_buff *skb,
 					    unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
-	skb_queue_tail(&ppe->inqs.ptrs[TYPE_EGRESS]->queue, skb);
+	skb_queue_tail(&ppe->inqs[TYPE_EGRESS].queue, skb);
 }
 
 static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
 					     unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
-	skb_queue_tail(&ppe->inqs.ptrs[TYPE_INGRESS]->queue, skb);
+	skb_queue_tail(&ppe->inqs[TYPE_INGRESS].queue, skb);
 }
 
 static inline void enqueue_on_engine(struct sk_buff *skb,
@@ -77,7 +71,7 @@ static inline void enqueue_on_engine(struct sk_buff *skb,
 				     enum path_type type)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
-	skb_queue_tail(&ppe->inqs.ptrs[type]->queue, skb);
+	skb_queue_tail(&ppe->inqs[type].queue, skb);
 }
 
 static inline void wake_engine(unsigned int cpu)
