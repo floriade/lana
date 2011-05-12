@@ -15,6 +15,7 @@
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
 #include <linux/percpu.h>
+#include <linux/prefetch.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -35,19 +36,15 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 	unsigned int seq;
 	struct fb_dummy_priv __percpu *fb_priv_cpu;
 
-	rcu_read_lock();
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-	rcu_read_unlock();
-
 #ifdef __DEBUG
 	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
 #endif
-
+	prefetchw(skb->cb);
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
 		write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
-
 	return PPE_SUCCESS;
 }
 

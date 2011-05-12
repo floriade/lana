@@ -41,23 +41,23 @@ static inline struct ppe_queue *first_ppe_queue(struct worker_engine *ppe)
 
 static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
-	prefetch(ppeq->next);
-	prefetch(ppeq->next->next);
-	prefetch(ppeq->next->next->next);
-	do {
-		ppeq = ppeq->next;
-	} while (skb_queue_empty(&ppeq->queue));
-	return ppeq;
+	ppeq = ppeq->next;
+testq:
+	if (!skb_queue_empty(&ppeq->queue))
+		return ppeq;
+	if (!skb_queue_empty(&ppeq->next->queue))
+		return ppeq->next;
+	ppeq = ppeq->next->next;
+	goto testq;
 }
 
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
-	int i;
-	prefetch(&ppe->inqs.ptrs[TYPE_INGRESS]->queue);
-	prefetch(&ppe->inqs.ptrs[TYPE_EGRESS]->queue);
-	for (i = 0; i < NUM_TYPES; ++i)
-		if (likely(!skb_queue_empty(&ppe->inqs.ptrs[i]->queue)))
-			return 1;
+	/* add new stuff here */
+	if (!skb_queue_empty(&ppe->inqs.ptrs[TYPE_INGRESS]->queue))
+		return 1;
+	if (!skb_queue_empty(&ppe->inqs.ptrs[TYPE_EGRESS]->queue))
+		return 1;
 	return 0;
 }
 
@@ -70,6 +70,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		fb = __search_fblock(cont);
 		if (unlikely(!fb))
 			return PPE_ERROR;
+		/* Called in rcu_read_lock context */
 		ret = fb->ops->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)

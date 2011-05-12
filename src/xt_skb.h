@@ -28,7 +28,8 @@ struct sock_lana_inf {
 static inline void write_next_idp_to_skb(struct sk_buff *skb, idp_t from,
 					 idp_t to)
 {
-	struct sock_lana_inf *sli = SKB_LANA_INF(skb);
+	struct sock_lana_inf *sli;
+	sli = SKB_LANA_INF(skb);
 	sli->idp_dst = to;
 	sli->idp_src = from;
 }
