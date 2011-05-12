@@ -1,0 +1,32 @@
+root@pc-10089:/home/dborkma/tmp/ana-net/src# ./op.sh BR_MISSP_EXEC:100000:0:1:0
+Daemon not running
+Daemon not running
+Event 0: BR_MISSP_EXEC:100000:0:1:0
+Separate options:  cpu
+vmlinux file: ../../../linux-2.6/vmlinux
+Image filter: none
+Call-graph depth: 0
+Using 2.6+ OProfile kernel interface.
+Reading module info.
+Using log file /var/lib/oprofile/samples/oprofiled.log
+Daemon started.
+Profiler running.
+Overflow stats not available
+CPU: Core 2, speed 1596 MHz (estimated)
+Counted BR_MISSP_EXEC events (Branch instructions executed that were mispredicted at execution) with a unit mask of 0x00 (No unit mask) count 100000
+Samples on CPU 0
+Samples on CPU 1
+Samples on CPU 2
+Samples on CPU 3
+warning: could not check that the binary file /home/dborkma/tmp/ana-net/src/fb_dummy.ko has not been modified since the profile was taken. Results may be inaccurate.
+warning: could not check that the binary file /home/dborkma/tmp/ana-net/src/lana.ko has not been modified since the profile was taken. Results may be inaccurate.
+samples  %        samples  %        samples  %        samples  %        app name                 symbol name
+1        100.000  0              0  0              0  0              0  fb_dummy.ko              fb_dummy_netrx
+0              0  1        100.000  1        50.0000  0              0  lana.ko                  search_fblock
+0              0  0              0  1        50.0000  0              0  vmlinux                  cap_netlink_recv
+0              0  0              0  0              0  1        33.3333  vmlinux                  ehci_work
+0              0  0              0  0              0  1        33.3333  vmlinux                  hpet_msi_next_event
+0              0  0              0  0              0  1        33.3333  vmlinux                  tracing_open
+Stopping profiling.
+Killing daemon.
++++ done +++

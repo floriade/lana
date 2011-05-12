@@ -1,7 +1,7 @@
 #!/bin/sh
 
 insmod lana.ko
-insmod sd_single.ko
+insmod sd_rr.ko
 insmod fb_dummy.ko
 
 ../usr/fbctl add fb1 dummy
@@ -41,7 +41,7 @@ echo "-1" > /proc/net/lana/ppesched
 sleep 1
 
 rmmod fb_dummy
-rmmod sd_single
+rmmod sd_rr
 rmmod lana
 
 echo "+++ done +++"
