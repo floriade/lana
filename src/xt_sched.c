@@ -17,7 +17,6 @@
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
 #include <linux/proc_fs.h>
-#include <linux/skbuff.h>
 #include <linux/spinlock.h>
 #include <linux/module.h>
 
@@ -27,7 +26,7 @@
 
 static int pc = -1;
 static spinlock_t ppesched_lock;
-struct ppesched_discipline *pdt[MAX_SCHED];
+static struct ppesched_discipline *pdt[MAX_SCHED];
 
 extern struct proc_dir_entry *lana_proc_dir;
 static struct proc_dir_entry *ppesched_proc;
