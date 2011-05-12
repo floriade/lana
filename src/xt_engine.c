@@ -41,6 +41,9 @@ static inline struct ppe_queue *first_ppe_queue(struct worker_engine *ppe)
 
 static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 {
+	prefetch(ppeq->next);
+	prefetch(ppeq->next->next);
+	prefetch(ppeq->next->next->next);
 	do {
 		ppeq = ppeq->next;
 	} while (skb_queue_empty(&ppeq->queue));
@@ -50,38 +53,34 @@ static inline struct ppe_queue *next_filled_ppe_queue(struct ppe_queue *ppeq)
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
 {
 	int i;
+	prefetch(&ppe->inqs.ptrs[TYPE_INGRESS]->queue);
+	prefetch(&ppe->inqs.ptrs[TYPE_EGRESS]->queue);
 	for (i = 0; i < NUM_TYPES; ++i)
-		if (!skb_queue_empty(&ppe->inqs.ptrs[i]->queue))
+		if (likely(!skb_queue_empty(&ppe->inqs.ptrs[i]->queue)))
 			return 1;
 	return 0;
 }
 
-static int process_packet(struct sk_buff *skb, enum path_type dir)
+static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_DROPPED;
 	idp_t cont;
 	struct fblock *fb;
-
-	rcu_read_lock();
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
-		if (unlikely(!fb)) {
-			ret = PPE_ERROR;
-			break;
-		}
+		if (unlikely(!fb))
+			return PPE_ERROR;
 		ret = fb->ops->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)
-			break;
+			return PPE_DROPPED;
 	}
-	rcu_read_unlock();
-
 	return ret;
 }
 
 static int engine_thread(void *arg)
 {
-	int ret;
+	int ret, need_lock = 0;
 	struct sk_buff *skb;
 	struct ppe_queue *ppeq;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
@@ -92,6 +91,8 @@ static int engine_thread(void *arg)
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
 
+	if (!rcu_read_lock_held())
+		need_lock = 1;
 	ppeq = first_ppe_queue(ppe);
 	while (likely(!kthread_should_stop())) {
 		if (!ppe_queues_have_load(ppe)) {
@@ -104,25 +105,24 @@ static int engine_thread(void *arg)
 		ppeq = next_filled_ppe_queue(ppeq);
 		if (unlikely((skb = skb_dequeue(&ppeq->queue)) == NULL))
 			continue;
-
 		if (skb_is_time_marked_first(skb))
 			ppe->timef = ktime_get();
+		if (need_lock)
+			rcu_read_lock();
 		ret = process_packet(skb, ppeq->type);
+		if (need_lock)
+			rcu_read_unlock();
 		if (skb_is_time_marked_last(skb))
 			ppe->timel = ktime_get();
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
 		ppeq->stats.packets++;
 		ppeq->stats.bytes += skb->len;
-		u64_stats_update_end(&ppeq->stats.syncp);
-
-		if (ret == PPE_DROPPED) {
-			u64_stats_update_begin(&ppeq->stats.syncp);
+		if (ret == PPE_DROPPED)
 			ppeq->stats.dropped++;
-			u64_stats_update_end(&ppeq->stats.syncp);
-		} else if (unlikely(ret == PPE_ERROR)) {
+		else if (unlikely(ret == PPE_ERROR))
 			ppeq->stats.errors++;
-		}
+		u64_stats_update_end(&ppeq->stats.syncp);
 
 		kfree_skb(skb);
 	}
