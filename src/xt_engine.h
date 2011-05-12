@@ -38,12 +38,12 @@ struct ppe_queue {
 	struct sk_buff_head queue;
 	struct worker_estats stats;
 	struct ppe_queue *next;
-} ____cacheline_aligned_in_smp;
+} ____cacheline_aligned;
 
 struct ppe_squeue {
 	struct ppe_queue *head;
 	struct ppe_queue *ptrs[NUM_QUEUES];
-};
+} ____cacheline_aligned;
 
 struct worker_engine {
 	unsigned int cpu;
@@ -52,7 +52,7 @@ struct worker_engine {
 	struct ppe_squeue inqs;
 	wait_queue_head_t wait_queue;
 	ktime_t timef, timel;
-} ____cacheline_aligned_in_smp;
+};
 
 extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);

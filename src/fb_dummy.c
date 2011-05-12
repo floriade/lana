@@ -26,7 +26,7 @@
 struct fb_dummy_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
-} ____cacheline_aligned;
+};
 
 static struct fblock_ops fb_dummy_ops;
 
