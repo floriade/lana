@@ -104,7 +104,8 @@ static int engine_thread(void *arg)
 		}
 
 		ppeq = next_filled_ppe_queue(ppeq);
-		while ((skb = skb_dequeue(&ppeq->queue)) == NULL);
+		if (unlikely((skb = skb_dequeue(&ppeq->queue)) == NULL))
+			continue;
 		ppe_queues_reduce_load(ppe);
 
 		if (skb_is_time_marked_first(skb))
