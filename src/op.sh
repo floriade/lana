@@ -9,9 +9,9 @@ opcontrol --reset
 opcontrol --shutdown
 opcontrol --init
 if [ $# -eq 0 ] ; then
-	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu
+	opcontrol --setup --vmlinux=../../../linux-2.6/vmlinux --separate=cpu
 else
-	opcontrol --setup --vmlinux=../../linux-2.6/vmlinux --separate=cpu --event=$@
+	opcontrol --setup --vmlinux=../../../linux-2.6/vmlinux --separate=cpu --event=$@
 fi
 opcontrol --status
 opcontrol --start
