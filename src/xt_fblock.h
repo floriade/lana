@@ -63,21 +63,21 @@ struct fblock_ops {
 			enum path_type *dir);
 	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
 			void *args);
-};
+} ____cacheline_aligned;
 
 struct fblock_factory {
 	char type[TYPNAMSIZ];
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
-} ____cacheline_aligned;
+};
 
 struct fblock_notifier {
 	struct fblock *self;
 	struct notifier_block nb;
 	struct fblock_notifier *next;
 	idp_t remote;
-} ____cacheline_aligned;
+};
 
 struct fblock_subscrib {
 	struct atomic_notifier_head subscribers;
