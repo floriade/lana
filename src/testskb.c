@@ -25,6 +25,7 @@ static int __init init_fbtestgen_module(void)
 {
 	unsigned long i;
 	struct sk_buff **skba;
+
 	ppesched_init();
 
 	skba = kmalloc(sizeof(*skba) * PKTS, GFP_KERNEL);
@@ -36,6 +37,7 @@ static int __init init_fbtestgen_module(void)
 		if (unlikely(!skba[i]))
 			goto err;
 		skb_put(skba[i], 64);
+		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, 1);
 	}
 
 	time_mark_skb_first(skba[0]);
@@ -48,12 +50,8 @@ static int __init init_fbtestgen_module(void)
 	time_mark_skb_last(skba[PKTS-1-1]);
 	time_mark_skb_last(skba[PKTS-1-0]);
 
-	for (i = 0; i < PKTS; ++i) {
-		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, 1);
+	for (i = 0; i < PKTS; ++i)
 		ppesched_sched(skba[i], TYPE_EGRESS);
-		if (i == 0)
-			wake_engine(0);
-	}
 
 	kfree(skba);
 	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);

@@ -12,3 +12,4 @@ insmod fb_dummy.ko
 
 insmod testskb.ko
 
+echo "up"

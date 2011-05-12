@@ -20,7 +20,7 @@
 static int ppe_blackhole_sched(struct sk_buff *skb, enum path_type dir)
 {
 	/* ... entering the event horizon! */
-	kfree(skb);
+	kfree_skb(skb);
 	return PPE_SUCCESS;
 }
 

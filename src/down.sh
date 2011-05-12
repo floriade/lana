@@ -16,3 +16,5 @@ rmmod fb_dummy
 rmmod sd_single
 rmmod lana
 
+echo "down"
+
