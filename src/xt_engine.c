@@ -66,6 +66,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 	int ret = PPE_DROPPED;
 	idp_t cont;
 	struct fblock *fb;
+	prefetch(skb->cb);
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
 		if (unlikely(!fb))
@@ -75,6 +76,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)
 			return PPE_DROPPED;
+		prefetch(skb->cb);
 	}
 	return ret;
 }
@@ -104,16 +106,15 @@ static int engine_thread(void *arg)
 		}
 
 		ppeq = next_filled_ppe_queue(ppeq);
-		if (unlikely((skb = skb_dequeue(&ppeq->queue)) == NULL))
-			continue;
-		if (skb_is_time_marked_first(skb))
+		skb = skb_dequeue(&ppeq->queue);
+		if (unlikely(skb_is_time_marked_first(skb)))
 			ppe->timef = ktime_get();
 		if (need_lock)
 			rcu_read_lock();
 		ret = process_packet(skb, ppeq->type);
 		if (need_lock)
 			rcu_read_unlock();
-		if (skb_is_time_marked_last(skb))
+		if (unlikely(skb_is_time_marked_last(skb)))
 			ppe->timel = ktime_get();
 
 		u64_stats_update_begin(&ppeq->stats.syncp);
@@ -124,8 +125,6 @@ static int engine_thread(void *arg)
 		else if (unlikely(ret == PPE_ERROR))
 			ppeq->stats.errors++;
 		u64_stats_update_end(&ppeq->stats.syncp);
-
-		kfree_skb(skb);
 	}
 
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "

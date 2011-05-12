@@ -33,6 +33,7 @@ static struct fblock_ops fb_dummy_ops;
 static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 			  enum path_type *dir)
 {
+	int drop = 0;
 	unsigned int seq;
 	struct fb_dummy_priv __percpu *fb_priv_cpu;
 
@@ -44,7 +45,13 @@ static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
 		write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
+		if (fb_priv_cpu->port[*dir] == IDP_UNKNOWN)
+			drop = 1;
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+	if (drop) {
+		kfree_skb(skb);
+		return PPE_DROPPED;
+	}
 	return PPE_SUCCESS;
 }
 
