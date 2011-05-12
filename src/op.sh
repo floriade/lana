@@ -12,9 +12,10 @@ insmod fb_dummy.ko
 
 opcontrol --reset
 opcontrol --shutdown
+rm /root/.oprofile/daemonrc
 opcontrol --init
 if [ $# -eq 0 ] ; then
-	opcontrol --setup --vmlinux=../../../linux-2.6/vmlinux --separate=cpu
+	opcontrol --setup --vmlinux=../../../linux-2.6/vmlinux --separate=cpu --event=CPU_CLK_UNHALTED:100000:0:1:0
 else
 	opcontrol --setup --vmlinux=../../../linux-2.6/vmlinux --separate=cpu --event=$@
 fi
