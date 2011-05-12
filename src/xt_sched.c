@@ -61,7 +61,7 @@ int ppesched_sched(struct sk_buff *skb, enum path_type dir)
 		kfree_skb(skb);
 		return -EIO;
 	}
-	if (unlikely(!pdt[pc]->ops->discipline_sched)) {
+	if (!pdt[pc]->ops->discipline_sched) {
 		spin_unlock_irqrestore(&ppesched_lock, flags);
 		kfree_skb(skb);
 		return -EIO;
@@ -179,16 +179,18 @@ static int ppesched_procfs_write(struct file *file, const char __user *buffer,
 		goto out;
 	}
 	spin_lock_irqsave(&ppesched_lock, flags);
-	if (res >= 0 && !pdt[res]) {
-		spin_unlock_irqrestore(&ppesched_lock, flags);
-		ret = -EINVAL;
-		goto out;
+	if (res >= 0) {
+		if (!pdt[res]) {
+			spin_unlock_irqrestore(&ppesched_lock, flags);
+			ret = -EINVAL;
+			goto out;
+		}
 	}
 	if (pc != -1)
 		module_put(pdt[pc]->owner);
 	pc = res;
 	if (pc != -1)
-		__module_get(pdt[res]->owner);
+		__module_get(pdt[pc]->owner);
 	spin_unlock_irqrestore(&ppesched_lock, flags);
 
 	ret = count;

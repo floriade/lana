@@ -26,6 +26,8 @@ static int ppe_blackhole_sched(struct sk_buff *skb, enum path_type dir)
 
 static struct ppesched_discipline_ops ppe_blackhole_ops __read_mostly = {
 	.discipline_sched = ppe_blackhole_sched,
+	.discipline_init = NULL,
+	.discipline_cleanup = NULL,
 };
 
 static struct ppesched_discipline ppe_blackhole __read_mostly = {

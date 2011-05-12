@@ -25,6 +25,7 @@ static int __init init_fbtestgen_module(void)
 {
 	unsigned long i;
 	struct sk_buff **skba;
+
 	ppesched_init();
 
 	skba = kmalloc(sizeof(*skba) * PKTS, GFP_KERNEL);
