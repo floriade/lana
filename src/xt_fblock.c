@@ -204,7 +204,7 @@ int __fblock_set_option(struct fblock *fb, char *opt_string)
 	fbn.self = fb;
 
 	get_fblock(fb);
-	ret = fb->ops->event_rx(&fbn.nb, FBLOCK_SET_OPT, &msg);
+	ret = fb->event_rx(&fbn.nb, FBLOCK_SET_OPT, &msg);
 	put_fblock(fb);
 
 	return ret;
@@ -313,7 +313,7 @@ int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_EGRESS;
 	msg.idp = fb2->idp;
 	fbn.self = fb1;
-	ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	ret = fb1->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
 	if (ret != NOTIFY_OK) {
 		put_fblock(fb1);
 		put_fblock(fb2);
@@ -323,13 +323,13 @@ int __fblock_bind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_INGRESS;
 	msg.idp = fb1->idp;
 	fbn.self = fb2;
-	ret = fb2->ops->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
+	ret = fb2->event_rx(&fbn.nb, FBLOCK_BIND_IDP, &msg);
 	if (ret != NOTIFY_OK) {
 		/* Release previous binding */
 		msg.dir = TYPE_EGRESS;
 		msg.idp = fb2->idp;
 		fbn.self = fb1;
-		ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+		ret = fb1->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
 		if (ret != NOTIFY_OK)
 			panic("Cannot release previously bound fblock!\n");
 		put_fblock(fb1);
@@ -383,7 +383,7 @@ int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_EGRESS;
 	msg.idp = fb2->idp;
 	fbn.self = fb1;
-	ret = fb1->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	ret = fb1->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
 	if (ret != NOTIFY_OK) {
 		/* We are not bound to fb2 */
 		return -EBUSY;
@@ -392,7 +392,7 @@ int __fblock_unbind(struct fblock *fb1, struct fblock *fb2)
 	msg.dir = TYPE_INGRESS;
 	msg.idp = fb1->idp;
 	fbn.self = fb2;
-	ret = fb2->ops->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
+	ret = fb2->event_rx(&fbn.nb, FBLOCK_UNBIND_IDP, &msg);
 	if (ret != NOTIFY_OK) {
 		/* We are not bound to fb1, but fb1 was bound to us, so only
 		 * release fb1 */
@@ -633,13 +633,11 @@ struct fblock *alloc_fblock(gfp_t flags)
 }
 EXPORT_SYMBOL_GPL(alloc_fblock);
 
-int init_fblock(struct fblock *fb, char *name, void __percpu *priv,
-		struct fblock_ops *ops)
+int init_fblock(struct fblock *fb, char *name, void __percpu *priv)
 {
 	write_lock(&fb->lock);
 	strlcpy(fb->name, name, sizeof(fb->name));
 	rcu_assign_pointer(fb->private_data, priv);
-	fb->ops = ops;
 	fb->others = kmalloc(sizeof(*(fb->others)), GFP_ATOMIC);
 	if (!fb->others)
 		return -ENOMEM;

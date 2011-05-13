@@ -28,8 +28,6 @@ struct fb_dummy_priv {
 	seqlock_t lock;
 };
 
-static struct fblock_ops fb_dummy_ops;
-
 static int fb_dummy_netrx(const struct fblock * const fb,
 			  struct sk_buff * const skb,
 			  enum path_type * const dir)
@@ -145,9 +143,11 @@ static struct fblock *fb_dummy_ctor(char *name)
 	}
 	put_online_cpus();
 
-	ret = init_fblock(fb, name, fb_priv, &fb_dummy_ops);
+	ret = init_fblock(fb, name, fb_priv);
 	if (ret)
 		goto err2;
+	fb->netfb_rx = fb_dummy_netrx;
+	fb->event_rx = fb_dummy_event;
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
@@ -167,11 +167,6 @@ static void fb_dummy_dtor(struct fblock *fb)
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
 }
-
-static struct fblock_ops fb_dummy_ops = {
-	.netfb_rx = fb_dummy_netrx,
-	.event_rx = fb_dummy_event,
-};
 
 static struct fblock_factory fb_dummy_factory = {
 	.type = "dummy",

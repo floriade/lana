@@ -58,16 +58,6 @@ struct fblock_opt_msg {
 
 struct fblock;
 
-struct fblock_ops {
-//	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb,
-//			enum path_type *dir);
-	int (*netfb_rx)(const struct fblock * const fb,
-			struct sk_buff * const skb,
-			enum path_type * const dir);
-	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
-			void *args);
-} ____cacheline_aligned;
-
 struct fblock_factory {
 	char type[TYPNAMSIZ];
 	struct module *owner;
@@ -89,7 +79,11 @@ struct fblock_subscrib {
 struct fblock {
 	char name[FBNAMSIZ];
 	void __percpu *private_data;
-	struct fblock_ops *ops;
+	int (*netfb_rx)(const struct fblock * const fb,
+			struct sk_buff * const skb,
+			enum path_type * const dir);
+	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
+			void *args);
 	struct fblock_factory *factory;
 	struct fblock_notifier *notifiers;
 	struct fblock_subscrib *others;
@@ -109,8 +103,7 @@ extern struct fblock *alloc_fblock(gfp_t flags);
 extern void kfree_fblock(struct fblock *p);
 
 /* Initialize/cleanup a fblock object. */
-extern int init_fblock(struct fblock *fb, char *name, void __percpu *priv,
-		       struct fblock_ops *ops);
+extern int init_fblock(struct fblock *fb, char *name, void __percpu *priv);
 extern void cleanup_fblock(struct fblock *fb);
 extern void cleanup_fblock_ctor(struct fblock *fb);
 
@@ -171,7 +164,7 @@ static inline void init_fblock_subscriber(struct fblock *fb,
 					  struct notifier_block *nb)
 {
 	nb->priority = 0;
-	nb->notifier_call = fb->ops->event_rx;
+	nb->notifier_call = fb->event_rx;
 	nb->next = NULL;
 }
 

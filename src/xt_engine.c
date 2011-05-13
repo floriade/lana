@@ -55,7 +55,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		if (unlikely(!fb))
 			return PPE_ERROR;
 		/* Called in rcu_read_lock context */
-		ret = fb->ops->netfb_rx(fb, skb, &dir);
+		ret = fb->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)
 			return PPE_DROPPED;
