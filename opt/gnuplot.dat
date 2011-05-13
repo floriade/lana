@@ -1,0 +1,23 @@
+# 13.05.2011, commit d5bb49d9b827fbca0cf684fd6e344e1294a710c0
+#
+# Method:
+#  1. put all skbs into queue
+#  2. wake up engine/queue
+#
+# 3 measurements, median taken
+# skb -> fb1 -> fb2 -> fb3 -> drop
+#
+# pkts total,
+#   single (CPU0) in us,
+#     rr (CPU0-CPU1, time from CPU0) in us,
+#       rr (CPU0-CPU3, time from CPU0) in us
+
+    10      7      1      1
+   100     41     34     25
+  1000    395    340    226
+  5000   2996   2378   1317
+ 10000   5252   4213   3132
+ 50000  24166  22401  16048
+100000  51564  44231  28333
+140000  73514  66789  39146
+
