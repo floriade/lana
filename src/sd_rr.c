@@ -8,8 +8,6 @@
  * Subject to the GPL.
  */
 
-/* TODO: fix this mess */
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/cache.h>
@@ -18,38 +16,24 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-static volatile unsigned long cpu;
+static volatile unsigned long cpu = 0;
 static unsigned long cpu_max;
-static int initialized = 0;
 
 static int ppe_rr_init(void)
 {
-	if (likely(initialized))
-		return 0;
-	cpu = 0;
 	cpu_max = num_online_cpus();
-	initialized = 1;
 	return 0;
 }
 
 static int ppe_rr_sched(struct sk_buff *skb, enum path_type dir)
 {
-	cpu++;
-	if (cpu == cpu_max)
-		cpu = 0;
-	enqueue_on_engine(skb, cpu, dir);
+	enqueue_on_engine(skb, cpu++ & (cpu_max - 1), dir);
 	return PPE_SUCCESS;
-}
-
-static void ppe_rr_cleanup(void)
-{
-	initialized = 0;
 }
 
 static struct ppesched_discipline_ops ppe_rr_ops __read_mostly = {
 	.discipline_init = ppe_rr_init,
 	.discipline_sched = ppe_rr_sched,
-	.discipline_cleanup = ppe_rr_cleanup,
 };
 
 static struct ppesched_discipline ppe_rr __read_mostly = {

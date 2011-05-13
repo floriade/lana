@@ -17,13 +17,22 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
+static unsigned long cpu_max;
+
+static int ppe_rand_init(void)
+{
+	cpu_max = num_online_cpus();
+	return 0;
+}
+
 static int ppe_rand_sched(struct sk_buff *skb, enum path_type dir)
 {
-	enqueue_on_engine(skb, (net_random() & (num_online_cpus() - 1)), dir);
+	enqueue_on_engine(skb, net_random() & (cpu_max - 1), dir);
 	return PPE_SUCCESS;
 }
 
 static struct ppesched_discipline_ops ppe_rand_ops __read_mostly = {
+	.discipline_init = ppe_rand_init,
 	.discipline_sched = ppe_rand_sched,
 };
 

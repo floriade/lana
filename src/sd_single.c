@@ -20,9 +20,11 @@
 /* TODO: change via procfs */
 #define RUN_ON_CPU 0
 
+static volatile unsigned long cpu = RUN_ON_CPU;
+
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
-	enqueue_on_engine(skb, RUN_ON_CPU, dir);
+	enqueue_on_engine(skb, cpu, dir);
 	return PPE_SUCCESS;
 }
 
