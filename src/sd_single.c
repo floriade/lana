@@ -81,18 +81,19 @@ out:
 static int __init init_ppe_single_module(void)
 {
 	int ret;
-	ppesched_cpu_proc = create_proc_entry("sched_cpu", 0600,
+	ret = ppesched_discipline_register(&ppe_single);
+	if (ret != 0)
+		return ret;
+	ppesched_cpu_proc = create_proc_entry("sched_cpu", 0666,
 					      sched_proc_dir);
-	if (!ppesched_cpu_proc)
+	if (!ppesched_cpu_proc) {
+		ppesched_discipline_unregister(&ppe_single);
 		return -ENOMEM;
+	}
 	ppesched_cpu_proc->read_proc = ppe_single_procfs_read;
 	ppesched_cpu_proc->write_proc = ppe_single_procfs_write;
-	ret = ppesched_discipline_register(&ppe_single);
-	if (ret) {
-		printk("foooooooo\n");
-		remove_proc_entry("sched_cpu", sched_proc_dir);
-	}
-	return ret;
+	ppesched_cpu_proc->data = NULL;
+	return 0;
 }
 
 static void __exit cleanup_ppe_single_module(void)

@@ -179,6 +179,7 @@ int init_ppesched_system(void)
 		return -ENOMEM;
 	ppesched_proc->read_proc = ppesched_procfs_read;
 	ppesched_proc->write_proc = ppesched_procfs_write;
+	ppesched_proc->data = NULL;
 	return 0;
 }
 EXPORT_SYMBOL_GPL(init_ppesched_system);
