@@ -22,7 +22,6 @@
 
 #include "xt_fblock.h"
 #include "xt_idp.h"
-#include "xt_hash.h"
 #include "xt_critbit.h"
 
 struct idp_elem {
@@ -32,7 +31,7 @@ struct idp_elem {
 } ____cacheline_aligned;
 
 static struct critbit_tree idpmap;
-static RADIX_TREE(fblmap, GFP_ATOMIC);
+RADIX_TREE(fblmap, GFP_ATOMIC);
 static atomic64_t idp_counter;
 static struct kmem_cache *fblock_cache = NULL;
 
@@ -121,17 +120,6 @@ int change_fblock_namespace_mapping(char *name, idp_t new)
 	return ret;
 }
 EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
-
-/* Caller needs to do a put_fblock() after his work is done! */
-/* Called within RCU read lock! */
-struct fblock *__search_fblock(idp_t idp)
-{
-	struct fblock *ret = radix_tree_lookup(&fblmap, idp);
-	if (likely(ret))
-		get_fblock(ret);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(__search_fblock);
 
 struct fblock *search_fblock(idp_t idp)
 {

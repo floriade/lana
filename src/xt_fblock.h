@@ -18,6 +18,7 @@
 #include <linux/rwlock.h>
 #include <linux/skbuff.h>
 #include <linux/notifier.h>
+#include <linux/radix-tree.h>
 
 #include "xt_idp.h"
 
@@ -94,6 +95,20 @@ struct fblock {
 	rwlock_t lock; /* Used in notifiers */
 } ____cacheline_aligned;
 
+extern void free_fblock_rcu(struct rcu_head *rp);
+
+static inline void get_fblock(struct fblock *fb)
+{
+	atomic_inc(&fb->refcnt);
+}
+
+static inline void put_fblock(struct fblock *fb)
+{
+	if (likely(!atomic_dec_and_test(&fb->refcnt)))
+		return;
+	call_rcu(&fb->rcu, free_fblock_rcu);
+}
+
 /*
  * Note: __* variants do not hold the rcu_read_lock!
  */
@@ -122,9 +137,20 @@ extern void unregister_fblock(struct fblock *p);
 extern void unregister_fblock_namespace(struct fblock *p);
 extern void unregister_fblock_namespace_no_rcu(struct fblock *p);
 
+extern struct radix_tree_root fblmap;
+
+/* Caller needs to do a put_fblock() after his work is done! */
+/* Called within RCU read lock! */
+#define __search_fblock(idp)					\
+({								\
+	struct fblock *ret = radix_tree_lookup(&fblmap, idp);	\
+	if (likely(ret))					\
+		get_fblock(ret);				\
+	ret;							\
+})
+
 /* Returns fblock object specified by idp or name. */
 extern struct fblock *search_fblock(idp_t idp);
-extern struct fblock *__search_fblock(idp_t idp);
 extern struct fblock *search_fblock_n(char *name);
 extern struct fblock *__search_fblock_n(char *name);
 
@@ -191,20 +217,6 @@ static inline int notify_fblock_subscribers(struct fblock *us,
 		return -ENOENT;
 	return atomic_notifier_call_chain(&rcu_dereference_raw(us->others)->subscribers,
 					  cmd, arg);
-}
-
-extern void free_fblock_rcu(struct rcu_head *rp);
-
-static inline void get_fblock(struct fblock *fb)
-{
-	atomic_inc(&fb->refcnt);
-}
-
-static inline void put_fblock(struct fblock *fb)
-{
-	if (likely(!atomic_dec_and_test(&fb->refcnt)))
-		return;
-	call_rcu(&fb->rcu, free_fblock_rcu);
 }
 
 extern int init_fblock_tables(void);
