@@ -17,10 +17,9 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-/* TODO: change via procfs */
-#define RUN_ON_CPU 0
-
-static volatile unsigned long cpu = RUN_ON_CPU;
+extern struct proc_dir_entry *sched_proc_dir;
+static struct proc_dir_entry *ppesched_cpu_proc;
+static volatile unsigned long cpu = 0;
 
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
@@ -38,14 +37,68 @@ static struct ppesched_discipline ppe_single __read_mostly = {
 	.owner = THIS_MODULE,
 };
 
+static int ppe_single_procfs_read(char *page, char **start, off_t offset,
+				  int count, int *eof, void *data)
+{
+	off_t len = 0;
+	len += sprintf(page + len, "%lu\n", cpu);
+	*eof = 1;
+	return len;
+}
+
+static int ppe_single_procfs_write(struct file *file, const char __user *buffer,
+				   unsigned long count, void *data)
+{
+	int ret = count, res;
+	size_t len;
+	char *dst_cpu;
+
+	if (count > 64)
+		return -EINVAL;
+	len = count;
+	dst_cpu = kmalloc(len, GFP_KERNEL);
+	if (!dst_cpu)
+		return -ENOMEM;
+	memset(dst_cpu, 0, len);
+	if (copy_from_user(dst_cpu, buffer, len)) {
+		ret = -EFAULT;
+		goto out;
+	}
+	dst_cpu[len - 1] = 0;
+	res = simple_strtol(dst_cpu, NULL, 10);
+	if (res >= num_online_cpus() || res < 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+	cpu = res;
+	barrier();
+	ret = len;
+out:
+	kfree(dst_cpu);
+	return ret;
+}
+
 static int __init init_ppe_single_module(void)
 {
-	return ppesched_discipline_register(&ppe_single);
+	int ret;
+	ppesched_cpu_proc = create_proc_entry("sched_cpu", 0600,
+					      sched_proc_dir);
+	if (!ppesched_cpu_proc)
+		return -ENOMEM;
+	ppesched_cpu_proc->read_proc = ppe_single_procfs_read;
+	ppesched_cpu_proc->write_proc = ppe_single_procfs_write;
+	ret = ppesched_discipline_register(&ppe_single);
+	if (ret) {
+		printk("foooooooo\n");
+		remove_proc_entry("sched_cpu", sched_proc_dir);
+	}
+	return ret;
 }
 
 static void __exit cleanup_ppe_single_module(void)
 {
-	return ppesched_discipline_unregister(&ppe_single);
+	remove_proc_entry("sched_cpu", sched_proc_dir);
+	ppesched_discipline_unregister(&ppe_single);
 }
 
 module_init(init_ppe_single_module);
