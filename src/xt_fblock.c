@@ -18,6 +18,7 @@
 #include <linux/rwlock.h>
 #include <linux/slab.h>
 #include <linux/proc_fs.h>
+#include <linux/radix-tree.h>
 
 #include "xt_fblock.h"
 #include "xt_idp.h"
@@ -31,11 +32,8 @@ struct idp_elem {
 } ____cacheline_aligned;
 
 static struct critbit_tree idpmap;
-static struct fblock **fblmap_head = NULL;
-static spinlock_t fblmap_head_lock;
-
+static RADIX_TREE(fblmap, GFP_ATOMIC);
 static atomic64_t idp_counter;
-
 static struct kmem_cache *fblock_cache = NULL;
 
 extern struct proc_dir_entry *lana_proc_dir;
@@ -128,16 +126,10 @@ EXPORT_SYMBOL_GPL(change_fblock_namespace_mapping);
 /* Called within RCU read lock! */
 struct fblock *__search_fblock(idp_t idp)
 {
-	struct fblock *p0;
-	p0 = rcu_dereference_raw(fblmap_head[hash_idp(idp)]);
-	while (p0) {
-		if (p0->idp == idp) {
-			get_fblock(p0);
-			return p0;
-		}
-		p0 = rcu_dereference_raw(p0->next);
-	}
-	return NULL;
+	struct fblock *ret = radix_tree_lookup(&fblmap, idp);
+	if (likely(ret))
+		get_fblock(ret);
+	return ret;
 }
 EXPORT_SYMBOL_GPL(__search_fblock);
 
@@ -428,20 +420,8 @@ EXPORT_SYMBOL_GPL(fblock_unbind);
  */
 int register_fblock(struct fblock *p, idp_t idp)
 {
-	struct fblock *p0;
-	unsigned long flags;
-
-	spin_lock_irqsave(&fblmap_head_lock, flags);
 	p->idp = idp;
-	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
-	if (!p0)
-		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
-	else {
-		p->next = p0->next;
-		rcu_assign_pointer(p0->next, p);
-	}
-	spin_unlock_irqrestore(&fblmap_head_lock, flags);
-	return 0;
+	return radix_tree_insert(&fblmap, idp, p);
 }
 EXPORT_SYMBOL_GPL(register_fblock);
 
@@ -452,19 +432,11 @@ EXPORT_SYMBOL_GPL(register_fblock);
  */
 int register_fblock_namespace(struct fblock *p)
 {
-	struct fblock *p0;
-	unsigned long flags;
-
-	spin_lock_irqsave(&fblmap_head_lock, flags);
+	int ret;
 	p->idp = provide_new_fblock_idp();
-	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
-	if (!p0)
-		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p);
-	else {
-		p->next = p0->next;
-		rcu_assign_pointer(p0->next, p);
-	}
-	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+	ret = radix_tree_insert(&fblmap, p->idp, p);
+	if (ret < 0)
+		return ret;
 	return register_to_fblock_namespace(p->name, p->idp);
 }
 EXPORT_SYMBOL_GPL(register_fblock_namespace);
@@ -473,7 +445,7 @@ void free_fblock_rcu(struct rcu_head *rp)
 {
 	struct fblock *p = container_of(rp, struct fblock, rcu);
 	cleanup_fblock(p);
-        kfree_fblock(p);
+	kfree_fblock(p);
 }
 EXPORT_SYMBOL_GPL(free_fblock_rcu);
 
@@ -484,24 +456,7 @@ EXPORT_SYMBOL_GPL(free_fblock_rcu);
  */
 void unregister_fblock(struct fblock *p)
 {
-	struct fblock *p0;
-	unsigned long flags;
-
-	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
-	if (p0 == p)
-		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
-	else if (p0) {
-		struct fblock *p1;
-		while ((p1 = rcu_dereference_raw(p0->next))) {
-			if (p1 == p) {
-				rcu_assign_pointer(p0->next, p1->next);
-				break;
-			}
-			p0 = p1;
-		}
-	}
-	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+	radix_tree_delete(&fblmap, p->idp);
 	put_fblock(p);
 }
 EXPORT_SYMBOL_GPL(unregister_fblock);
@@ -512,24 +467,7 @@ EXPORT_SYMBOL_GPL(unregister_fblock);
  */
 static void __unregister_fblock_namespace(struct fblock *p, int rcu)
 {
-	struct fblock *p0;
-	unsigned long flags;
-
-	spin_lock_irqsave(&fblmap_head_lock, flags);
-	p0 = rcu_dereference_raw(fblmap_head[hash_idp(p->idp)]);
-	if (p0 == p)
-		rcu_assign_pointer(fblmap_head[hash_idp(p->idp)], p->next);
-	else if (p0) {
-		struct fblock *p1;
-		while ((p1 = rcu_dereference_raw(p0->next))) {
-			if (p1 == p) {
-				rcu_assign_pointer(p0->next, p->next);
-				break;
-			}
-			p0 = p1;
-		}
-	}
-	spin_unlock_irqrestore(&fblmap_head_lock, flags);
+	radix_tree_delete(&fblmap, p->idp);
 	unregister_from_fblock_namespace(p->name);
 	if (rcu)
 		put_fblock(p);
@@ -680,11 +618,14 @@ static int procfs_fblocks(char *page, char **start, off_t offset,
 	off_t len = 0;
 	struct fblock *fb;
 	struct fblock_notifier *fn;
+	long long max = atomic64_read(&idp_counter);
 
 	len += sprintf(page + len, "name type addr idp refcnt next subscr\n");
 	rcu_read_lock();
-	for (i = 0; i < HASHTSIZ; ++i) {
-		fb = rcu_dereference_raw(fblmap_head[i]);
+	for (i = 0; i <= max; ++i) {
+		fb = radix_tree_lookup(&fblmap, i);
+		if (!fb)
+			continue;
 		while (fb) {
 			has_sub = 0;
 			len += sprintf(page + len, "%s %s %p %u %d %p [",
@@ -715,27 +656,20 @@ int init_fblock_tables(void)
 
 	get_critbit_cache();
 	critbit_init_tree(&idpmap);
-
-	fblmap_head_lock = __SPIN_LOCK_UNLOCKED(fblmap_head_lock);
-	fblmap_head = kzalloc(sizeof(*fblmap_head) * HASHTSIZ, GFP_KERNEL);
-	if (!fblmap_head)
-		goto err;
 	fblock_cache = kmem_cache_create("fblock", sizeof(struct fblock),
 					 0, SLAB_HWCACHE_ALIGN |
 					 SLAB_MEM_SPREAD | SLAB_RECLAIM_ACCOUNT,
 					 ctor_fblock);
 	if (!fblock_cache)
-		goto err2;
+		goto err;
 	atomic64_set(&idp_counter, 0);
 	fblocks_proc = create_proc_read_entry("fblocks", 0400, lana_proc_dir,
 					      procfs_fblocks, NULL);
 	if (!fblocks_proc)
-		goto err3;
+		goto err2;
 	return 0;
-err3:
-	kmem_cache_destroy(fblock_cache);
 err2:
-	kfree(fblmap_head);
+	kmem_cache_destroy(fblock_cache);
 err:
 	put_critbit_cache();
 	return ret;
@@ -746,7 +680,6 @@ void cleanup_fblock_tables(void)
 {
 	remove_proc_entry("fblocks", lana_proc_dir);
 	put_critbit_cache();
-	kfree(fblmap_head);
 	rcu_barrier();
 	kmem_cache_destroy(fblock_cache);
 }
