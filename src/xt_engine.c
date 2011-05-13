@@ -80,9 +80,12 @@ static int engine_thread(void *arg)
 		need_lock = 1;
 	while (likely(!kthread_should_stop())) {
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
-			wait_event_interruptible_timeout(ppe->wait_queue,
+//			wait_event_interruptible_timeout(ppe->wait_queue,
+//						(kthread_should_stop() ||
+//						 ppe_queues_have_load(ppe) >= 0), 10);
+			wait_event_interruptible(ppe->wait_queue,
 						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0), 10);
+						 ppe_queues_have_load(ppe) >= 0));
 			continue;
 		}
 

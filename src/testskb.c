@@ -37,7 +37,7 @@ static int __init init_fbtestgen_module(void)
 		if (unlikely(!skba[i]))
 			goto err;
 		skb_put(skba[i], 64);
-		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, IDP_UNKNOWN /*1*/);
+		write_next_idp_to_skb(skba[i], IDP_UNKNOWN, /*IDP_UNKNOWN*/ 1);
 	}
 
 	time_mark_skb_first(skba[0]);
@@ -52,6 +52,11 @@ static int __init init_fbtestgen_module(void)
 
 	for (i = 0; i < PKTS; ++i)
 		ppesched_sched(skba[i], TYPE_EGRESS);
+
+	wake_engine(0);
+	wake_engine(1);
+	wake_engine(2);
+	wake_engine(3);
 
 	kfree(skba);
 	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);
