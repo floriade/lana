@@ -30,8 +30,9 @@ struct fb_dummy_priv {
 
 static struct fblock_ops fb_dummy_ops;
 
-static int fb_dummy_netrx(struct fblock *fb, struct sk_buff *skb,
-			  enum path_type *dir)
+static int fb_dummy_netrx(const struct fblock * const fb,
+			  struct sk_buff * const skb,
+			  enum path_type * const dir)
 {
 	int drop = 0;
 	unsigned int seq;

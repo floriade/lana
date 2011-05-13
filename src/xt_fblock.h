@@ -59,8 +59,11 @@ struct fblock_opt_msg {
 struct fblock;
 
 struct fblock_ops {
-	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb,
-			enum path_type *dir);
+//	int (*netfb_rx)(struct fblock *fb, struct sk_buff *skb,
+//			enum path_type *dir);
+	int (*netfb_rx)(const struct fblock * const fb,
+			struct sk_buff * const skb,
+			enum path_type * const dir);
 	int (*event_rx)(struct notifier_block *self, unsigned long cmd,
 			void *args);
 } ____cacheline_aligned;
