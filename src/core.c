@@ -38,8 +38,8 @@ static int __init init_lana_core_module(void)
 	fblock_proc_dir = proc_mkdir("fblock", lana_proc_dir);
 	if (!fblock_proc_dir)
 		goto err;
-	fblock_proc_dir = proc_mkdir("sched", lana_proc_dir);
-	if (!fblock_proc_dir)
+	sched_proc_dir = proc_mkdir("sched", lana_proc_dir);
+	if (!sched_proc_dir)
 		goto err0;
 	ret = init_vlink_system();
 	if (ret)
