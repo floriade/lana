@@ -23,7 +23,8 @@ set style line 6 lw 3 lt 6
 set terminal pdf monochrome dashed font ",6"
 set output 'out.pdf'
 
-plot "gnuplot.dat" using 1:2 title "sched single, 1 CPU" with lines ls 1, \
-     "gnuplot.dat" using 1:3 title "sched rr, 2 CPUs" with lines ls 2, \
-     "gnuplot.dat" using 1:4 title "sched rr, 4 CPUs" with lines ls 3
+plot "gnuplot.dat" using 1:1 title "linaer, 1 pkts = 1 us" with lines ls 1, \
+     "gnuplot.dat" using 1:2 title "sched single, 1 CPU" with lines ls 2, \
+     "gnuplot.dat" using 1:3 title "sched rr, 2 CPUs" with lines ls 3, \
+     "gnuplot.dat" using 1:4 title "sched rr, 4 CPUs" with lines ls 4
 
