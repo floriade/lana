@@ -68,10 +68,6 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
-#ifdef __HIGHPERF
-	const unsigned long jiffies_int = 100;
-	unsigned long jiffies_old = jiffies;
-#endif
 	struct sk_buff *skb;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
@@ -85,22 +81,13 @@ static int engine_thread(void *arg)
 		need_lock = 1;
 	while (likely(!kthread_should_stop())) {
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
-#ifndef __HIGHPERF
 			wait_event_interruptible_timeout(ppe->wait_queue,
 						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0), 10);
-#else
-			if (jiffies >= jiffies_old + jiffies_int) {
-				set_current_state(TASK_INTERRUPTIBLE);
-				schedule();
-				set_current_state(TASK_UNINTERRUPTIBLE);
-				jiffies_old = jiffies;
-			} 
-#endif
+						 ppe_queues_have_load(ppe) >= 0), 1);
 			continue;
 		}
 
-		skb = skb_dequeue(&ppe->inqs[queue].queue);
+		while((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
 		if (unlikely(skb_is_time_marked_first(skb)))
 			ppe->timef = ktime_get();
 		if (need_lock)
