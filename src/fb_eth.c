@@ -84,6 +84,7 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 		write_next_idp_to_skb(skb, fb->idp,
 				      fb_priv_cpu->port[TYPE_INGRESS]);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+	printk("got pkg!\n");
 	ppesched_sched(skb, TYPE_INGRESS);
 	return RX_HANDLER_CONSUMED;
 drop:

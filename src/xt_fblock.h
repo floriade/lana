@@ -75,7 +75,7 @@ struct fblock_factory {
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
-};
+} ____cacheline_aligned;
 
 struct fblock_notifier {
 	struct fblock *self;
