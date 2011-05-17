@@ -31,6 +31,15 @@ enum path_type {
         _TYPE_MAX,
 };
 
+enum fblock_mode {
+	MODE_SOURCE = 0,
+#define MODE_SOURCE		MODE_SOURCE
+	MODE_SINK,
+#define MODE_SINK		MODE_SINK
+	MODE_DUAL,
+#define MODE_DUAL		MODE_DUAL
+};
+
 #define NUM_TYPES		_TYPE_MAX
 
 #define FBLOCK_BIND_IDP		0x0001
@@ -62,6 +71,7 @@ struct fblock;
 
 struct fblock_factory {
 	char type[TYPNAMSIZ];
+	enum fblock_mode mode;
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);

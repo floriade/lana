@@ -15,42 +15,34 @@
 #include <linux/if_ether.h>
 #include <linux/if_arp.h>
 #include <linux/if.h>
+#include <linux/etherdevice.h>
+#include <linux/rtnetlink.h>
 
+#include "xt_idp.h"
+#include "xt_skb.h"
+#include "xt_sched.h"
 #include "xt_fblock.h"
+#include "xt_builder.h"
 
-static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
-				  struct net_device *dev)
+#define IFF_IS_BRIDGED  0x60000
+
+static inline int fb_eth_dev_is_bridged(struct net_device *dev)
 {
-	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
-
-	/* Exit the lana stack here, egress path */
-	netdev_printk(KERN_DEBUG, dev, "tx'ed packet!\n");
-	skb_set_dev(skb, dev_priv->real_dev);
-	return dev_queue_xmit(skb);
+	return (dev->priv_flags & IFF_IS_BRIDGED) == IFF_IS_BRIDGED;
 }
 
-netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
-				   struct net_device *dev)
+static inline void fb_eth_make_dev_bridged(struct net_device *dev)
 {
-	int ret;
-	struct pcpu_dstats *dstats;
+	dev->priv_flags |= IFF_IS_BRIDGED;
+}
 
-	dstats = this_cpu_ptr(dev->dstats);
-	ret = fb_ethvlink_queue_xmit(skb, dev);
-	if (likely(ret == NET_XMIT_SUCCESS || ret == NET_XMIT_CN)) {
-		u64_stats_update_begin(&dstats->syncp);
-		dstats->tx_packets++;
-		dstats->tx_bytes += skb->len;
-		u64_stats_update_end(&dstats->syncp);
-	} else 
-		this_cpu_inc(dstats->tx_dropped);
-
-	return ret;
+static inline void fb_eth_make_dev_unbridged(struct net_device *dev)
+{
+	dev->priv_flags &= ~IFF_IS_BRIDGED;
 }
 
 static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 {
-	int ret;
 	struct sk_buff *skb = *pskb;
 	struct net_device *dev;
 
@@ -72,34 +64,72 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	    __constant_htons(ETH_P_ARP))
 		return RX_HANDLER_PASS; /* Let OS handle ARP */
 
-	printk("got pkt!\n");
-	/* enqueue! */
+	write_next_idp_to_skb(skb, IDP_UNKNOWN, /*IDP_UNKNOWN*/ 1);
+	ppesched_sched(skb, TYPE_EGRESS);
+	return RX_HANDLER_CONSUMED;
 drop:
 	kfree_skb(skb);
 	return RX_HANDLER_CONSUMED;
 }
 
+static struct fblock *fb_eth_ctor(char *name)
+{
+	return NULL;
+}
+
+static void fb_eth_dtor(struct fblock *fb)
+{
+}
+
+static struct fblock_factory fb_eth_factory = {
+	.type = "eth",
+	.mode = MODE_SOURCE,
+	.ctor = fb_eth_ctor,
+	.dtor = fb_eth_dtor,
+	.owner = THIS_MODULE,
+};
+
+static void cleanup_fb_eth(void)
+{
+	struct net_device *dev;
+	rtnl_lock();
+	for_each_netdev(&init_net, dev)	{
+		if (fb_eth_dev_is_bridged(dev)) {
+			netdev_rx_handler_unregister(dev);
+			fb_eth_make_dev_unbridged(dev);
+		}
+	}
+	rtnl_unlock();
+}
+
 static int __init init_fb_eth_module(void)
 {
-	int ret;
+	int ret = 0, err = 0;
 	struct net_device *dev;
 	rtnl_lock();
 	for_each_netdev(&init_net, dev)	{
 		ret = netdev_rx_handler_register(dev, fb_eth_handle_frame,
 						 NULL);
-		if (ret)
-			break; // error!
+		if (ret) {
+			err = 1;
+			break;
+		}
+		fb_eth_make_dev_bridged(dev);
 	}
 	rtnl_unlock();
+	ret = register_fblock_type(&fb_eth_factory);
+	if (err || ret) {
+		cleanup_fb_eth();
+		return ret;
+	}
 	printk(KERN_INFO "[lana] Ethernet/PHY layer loaded!\n");
 	return 0;
 }
 
 static void __exit cleanup_fb_eth_module(void)
 {
-	rtnl_lock();
-	netdev_rx_handler_unregister(vdev->real_dev);
-	rtnl_unlock();
+	cleanup_fb_eth();
+	unregister_fblock_type(&fb_eth_factory);
 	printk(KERN_INFO "[lana] Ethernet/PHY layer removed!\n");
 }
 

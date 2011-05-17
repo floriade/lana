@@ -22,6 +22,7 @@ obj-m    += lana.o
 # module.
 
 # Test modules
+obj-m    += fb_eth.o
 obj-m    += fb_dummy.o
 obj-m    += testskb.o
 obj-m    += testskb2.o

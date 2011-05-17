@@ -22,6 +22,7 @@
 #include "xt_idp.h"
 #include "xt_skb.h"
 #include "xt_engine.h"
+#include "xt_builder.h"
 
 struct fb_dummy_priv {
 	idp_t port[NUM_TYPES];
@@ -170,6 +171,7 @@ static void fb_dummy_dtor(struct fblock *fb)
 
 static struct fblock_factory fb_dummy_factory = {
 	.type = "dummy",
+	.mode = MODE_DUAL,
 	.ctor = fb_dummy_ctor,
 	.dtor = fb_dummy_dtor,
 	.owner = THIS_MODULE,
