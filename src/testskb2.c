@@ -18,7 +18,7 @@
 #include "xt_sched.h"
 #include "xt_engine.h"
 
-#define PKTS 3000000UL
+#define PKTS 6000000UL
 #define PKT_LEN 96
 
 static int __init init_fbtestgen2_module(void)

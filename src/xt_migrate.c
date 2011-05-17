@@ -24,6 +24,7 @@
 void try_migrate_procs_to(unsigned long cpu)
 {
 	int retval;
+	unsigned int count = 0;
 	struct task_struct *p;
 	struct cpumask in_mask;
 	cpumask_var_t new_mask;
@@ -37,21 +38,19 @@ void try_migrate_procs_to(unsigned long cpu)
 	for_each_process(p) {
 		get_online_cpus();
 		get_task_struct(p);
-
-		if (!strncmp(p->comm, "kthreadd", strlen("kthreadd")))
-			goto try_next;
 		if (!alloc_cpumask_var(&new_mask, GFP_KERNEL))
 			goto try_next;
 		cpumask_copy(new_mask, &in_mask);
 		retval = set_cpus_allowed_ptr(p, new_mask);
 		if (!retval)
-			printk(KERN_INFO "[lana] %d migrated to CPU%lu!\n",
-			       p->pid, cpu);
+			count++;
 		free_cpumask_var(new_mask);
 try_next:
 		put_task_struct(p);
 		put_online_cpus();
 	}
+	printk(KERN_INFO "[lana] %u processes migrated to CPU%lu!\n",
+	       count, cpu);
 }
 #else
 void try_migrate_procs_to(unsigned long cpu) { }

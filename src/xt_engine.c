@@ -67,6 +67,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
+	unsigned long count = 0;
 	struct sk_buff *skb;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
@@ -85,8 +86,12 @@ static int engine_thread(void *arg)
 						(kthread_should_stop() ||
 						 ppe_queues_have_load(ppe) >= 0), 10);
 #else
-			set_current_state(TASK_INTERRUPTIBLE);
-			schedule_timeout(1);
+			if (count >= 10000) {
+				set_current_state(TASK_INTERRUPTIBLE);
+				schedule();
+				count = 0;
+			} else
+				count++;
 #endif
 			continue;
 		}
