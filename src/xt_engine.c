@@ -85,7 +85,8 @@ static int engine_thread(void *arg)
 						(kthread_should_stop() ||
 						 ppe_queues_have_load(ppe) >= 0), 10);
 #else
-			cpu_relax();
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule_timeout(1);
 #endif
 			continue;
 		}
