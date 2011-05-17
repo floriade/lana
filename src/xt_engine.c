@@ -69,7 +69,7 @@ static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
 #ifdef __HIGHPERF
-	const unsigned long jiffies_int = 1000;
+	const unsigned long jiffies_int = 100;
 	unsigned long jiffies_old = jiffies;
 #endif
 	struct sk_buff *skb;
