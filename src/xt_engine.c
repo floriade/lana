@@ -23,6 +23,7 @@
 #include <linux/prefetch.h>
 #include <linux/sched.h>
 #include <linux/hrtimer.h>
+#include <linux/jiffies.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
@@ -67,7 +68,10 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
-	unsigned long count = 0;
+#ifdef __HIGHPERF
+	const unsigned long jiffies_int = 1000;
+	unsigned long jiffies_old = jiffies;
+#endif
 	struct sk_buff *skb;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
@@ -86,12 +90,12 @@ static int engine_thread(void *arg)
 						(kthread_should_stop() ||
 						 ppe_queues_have_load(ppe) >= 0), 10);
 #else
-			if (count >= 10000) {
+			if (jiffies >= jiffies_old + jiffies_int) {
 				set_current_state(TASK_INTERRUPTIBLE);
 				schedule();
-				count = 0;
-			} else
-				count++;
+				set_current_state(TASK_UNINTERRUPTIBLE);
+				jiffies_old = jiffies;
+			} 
 #endif
 			continue;
 		}

@@ -2,7 +2,7 @@
 
 sleep 1
 
-rmmod testskb2
+rmmod testskb
 
 ../usr/fbctl unbind fb2 fb3
 ../usr/fbctl unbind fb1 fb2
@@ -15,7 +15,7 @@ echo "-1" > /proc/net/lana/ppesched
 sleep 1
 
 rmmod fb_dummy
-rmmod sd_rr
+rmmod sd_single
 rmmod lana
 
 echo "down"
