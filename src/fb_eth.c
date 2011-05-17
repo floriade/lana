@@ -222,6 +222,7 @@ static struct fblock *fb_eth_ctor(char *name)
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
+	ppesched_init();
 	ret = init_fb_eth();
 	if (ret)
 		goto err4;
@@ -230,6 +231,7 @@ static struct fblock *fb_eth_ctor(char *name)
 	smp_wmb();
 	return fb;
 err4:
+	ppesched_cleanup();
 	unregister_fblock_namespace(fb);
 	return NULL;
 err3:
@@ -248,6 +250,7 @@ static void fb_eth_dtor(struct fblock *fb)
 	module_put(THIS_MODULE);
 	instantiated = 0;
 	cleanup_fb_eth();
+	ppesched_cleanup();
 }
 
 static struct fblock_factory fb_eth_factory = {
