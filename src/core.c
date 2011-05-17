@@ -34,7 +34,7 @@ static int __init init_lana_core_module(void)
 
 	printk(KERN_INFO "[lana] bootstrapping core ...\n");
 	try_migrate_procs_to(USERSPACECPU);
-	return 0;
+
 	lana_proc_dir = proc_mkdir("lana", init_net.proc_net);
 	if (!lana_proc_dir)
 		return -ENOMEM;

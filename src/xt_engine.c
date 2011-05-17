@@ -84,6 +84,8 @@ static int engine_thread(void *arg)
 			wait_event_interruptible_timeout(ppe->wait_queue,
 						(kthread_should_stop() ||
 						 ppe_queues_have_load(ppe) >= 0), 10);
+#else
+			cpu_relax();
 #endif
 			continue;
 		}
@@ -210,6 +212,10 @@ void cleanup_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+#ifdef __HIGHPERF
+		if (cpu == USERSPACECPU)
+			continue;
+#endif
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe = per_cpu_ptr(engines, cpu);
