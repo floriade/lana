@@ -9,6 +9,8 @@
 #ifndef XT_MIGRATE_H
 #define XT_MIGRATE_H
 
+#include "xt_conf.h"
+
 extern void try_migrate_procs_to(unsigned long cpu);
 
 #endif /* XT_MIGRATE_H */

@@ -80,13 +80,10 @@ static int engine_thread(void *arg)
 		need_lock = 1;
 	while (likely(!kthread_should_stop())) {
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
-#ifndef __SCHED_NO_WAIT
-//			wait_event_interruptible_timeout(ppe->wait_queue,
-//						(kthread_should_stop() ||
-//						 ppe_queues_have_load(ppe) >= 0), 10);
-			wait_event_interruptible(ppe->wait_queue,
+#ifndef __HIGHPERF
+			wait_event_interruptible_timeout(ppe->wait_queue,
 						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0));
+						 ppe_queues_have_load(ppe) >= 0), 10);
 #endif
 			continue;
 		}
@@ -165,6 +162,10 @@ int init_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+#ifdef __HIGHPERF
+		if (cpu == USERSPACECPU)
+			continue;
+#endif
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
 		memset(&ppe->inqs, 0, sizeof(ppe->inqs));

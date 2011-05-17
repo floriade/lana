@@ -11,6 +11,7 @@
 
 #include <linux/types.h>
 
+#include "xt_conf.h"
 #include "xt_vlink.h"
 #include "xt_fblock.h"
 

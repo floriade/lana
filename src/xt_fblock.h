@@ -20,6 +20,7 @@
 #include <linux/notifier.h>
 #include <linux/radix-tree.h>
 
+#include "xt_conf.h"
 #include "xt_idp.h"
 
 enum path_type {

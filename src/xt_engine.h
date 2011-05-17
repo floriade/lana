@@ -17,6 +17,7 @@
 #include <linux/atomic.h>
 #include <linux/hrtimer.h>
 
+#include "xt_conf.h"
 #include "xt_fblock.h"
 
 #define NUM_QUEUES              NUM_TYPES
