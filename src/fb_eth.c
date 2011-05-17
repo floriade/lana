@@ -153,6 +153,41 @@ static int fb_eth_event(struct notifier_block *self, unsigned long cmd,
 	return ret;
 }
 
+static void cleanup_fb_eth(void)
+{
+	struct net_device *dev;
+	rtnl_lock();
+	for_each_netdev(&init_net, dev)	{
+		if (fb_eth_dev_is_bridged(dev)) {
+			netdev_rx_handler_unregister(dev);
+			fb_eth_make_dev_unbridged(dev);
+		}
+	}
+	rtnl_unlock();
+}
+
+static int init_fb_eth(void)
+{
+	int ret = 0, err = 0;
+	struct net_device *dev;
+	rtnl_lock();
+	for_each_netdev(&init_net, dev)	{
+		ret = netdev_rx_handler_register(dev, fb_eth_handle_frame,
+						 NULL);
+		if (ret) {
+			err = 1;
+			break;
+		}
+		fb_eth_make_dev_bridged(dev);
+	}
+	rtnl_unlock();
+	if (err) {
+		cleanup_fb_eth();
+		return ret;
+	}
+	return 0;
+}
+
 static struct fblock *fb_eth_ctor(char *name)
 {
 	int i, ret = 0;
@@ -187,10 +222,16 @@ static struct fblock *fb_eth_ctor(char *name)
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
+	ret = init_fb_eth();
+	if (ret)
+		goto err4;
 	__module_get(THIS_MODULE);
 	instantiated = 1;
 	smp_wmb();
 	return fb;
+err4:
+	unregister_fblock_namespace(fb);
+	return NULL;
 err3:
 	cleanup_fblock_ctor(fb);
 err2:
@@ -206,6 +247,7 @@ static void fb_eth_dtor(struct fblock *fb)
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
 	instantiated = 0;
+	cleanup_fb_eth();
 }
 
 static struct fblock_factory fb_eth_factory = {
@@ -216,48 +258,14 @@ static struct fblock_factory fb_eth_factory = {
 	.owner = THIS_MODULE,
 };
 
-static void cleanup_fb_eth(void)
-{
-	struct net_device *dev;
-	rtnl_lock();
-	for_each_netdev(&init_net, dev)	{
-		if (fb_eth_dev_is_bridged(dev)) {
-			netdev_rx_handler_unregister(dev);
-			fb_eth_make_dev_unbridged(dev);
-		}
-	}
-	rtnl_unlock();
-}
-
 static int __init init_fb_eth_module(void)
 {
-	int ret = 0, err = 0;
-	struct net_device *dev;
-	rtnl_lock();
-	for_each_netdev(&init_net, dev)	{
-		ret = netdev_rx_handler_register(dev, fb_eth_handle_frame,
-						 NULL);
-		if (ret) {
-			err = 1;
-			break;
-		}
-		fb_eth_make_dev_bridged(dev);
-	}
-	rtnl_unlock();
-	ret = register_fblock_type(&fb_eth_factory);
-	if (err || ret) {
-		cleanup_fb_eth();
-		return ret;
-	}
-	printk(KERN_INFO "[lana] Ethernet/PHY layer loaded!\n");
-	return 0;
+	return register_fblock_type(&fb_eth_factory);
 }
 
 static void __exit cleanup_fb_eth_module(void)
 {
-	cleanup_fb_eth();
 	unregister_fblock_type(&fb_eth_factory);
-	printk(KERN_INFO "[lana] Ethernet/PHY layer removed!\n");
 }
 
 module_init(init_fb_eth_module);
