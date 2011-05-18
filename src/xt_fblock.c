@@ -191,7 +191,7 @@ int fblock_set_option(struct fblock *fb, char *opt_string)
 }
 EXPORT_SYMBOL_GPL(fblock_set_option);
 
-/* Must already hold write_lock */
+/* Must already hold spin_lock */
 static void fblock_update_selfref(struct fblock_notifier *head,
 				  struct fblock *self)
 {
@@ -231,8 +231,8 @@ void fblock_migrate_r(struct fblock *dst, struct fblock *src)
 	get_fblock(dst);
 	get_fblock(src);
 
-	write_lock(&dst->lock);
-	write_lock(&src->lock);
+	spin_lock(&dst->lock);
+	spin_lock(&src->lock);
 
 	dst->idp = src->idp;
 	strlcpy(dst->name, src->name, sizeof(dst->name));
@@ -248,10 +248,11 @@ void fblock_migrate_r(struct fblock *dst, struct fblock *src)
 	rcu_assign_pointer(dst->others, src->others);
 	rcu_assign_pointer(src->others, sub_old);
 
-	atomic_xchg(&dst->refcnt, atomic_xchg(&src->refcnt, &dst->refcnt));
+	atomic_xchg(&dst->refcnt, atomic_xchg(&src->refcnt,
+					      atomic_read(&dst->refcnt)));
 
-	write_unlock(&src->lock);
-	write_unlock(&dst->lock);
+	spin_unlock(&src->lock);
+	spin_unlock(&dst->lock);
 
 	put_fblock(dst);
 	put_fblock(src);
@@ -468,15 +469,13 @@ int subscribe_to_remote_fblock(struct fblock *us, struct fblock *remote)
 	get_fblock(us);
 	get_fblock(remote);
 
-	write_lock(&us->lock);
-
+	spin_lock(&us->lock);
 	fn->self = us;
 	fn->remote = remote->idp;
 	init_fblock_subscriber(us, &fn->nb);
 	fn->next = rcu_dereference_raw(us->notifiers);
 	rcu_assign_pointer(us->notifiers, fn);
-
-	write_unlock(&us->lock);
+	spin_unlock(&us->lock);
 
 	return fblock_register_foreign_subscriber(remote,
 			&rcu_dereference_raw(us->notifiers)->nb);
@@ -490,7 +489,7 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 
 	if (unlikely(!rcu_dereference_raw(us->notifiers)))
 		return;
-	write_lock(&us->lock);
+	spin_lock(&us->lock);
 	fn = rcu_dereference_raw(us->notifiers);
 	if (fn->remote == remote->idp)
 		rcu_assign_pointer(us->notifiers, us->notifiers->next);
@@ -506,7 +505,7 @@ void unsubscribe_from_remote_fblock(struct fblock *us, struct fblock *remote)
 				fn = f1;
 		}
 	}
-	write_unlock(&us->lock);
+	spin_unlock(&us->lock);
 	if (found) {
 		fblock_unregister_foreign_subscriber(remote, &fn->nb);
 		kfree(fn);
@@ -522,7 +521,7 @@ static void ctor_fblock(void *obj)
 {
 	struct fblock *p = obj;
 	memset(p, 0, sizeof(*p));
-	rwlock_init(&p->lock);
+	spin_lock_init(&p->lock);
 	p->idp = IDP_UNKNOWN;
 }
 
@@ -546,14 +545,14 @@ EXPORT_SYMBOL_GPL(alloc_fblock);
 
 int init_fblock(struct fblock *fb, char *name, void __percpu *priv)
 {
-	write_lock(&fb->lock);
+	spin_lock(&fb->lock);
 	strlcpy(fb->name, name, sizeof(fb->name));
 	rcu_assign_pointer(fb->private_data, priv);
 	fb->others = kmalloc(sizeof(*(fb->others)), GFP_ATOMIC);
 	if (!fb->others)
 		return -ENOMEM;
 	ATOMIC_INIT_NOTIFIER_HEAD(&fb->others->subscribers);
-	write_unlock(&fb->lock);
+	spin_unlock(&fb->lock);
 	atomic_set(&fb->refcnt, 1);
 	return 0;
 }

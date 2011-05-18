@@ -15,7 +15,7 @@
 #include <linux/if.h>
 #include <linux/cpu.h>
 #include <linux/module.h>
-#include <linux/rwlock.h>
+#include <linux/spinlock.h>
 #include <linux/skbuff.h>
 #include <linux/notifier.h>
 #include <linux/radix-tree.h>
@@ -103,7 +103,7 @@ struct fblock {
 	struct rcu_head rcu;
 	atomic_t refcnt;
 	idp_t idp;
-	rwlock_t lock; /* Used in notifiers */
+	spinlock_t lock; /* Used in notifiers */
 } ____cacheline_aligned;
 
 extern void free_fblock_rcu(struct rcu_head *rp);
