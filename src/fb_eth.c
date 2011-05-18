@@ -66,16 +66,16 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
 
-	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
-		goto drop;
+//	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
+//		goto drop;
 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (unlikely(!skb))
 		return RX_HANDLER_CONSUMED;
 
-	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_ARP)) ==
-	    __constant_htons(ETH_P_ARP))
-		return RX_HANDLER_PASS; /* Let OS handle ARP */
+//	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_ARP)) ==
+//	    __constant_htons(ETH_P_ARP))
+//		return RX_HANDLER_PASS; /* Let OS handle ARP */
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	prefetchw(skb->cb);

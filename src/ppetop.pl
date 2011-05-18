@@ -1,4 +1,9 @@
 #!/usr/bin/perl
+#
+# Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
+# Swiss federal institute of technology (ETH Zurich)
+# Subject to the GPL.
+#
 # apt-get install libcurses-ui-perl
 
 use warnings;
@@ -49,6 +54,8 @@ sub fetch_stats
 
 sub print_stats
 {
+	my $pps_total = 0;
+	my $mbs_total = 0;
 	$text = "LANA ppe top:\n\n";
 	foreach my $file (@files) {
 		my $pps = ${${$stats{$file}}{packets}}{new} -
@@ -65,7 +72,12 @@ sub print_stats
 		$text .= "\t$mbs\tMiB/s\n";
 		$text .= "\t$dps\tdrops/s\n";
 		$text .= "\t$eps\terr/s\n\n";
-	}	
+		$pps_total += $pps;
+		$mbs_total += $mbs;
+	}
+	$text .= "total:\n";
+	$text .= "\t$pps_total\tpkts/s\n";
+	$text .= "\t$mbs_total\tMiB/s\n";
 	$widget->text($text);
 }
 
