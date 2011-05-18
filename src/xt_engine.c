@@ -87,7 +87,7 @@ static int engine_thread(void *arg)
 			continue;
 		}
 
-		while((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
+		while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
 		if (unlikely(skb_is_time_marked_first(skb)))
 			ppe->timef = ktime_get();
 		if (need_lock)

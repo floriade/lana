@@ -1,16 +1,16 @@
 #!/bin/sh
 
 insmod lana.ko
-insmod sd_single.ko
+insmod sd_rr.ko
 insmod fb_dummy.ko
 
-echo "1" > /proc/net/lana/sched/sched_cpu
+#echo "1" > /proc/net/lana/sched/sched_cpu
 
-../usr/fbctl add fb1 dummy
+../usr/fbctl add fb1 eth
 ../usr/fbctl add fb2 dummy
 ../usr/fbctl add fb3 dummy
-../usr/fbctl bind fb1 fb2
-../usr/fbctl bind fb2 fb3
+../usr/fbctl bind fb3 fb2
+../usr/fbctl bind fb2 fb1
 
 opcontrol --reset
 opcontrol --shutdown
@@ -32,8 +32,8 @@ opcontrol --shutdown
 
 rmmod testskb
 
-../usr/fbctl unbind fb2 fb3
-../usr/fbctl unbind fb1 fb2
+../usr/fbctl unbind fb2 fb1
+../usr/fbctl unbind fb3 fb2
 ../usr/fbctl rm fb3
 ../usr/fbctl rm fb2
 ../usr/fbctl rm fb1
@@ -43,7 +43,7 @@ echo "-1" > /proc/net/lana/ppesched
 sleep 1
 
 rmmod fb_dummy
-rmmod sd_single
+rmmod sd_rr
 rmmod lana
 
 echo "+++ done +++"
