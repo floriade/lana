@@ -5,7 +5,7 @@ insmod lana.ko
 sleep 5
 echo "starting"
 
-insmod sd_rr.ko
+insmod sd_rand.ko
 #echo "1" > /proc/net/lana/sched/sched_cpu
 insmod fb_eth.ko
 insmod fb_dummy.ko
