@@ -59,6 +59,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		ret = fb->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		if (ret == PPE_DROPPED)
+			/* fblock freed skb */
 			return PPE_DROPPED;
 		prefetch(skb->cb);
 	}
@@ -71,12 +72,10 @@ static int engine_thread(void *arg)
 	struct sk_buff *skb;
 	struct worker_engine *ppe = per_cpu_ptr(engines,
 						smp_processor_id());
-
 	if (ppe->cpu != smp_processor_id())
 		panic("[lana] Engine scheduled on wrong CPU!\n");
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
 	       "on CPU%u!\n", smp_processor_id());
-
 	if (!rcu_read_lock_held())
 		need_lock = 1;
 	while (likely(!kthread_should_stop())) {
@@ -86,7 +85,6 @@ static int engine_thread(void *arg)
 						 ppe_queues_have_load(ppe) >= 0), 0);
 			continue;
 		}
-
 		while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
 		if (unlikely(skb_is_time_marked_first(skb)))
 			ppe->timef = ktime_get();
@@ -97,17 +95,17 @@ static int engine_thread(void *arg)
 			rcu_read_unlock();
 		if (unlikely(skb_is_time_marked_last(skb)))
 			ppe->timel = ktime_get();
-
 		u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
 		ppe->inqs[queue].stats.packets++;
 		ppe->inqs[queue].stats.bytes += skb->len;
 		if (ret == PPE_DROPPED)
 			ppe->inqs[queue].stats.dropped++;
-		else if (unlikely(ret == PPE_ERROR))
+		else if (unlikely(ret == PPE_ERROR)) {
 			ppe->inqs[queue].stats.errors++;
+			kfree_skb(skb);
+		}
 		u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
 	}
-
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "
 	       "on CPU%u!\n", smp_processor_id());
 	return 0;
