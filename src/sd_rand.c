@@ -27,14 +27,14 @@ static int ppe_rand_init(void)
 
 static int ppe_rand_sched(struct sk_buff *skb, enum path_type dir)
 {
-#ifdef __HIGHPERF
+#ifdef __MIGRATE
         unsigned long ncpu = net_random() & (cpu_max - 1);
         while (ncpu == USERSPACECPU)
                 ncpu = net_random() & (cpu_max - 1);
         enqueue_on_engine(skb, ncpu, dir);
 #else
 	enqueue_on_engine(skb, net_random() & (cpu_max - 1), dir);
-#endif
+#endif /* __MIGRATE */
 	return PPE_SUCCESS;
 }
 

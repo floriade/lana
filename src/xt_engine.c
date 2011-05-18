@@ -161,10 +161,10 @@ int init_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
-#ifdef __HIGHPERF
+#ifdef __MIGRATE
 		if (cpu == USERSPACECPU)
 			continue;
-#endif
+#endif /* __MIGRATE */
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
 		memset(&ppe->inqs, 0, sizeof(ppe->inqs));
@@ -209,10 +209,10 @@ void cleanup_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
-#ifdef __HIGHPERF
+#ifdef __MIGRATE
 		if (cpu == USERSPACECPU)
 			continue;
-#endif
+#endif /* __MIGRATE */
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe = per_cpu_ptr(engines, cpu);

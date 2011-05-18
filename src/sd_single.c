@@ -23,14 +23,14 @@ static volatile unsigned long cpu = 0;
 
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
-#ifdef __HIGHPERF
+#ifdef __MIGRATE
         if (cpu != USERSPACECPU)
 	        enqueue_on_engine(skb, cpu, dir);
 	else
 		kfree_skb(skb);
 #else
 	enqueue_on_engine(skb, cpu, dir);
-#endif
+#endif /* __MIGRATE */
 	return PPE_SUCCESS;
 }
 

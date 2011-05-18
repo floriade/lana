@@ -9,7 +9,7 @@
 #ifndef XT_CONF_H
 #define XT_CONF_H
 
-//#define __HIGHPERF 1
+//#define __MIGRATE 1
 #define USERSPACECPU 0
 
 #endif /* XT_CONF_H */

@@ -20,7 +20,7 @@
 
 #include "xt_migrate.h"
 
-#ifdef __HIGHPERF
+#ifdef __MIGRATE
 void try_migrate_procs_to(unsigned long cpu)
 {
 	int retval;
@@ -54,6 +54,6 @@ try_next:
 }
 #else
 void try_migrate_procs_to(unsigned long cpu) { }
-#endif /* __HIGHPERF */
+#endif /* __MIGRATE */
 EXPORT_SYMBOL(try_migrate_procs_to);
 
