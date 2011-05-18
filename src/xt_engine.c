@@ -23,6 +23,7 @@
 #include <linux/prefetch.h>
 #include <linux/sched.h>
 #include <linux/hrtimer.h>
+#include <linux/jiffies.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
@@ -80,18 +81,13 @@ static int engine_thread(void *arg)
 		need_lock = 1;
 	while (likely(!kthread_should_stop())) {
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
-#ifndef __SCHED_NO_WAIT
-//			wait_event_interruptible_timeout(ppe->wait_queue,
-//						(kthread_should_stop() ||
-//						 ppe_queues_have_load(ppe) >= 0), 10);
-			wait_event_interruptible(ppe->wait_queue,
+			wait_event_interruptible_timeout(ppe->wait_queue,
 						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0));
-#endif
+						 ppe_queues_have_load(ppe) >= 0), 1);
 			continue;
 		}
 
-		skb = skb_dequeue(&ppe->inqs[queue].queue);
+		while((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
 		if (unlikely(skb_is_time_marked_first(skb)))
 			ppe->timef = ktime_get();
 		if (need_lock)
@@ -165,6 +161,10 @@ int init_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+#ifdef __HIGHPERF
+		if (cpu == USERSPACECPU)
+			continue;
+#endif
 		ppe = per_cpu_ptr(engines, cpu);
 		ppe->cpu = cpu;
 		memset(&ppe->inqs, 0, sizeof(ppe->inqs));
@@ -209,6 +209,10 @@ void cleanup_worker_engines(void)
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct worker_engine *ppe;
+#ifdef __HIGHPERF
+		if (cpu == USERSPACECPU)
+			continue;
+#endif
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe = per_cpu_ptr(engines, cpu);

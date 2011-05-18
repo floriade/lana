@@ -20,6 +20,7 @@
 #include <linux/notifier.h>
 #include <linux/radix-tree.h>
 
+#include "xt_conf.h"
 #include "xt_idp.h"
 
 enum path_type {
@@ -28,6 +29,15 @@ enum path_type {
         TYPE_EGRESS,
 #define TYPE_EGRESS		TYPE_EGRESS
         _TYPE_MAX,
+};
+
+enum fblock_mode {
+	MODE_SOURCE = 0,
+#define MODE_SOURCE		MODE_SOURCE
+	MODE_SINK,
+#define MODE_SINK		MODE_SINK
+	MODE_DUAL,
+#define MODE_DUAL		MODE_DUAL
 };
 
 #define NUM_TYPES		_TYPE_MAX
@@ -61,6 +71,7 @@ struct fblock;
 
 struct fblock_factory {
 	char type[TYPNAMSIZ];
+	enum fblock_mode mode;
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);

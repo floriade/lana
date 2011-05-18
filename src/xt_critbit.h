@@ -10,6 +10,7 @@
 #define CRITBIT_H
 
 #include <linux/spinlock.h>
+#include "xt_critbit.h"
 
 /*
  * Note that 'myname' is null-terminated and must be power of two aligned,

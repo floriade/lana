@@ -16,6 +16,8 @@
 #include <linux/netlink.h>
 #include <linux/if.h>
 
+#include "xt_conf.h"
+
 #define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next     */
 #define NETLINK_VLINK_RX_NXT    1  /* Receive is not for us, notify next */
 #define NETLINK_VLINK_RX_BAD    2  /* Receive failed, notify next        */

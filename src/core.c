@@ -19,6 +19,7 @@
 #include "xt_builder.h"
 #include "xt_sched.h"
 #include "xt_user.h"
+#include "xt_migrate.h"
 
 struct proc_dir_entry *lana_proc_dir;
 EXPORT_SYMBOL(lana_proc_dir);
@@ -32,6 +33,8 @@ static int __init init_lana_core_module(void)
 	int ret;
 
 	printk(KERN_INFO "[lana] bootstrapping core ...\n");
+	try_migrate_procs_to(USERSPACECPU);
+
 	lana_proc_dir = proc_mkdir("lana", init_net.proc_net);
 	if (!lana_proc_dir)
 		return -ENOMEM;

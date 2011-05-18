@@ -14,6 +14,7 @@
 #include <linux/module.h>
 #include <linux/proc_fs.h>
 
+#include "xt_conf.h"
 #include "xt_fblock.h"
 
 extern struct proc_dir_entry *sched_proc_dir;

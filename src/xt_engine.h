@@ -17,6 +17,7 @@
 #include <linux/atomic.h>
 #include <linux/hrtimer.h>
 
+#include "xt_conf.h"
 #include "xt_fblock.h"
 
 #define NUM_QUEUES              NUM_TYPES
@@ -56,6 +57,10 @@ static inline void enqueue_egress_on_engine(struct sk_buff *skb,
 					    unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+#ifdef __HIGHPERF
+	if (cpu == USERSPACECPU)
+		return;
+#endif
 	skb_queue_tail(&ppe->inqs[TYPE_EGRESS].queue, skb);
 }
 
@@ -63,6 +68,10 @@ static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
 					     unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+#ifdef __HIGHPERF
+	if (cpu == USERSPACECPU)
+		return;
+#endif
 	skb_queue_tail(&ppe->inqs[TYPE_INGRESS].queue, skb);
 }
 
@@ -71,12 +80,20 @@ static inline void enqueue_on_engine(struct sk_buff *skb,
 				     enum path_type type)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+#ifdef __HIGHPERF
+	if (cpu == USERSPACECPU)
+		return;
+#endif
 	skb_queue_tail(&ppe->inqs[type].queue, skb);
 }
 
 static inline void wake_engine(unsigned int cpu)
 {
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+#ifdef __HIGHPERF
+	if (cpu == USERSPACECPU)
+		return;
+#endif
 	wake_up_interruptible(&ppe->wait_queue);
 }
 

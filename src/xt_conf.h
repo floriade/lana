@@ -6,12 +6,11 @@
  * Subject to the GPL.
  */
 
-#ifndef XT_MIGRATE_H
-#define XT_MIGRATE_H
+#ifndef XT_CONF_H
+#define XT_CONF_H
 
-#include "xt_conf.h"
+#define __HIGHPERF 1
+#define USERSPACECPU 0
 
-extern void try_migrate_procs_to(unsigned long cpu);
-
-#endif /* XT_MIGRATE_H */
+#endif /* XT_CONF_H */
 

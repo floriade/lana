@@ -9,5 +9,7 @@
 #ifndef XT_SOCKET_H
 #define XT_SOCKET_H
 
+#include "xt_conf.h"
+
 #endif /* XT_SOCKET_H */
 

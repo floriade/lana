@@ -13,6 +13,7 @@ lana-y   := core.o      \
 	   xt_fblock.o  \
 	   xt_builder.o \
 	   xt_critbit.o \
+	   xt_migrate.o \
 	   xt_user.o
 obj-m    += lana.o
 
@@ -21,8 +22,10 @@ obj-m    += lana.o
 # module.
 
 # Test modules
+obj-m    += fb_eth.o
 obj-m    += fb_dummy.o
 obj-m    += testskb.o
+obj-m    += testskb2.o
 
 # Real modules
 obj-m    += sd_blackhole.o
