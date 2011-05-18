@@ -134,27 +134,15 @@ struct fblock *search_fblock(idp_t idp)
 EXPORT_SYMBOL_GPL(search_fblock);
 
 /* Note: user needs to do a put_fblock */
-struct fblock *__search_fblock_n(char *name)
-{
-	idp_t id;
-	struct fblock *fb;
-	id = get_fblock_namespace_mapping(name);
-	if (unlikely(id == IDP_UNKNOWN))
-		return NULL;
-	fb = search_fblock(id);
-	if (!fb)
-		return NULL;
-	return fb;
-}
-EXPORT_SYMBOL_GPL(__search_fblock_n);
-
 struct fblock *search_fblock_n(char *name)
 {
+	idp_t id;
 	struct fblock *ret;
 	if (unlikely(!name))
 		return NULL;
 	rcu_read_lock();
-	ret = __search_fblock_n(name);
+	id = __get_fblock_namespace_mapping(name);
+	ret = __search_fblock(id);
 	rcu_read_unlock();
 	return ret;
 }

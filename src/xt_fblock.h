@@ -163,7 +163,6 @@ extern struct radix_tree_root fblmap;
 /* Returns fblock object specified by idp or name. */
 extern struct fblock *search_fblock(idp_t idp);
 extern struct fblock *search_fblock_n(char *name);
-extern struct fblock *__search_fblock_n(char *name);
 
 /* Migrate state from src to dst and drop of dst states */
 extern void fblock_migrate_p(struct fblock *dst, struct fblock *src);
