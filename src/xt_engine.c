@@ -47,7 +47,7 @@ static inline int ppe_queues_have_load(struct worker_engine *ppe)
 
 static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 {
-	int ret = PPE_DROPPED;
+	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
 	prefetch(skb->cb);
