@@ -83,7 +83,7 @@ static int engine_thread(void *arg)
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
 			wait_event_interruptible_timeout(ppe->wait_queue,
 						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0), 1);
+						 ppe_queues_have_load(ppe) >= 0), 0);
 			continue;
 		}
 
