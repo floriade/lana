@@ -19,7 +19,7 @@ rmmod fb_eth
 
 sleep 1
 
-rmmod sd_rand
+rmmod sd_rr
 rmmod lana
 
 echo "down"

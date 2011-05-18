@@ -237,6 +237,7 @@ EXPORT_SYMBOL_GPL(fblock_migrate_p);
 
 void fblock_migrate_r(struct fblock *dst, struct fblock *src)
 {
+	int ref_old;
 	struct fblock_notifier *not_old;
 	struct fblock_subscrib *sub_old;
 
@@ -260,7 +261,9 @@ void fblock_migrate_r(struct fblock *dst, struct fblock *src)
 	rcu_assign_pointer(dst->others, src->others);
 	rcu_assign_pointer(src->others, sub_old);
 
-	atomic_xchg(&dst->refcnt, atomic_xchg(&src->refcnt, &dst->refcnt));
+	ref_old = atomic_read(&dst->refcnt);
+	atomic_set(&dst->refcnt, atomic_read(&src->refcnt));
+	atomic_set(&src->refcnt, ref_old);
 
 	write_unlock(&src->lock);
 	write_unlock(&dst->lock);
