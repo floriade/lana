@@ -53,10 +53,10 @@ static int __init init_fbtestgen_module(void)
 	for (i = 0; i < PKTS; ++i)
 		ppesched_sched(skba[i], TYPE_EGRESS);
 
-	wake_engine(0);
-	wake_engine(1);
-	wake_engine(2);
-	wake_engine(3);
+//	wake_engine(0);
+//	wake_engine(1);
+//	wake_engine(2);
+//	wake_engine(3);
 
 	kfree(skba);
 	printk(KERN_INFO "test done, %lu pkts!\n", PKTS);

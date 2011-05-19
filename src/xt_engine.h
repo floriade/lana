@@ -16,6 +16,7 @@
 #include <linux/u64_stats_sync.h>
 #include <linux/atomic.h>
 #include <linux/hrtimer.h>
+#include <linux/interrupt.h>
 
 #include "xt_conf.h"
 #include "xt_fblock.h"
@@ -47,6 +48,7 @@ struct worker_engine {
 	unsigned int cpu;
 	struct proc_dir_entry *proc;
 	struct task_struct *thread;
+	struct tasklet_hrtimer htimer;
 } ____cacheline_aligned;
 
 extern int init_worker_engines(void);
@@ -94,7 +96,8 @@ static inline void wake_engine(unsigned int cpu)
 	if (cpu == USERSPACECPU)
 		return;
 #endif /* __MIGRATE */
-	wake_up_interruptible(&ppe->wait_queue);
+	if (ppe->thread && ppe->thread->state != TASK_RUNNING)
+		wake_up_process(ppe->thread);
 }
 
 #endif /* XT_ENGINE_H */

@@ -70,42 +70,51 @@ static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
 	struct sk_buff *skb;
-	struct worker_engine *ppe = per_cpu_ptr(engines,
-						smp_processor_id());
-	if (ppe->cpu != smp_processor_id())
+	unsigned long cpu = smp_processor_id();
+	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
+	if (ppe->cpu != cpu)
 		panic("[lana] Engine scheduled on wrong CPU!\n");
 	printk(KERN_INFO "[lana] Packet Processing Engine running "
-	       "on CPU%u!\n", smp_processor_id());
+	       "on CPU%lu!\n", cpu);
 	if (!rcu_read_lock_held())
 		need_lock = 1;
+	set_current_state(TASK_INTERRUPTIBLE);
 	while (likely(!kthread_should_stop())) {
+		preempt_disable();
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
-			wait_event_interruptible_timeout(ppe->wait_queue,
-						(kthread_should_stop() ||
-						 ppe_queues_have_load(ppe) >= 0), 0);
-			continue;
+			preempt_enable_no_resched();
+			schedule();
+			preempt_disable();
 		}
-		while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) == NULL);
-		if (unlikely(skb_is_time_marked_first(skb)))
-			ppe->timef = ktime_get();
-		if (need_lock)
-			rcu_read_lock();
-		ret = process_packet(skb, ppe->inqs[queue].type);
-		if (need_lock)
-			rcu_read_unlock();
-		if (unlikely(skb_is_time_marked_last(skb)))
-			ppe->timel = ktime_get();
-		u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
-		ppe->inqs[queue].stats.packets++;
-		ppe->inqs[queue].stats.bytes += skb->len;
-		if (ret == PPE_DROPPED)
-			ppe->inqs[queue].stats.dropped++;
-		else if (unlikely(ret == PPE_ERROR)) {
-			ppe->inqs[queue].stats.errors++;
-			kfree_skb(skb);
+		__set_current_state(TASK_RUNNING);
+		while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) != NULL) {
+			if (unlikely(skb_is_time_marked_first(skb)))
+				ppe->timef = ktime_get();
+			if (need_lock)
+				rcu_read_lock();
+			ret = process_packet(skb, ppe->inqs[queue].type);
+			if (need_lock)
+				rcu_read_unlock();
+			if (unlikely(skb_is_time_marked_last(skb)))
+				ppe->timel = ktime_get();
+			u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
+			ppe->inqs[queue].stats.packets++;
+			ppe->inqs[queue].stats.bytes += skb->len;
+			if (ret == PPE_DROPPED)
+				ppe->inqs[queue].stats.dropped++;
+			else if (unlikely(ret == PPE_ERROR)) {
+				ppe->inqs[queue].stats.errors++;
+				kfree_skb(skb);
+			}
+			u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
+			preempt_enable_no_resched();
+			cond_resched();
+			preempt_disable();
 		}
-		u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
+		preempt_enable();
+		set_current_state(TASK_INTERRUPTIBLE);
 	}
+	__set_current_state(TASK_RUNNING);
 	printk(KERN_INFO "[lana] Packet Processing Engine stopped "
 	       "on CPU%u!\n", smp_processor_id());
 	return 0;
@@ -145,12 +154,24 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	return len;
 }
 
+static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
+{
+	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
+	struct worker_engine *ppe = container_of(thr, struct worker_engine, htimer);
+
+	/* FixMe: 10 */
+	tasklet_hrtimer_start(&ppe->htimer, ktime_set(10, 0),
+			      HRTIMER_MODE_REL);
+	if (ppe->thread && ppe->thread->state != TASK_RUNNING)
+		wake_up_process(ppe->thread);
+	return HRTIMER_NORESTART;
+}
+
 int init_worker_engines(void)
 {
 	int i, ret = 0;
 	unsigned int cpu;
 	char name[64];
-	struct sched_param param = { .sched_priority = -20 };
 
 	engines = alloc_percpu(struct worker_engine);
 	if (!engines)
@@ -188,8 +209,10 @@ int init_worker_engines(void)
 		}
 
 		kthread_bind(ppe->thread, cpu);
-		sched_setscheduler(ppe->thread, SCHED_FIFO, &param);
-		wake_up_process(ppe->thread);
+		tasklet_hrtimer_init(&ppe->htimer, engine_timer_handler,
+				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
+		tasklet_hrtimer_start(&ppe->htimer, ktime_set(1, 0),
+				      HRTIMER_MODE_REL);
 	}
 	put_online_cpus();
 
@@ -214,8 +237,10 @@ void cleanup_worker_engines(void)
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe = per_cpu_ptr(engines, cpu);
-		if (!IS_ERR(ppe->thread))
+		if (!IS_ERR(ppe->thread)) {
+			tasklet_hrtimer_cancel(&ppe->htimer);
 			kthread_stop(ppe->thread);
+		}
 		if (ppe->proc)
 			remove_proc_entry(name, lana_proc_dir);
 	}
