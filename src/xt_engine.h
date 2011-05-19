@@ -43,7 +43,6 @@ struct ppe_queue {
 
 struct worker_engine {
 	struct ppe_queue inqs[NUM_QUEUES];
-	wait_queue_head_t wait_queue;
 	ktime_t timef, timel;
 	unsigned int cpu;
 	struct proc_dir_entry *proc;

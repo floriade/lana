@@ -16,7 +16,6 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #include <linux/skbuff.h>
-#include <linux/wait.h>
 #include <linux/kthread.h>
 #include <linux/proc_fs.h>
 #include <linux/u64_stats_sync.h>
@@ -198,7 +197,6 @@ int init_worker_engines(void)
 			break;
 		}
 
-		init_waitqueue_head(&ppe->wait_queue);
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
 						     cpu_to_node(cpu), name);
 		if (IS_ERR(ppe->thread)) {
