@@ -44,10 +44,11 @@ struct ppe_queue {
 struct worker_engine {
 	struct ppe_queue inqs[NUM_QUEUES];
 	ktime_t timef, timel;
-	unsigned int cpu;
 	struct proc_dir_entry *proc;
 	struct task_struct *thread;
 	struct tasklet_hrtimer htimer;
+	unsigned int cpu;
+	unsigned int pkts;
 } ____cacheline_aligned;
 
 extern int init_worker_engines(void);
