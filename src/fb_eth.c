@@ -56,12 +56,8 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 {
 	unsigned int seq;
 	struct sk_buff *skb = *pskb;
-	struct net_device *dev;
+//	struct net_device *dev = skb->dev;
 	struct fb_eth_priv __percpu *fb_priv_cpu;
-
-	dev = skb->dev;
-	if (unlikely((dev->flags & IFF_UP) != IFF_UP))
-		goto drop;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
@@ -77,8 +73,7 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 //	    __constant_htons(ETH_P_ARP))
 //		return RX_HANDLER_PASS; /* Let OS handle ARP */
 
-	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-	prefetchw(skb->cb);
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
 		write_next_idp_to_skb(skb, fb->idp,
@@ -86,9 +81,9 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
 	ppesched_sched(skb, TYPE_INGRESS);
 	return RX_HANDLER_CONSUMED;
-drop:
-	kfree_skb(skb);
-	return RX_HANDLER_CONSUMED;
+//drop:
+//	kfree_skb(skb);
+//	return RX_HANDLER_CONSUMED;
 }
 
 static int fb_eth_netrx(const struct fblock * const fb,

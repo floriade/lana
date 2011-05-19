@@ -150,7 +150,7 @@ int init_worker_engines(void)
 	int i, ret = 0;
 	unsigned int cpu;
 	char name[64];
-	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
+	struct sched_param param = { .sched_priority = -20 };
 
 	engines = alloc_percpu(struct worker_engine);
 	if (!engines)
