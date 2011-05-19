@@ -17,7 +17,7 @@
 #include "xt_engine.h"
 
 static volatile unsigned long cpu = 0;
-static unsigned long cpu_max;
+static unsigned long __read_mostly cpu_max;
 
 static int ppe_rr_init(void)
 {

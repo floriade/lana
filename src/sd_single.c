@@ -19,7 +19,7 @@
 
 extern struct proc_dir_entry *sched_proc_dir;
 static struct proc_dir_entry *ppesched_cpu_proc;
-static volatile unsigned long cpu = 0;
+static volatile unsigned long __read_mostly cpu = 0;
 
 static int ppe_single_sched(struct sk_buff *skb, enum path_type dir)
 {
