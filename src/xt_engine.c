@@ -23,7 +23,6 @@
 #include <linux/sched.h>
 #include <linux/hrtimer.h>
 #include <linux/jiffies.h>
-#include <linux/kernel_stat.h>
 #include <linux/interrupt.h>
 
 #include "xt_engine.h"
@@ -74,7 +73,7 @@ static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
 	struct sk_buff *skb;
-	unsigned long count, count_old, diff, cpu = smp_processor_id();
+	unsigned long cpu = smp_processor_id();
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
 	if (ppe->cpu != cpu)
 		panic("[lana] Engine scheduled on wrong CPU!\n");
@@ -82,7 +81,6 @@ static int engine_thread(void *arg)
 	       "on CPU%lu!\n", cpu);
 	if (!rcu_read_lock_held())
 		need_lock = 1;
-	count = count_old = diff = 0;
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (likely(!kthread_should_stop())) {
 		preempt_disable();
@@ -102,16 +100,6 @@ static int engine_thread(void *arg)
 				rcu_read_unlock();
 			if (unlikely(skb_is_time_marked_last(skb)))
 				ppe->timel = ktime_get();
-			count = kstat_softirqs_cpu(NET_TX_SOFTIRQ, cpu) +
-				kstat_softirqs_cpu(NET_RX_SOFTIRQ, cpu);
-			diff = count - count_old;
-			count_old = count;
-			if (diff < 10)
-				ppe->load = PPE_LOAD_LOW;
-			else if (diff < 100)
-				ppe->load = PPE_LOAD_MEDIUM;
-			else
-				ppe->load = PPE_LOAD_HIGH;
 			u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
 			ppe->inqs[queue].stats.packets++;
 			ppe->inqs[queue].stats.bytes += skb->len;
@@ -146,7 +134,6 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 	len += sprintf(page + len, "engine: %p\n", ppe);
 	len += sprintf(page + len, "cpu: %u, numa node: %d\n",
 		       ppe->cpu, cpu_to_node(ppe->cpu));
-	len += sprintf(page + len, "load stage: %d\n", ppe->load);
 	len += sprintf(page + len, "hrt: %llu us\n",
 		       ktime_us_delta(ppe->timel, ppe->timef));
 	for (i = 0; i < NUM_TYPES; ++i) {
@@ -210,7 +197,6 @@ int init_worker_engines(void)
 			ret = -ENOMEM;
 			break;
 		}
-		ppe->load = PPE_LOAD_LOW;
 		ppe->ppe_timer_set = 0;
 		ppe->thread = kthread_create_on_node(engine_thread, NULL,
 						     cpu_to_node(cpu), name);
