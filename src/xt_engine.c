@@ -50,7 +50,7 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
-	prefetch(skb->cb);
+//	prefetch(skb->cb);
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
 		if (unlikely(!fb))
@@ -61,14 +61,12 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		if (ret == PPE_DROPPED)
 			/* fblock freed skb */
 			return PPE_DROPPED;
-		preempt_enable_no_resched();
-		cond_resched();
-		preempt_disable();
-		prefetch(skb->cb);
+//		prefetch(skb->cb);
 	}
 	return ret;
 }
 
+#if 0
 static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
@@ -83,6 +81,8 @@ static int engine_thread(void *arg)
 		need_lock = 1;
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (likely(!kthread_should_stop())) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule();
 		preempt_disable();
 		if ((queue = ppe_queues_have_load(ppe)) < 0) {
 			preempt_enable_no_resched();
@@ -96,6 +96,7 @@ static int engine_thread(void *arg)
 			if (need_lock)
 				rcu_read_lock();
 			ret = process_packet(skb, ppe->inqs[queue].type);
+			ret = PPE_ERROR;
 			if (need_lock)
 				rcu_read_unlock();
 			if (unlikely(skb_is_time_marked_last(skb)))
@@ -122,6 +123,7 @@ static int engine_thread(void *arg)
 	       "on CPU%u!\n", smp_processor_id());
 	return 0;
 }
+#endif
 
 static int engine_procfs_stats(char *page, char **start, off_t offset, 
 			       int count, int *eof, void *data)
@@ -159,11 +161,44 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 
 static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 {
-	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
-	struct worker_engine *ppe = container_of(thr, struct worker_engine, htimer);
-	if (ppe->thread->state != TASK_RUNNING)
-		wake_up_process(ppe->thread);
-	ppe->ppe_timer_set = 0;
+//	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
+//	struct worker_engine *ppe = container_of(thr, struct worker_engine, htimer);
+//	if (ppe->thread->state != TASK_RUNNING)
+//		wake_up_process(ppe->thread);
+
+	int queue, ret, need_lock = 0;
+	unsigned long budget = 100;
+	struct sk_buff *skb;
+	struct worker_engine *ppe = per_cpu_ptr(engines, smp_processor_id());
+
+	if (test_bit(PPE_RUNNING, &ppe->state))
+		return HRTIMER_NORESTART;
+	set_bit(PPE_RUNNING, &ppe->state);
+	if (!rcu_read_lock_held())
+		need_lock = 1;
+	if ((queue = ppe_queues_have_load(ppe)) < 0)
+		goto out;
+	while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) != NULL &&
+		budget-- > 0) {
+		if (need_lock)
+			rcu_read_lock();
+		ret = process_packet(skb, ppe->inqs[queue].type);
+		if (need_lock)
+			rcu_read_unlock();
+		u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
+		ppe->inqs[queue].stats.packets++;
+		ppe->inqs[queue].stats.bytes += skb->len;
+		if (ret == PPE_DROPPED)
+			ppe->inqs[queue].stats.dropped++;
+		else if (unlikely(ret == PPE_ERROR)) {
+			ppe->inqs[queue].stats.errors++;
+			kfree_skb(skb);
+		}
+		u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
+	}
+out:
+	clear_bit(PPE_RUNNING, &ppe->state);
+	clear_bit(PPE_TIMER_SET, &ppe->state);
 	return HRTIMER_NORESTART;
 }
 
@@ -197,17 +232,16 @@ int init_worker_engines(void)
 			ret = -ENOMEM;
 			break;
 		}
-		ppe->ppe_timer_set = 0;
-		ppe->thread = kthread_create_on_node(engine_thread, NULL,
-						     cpu_to_node(cpu), name);
-		if (IS_ERR(ppe->thread)) {
-			printk(KERN_ERR "[lana] Error creationg thread on "
-			       "node %u!\n", cpu);
-			ret = -EIO;
-			break;
-		}
-		kthread_bind(ppe->thread, cpu);
-		wake_up_process(ppe->thread);
+//		ppe->thread = kthread_create_on_node(engine_thread, NULL,
+//						     cpu_to_node(cpu), name);
+//		if (IS_ERR(ppe->thread)) {
+//			printk(KERN_ERR "[lana] Error creationg thread on "
+//			       "node %u!\n", cpu);
+//			ret = -EIO;
+//			break;
+//		}
+//		kthread_bind(ppe->thread, cpu);
+//		wake_up_process(ppe->thread);
 		tasklet_hrtimer_init(&ppe->htimer, engine_timer_handler,
 				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
 	}
@@ -234,10 +268,11 @@ void cleanup_worker_engines(void)
 		memset(name, 0, sizeof(name));
 		snprintf(name, sizeof(name), "ppe%u", cpu);
 		ppe = per_cpu_ptr(engines, cpu);
-		if (!IS_ERR(ppe->thread)) {
-			tasklet_hrtimer_cancel(&ppe->htimer);
-			kthread_stop(ppe->thread);
-		}
+//		if (!IS_ERR(ppe->thread)) {
+//			tasklet_hrtimer_cancel(&ppe->htimer);
+//			kthread_stop(ppe->thread);
+//		}
+		tasklet_hrtimer_cancel(&ppe->htimer);
 		if (ppe->proc)
 			remove_proc_entry(name, lana_proc_dir);
 	}

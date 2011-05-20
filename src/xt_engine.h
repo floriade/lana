@@ -27,6 +27,9 @@
 #define PPE_DROPPED             1
 #define PPE_ERROR               2
 
+#define PPE_TIMER_SET           0
+#define PPE_RUNNING             1
+
 struct worker_estats {
 	u64 packets;
 	u64 bytes;
@@ -48,7 +51,7 @@ struct worker_engine {
 	struct task_struct *thread;
 	struct tasklet_hrtimer htimer;
 	unsigned int cpu;
-	volatile int ppe_timer_set;
+	unsigned long state;
 } ____cacheline_aligned;
 
 extern int init_worker_engines(void);
@@ -62,10 +65,10 @@ static inline void wake_engine_cond(unsigned int cpu)
 	if (cpu == USERSPACECPU)
 		return;
 #endif /* __MIGRATE */
-	if (ppe->ppe_timer_set)
+	if (test_bit(PPE_TIMER_SET, &ppe->state))
 		return;
-	ppe->ppe_timer_set = 1;
-	tasklet_hrtimer_start(&ppe->htimer, ktime_set(0, 1000000),
+	set_bit(PPE_TIMER_SET, &ppe->state);
+	tasklet_hrtimer_start(&ppe->htimer, ktime_set(0, 10),
 			      HRTIMER_MODE_REL);
 }
 
