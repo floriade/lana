@@ -45,12 +45,22 @@ static inline int ppe_queues_have_load(struct worker_engine *ppe)
 	return -EAGAIN;
 }
 
+static void ppe_queues_free_skbs(struct worker_engine *ppe)
+{
+	struct sk_buff *skb;
+	/* add new stuff here */
+	while ((skb = skb_dequeue(&ppe->inqs[TYPE_INGRESS].queue)) != NULL)
+		kfree_skb(skb);
+	while ((skb = skb_dequeue(&ppe->inqs[TYPE_EGRESS].queue)) != NULL)
+		kfree_skb(skb);
+}
+
 static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
-//	prefetch(skb->cb);
+	prefetch(skb->cb);
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
 		if (unlikely(!fb))
@@ -61,7 +71,10 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 		if (ret == PPE_DROPPED)
 			/* fblock freed skb */
 			return PPE_DROPPED;
-//		prefetch(skb->cb);
+//		preempt_enable_no_resched();
+//		cond_resched();
+//		preempt_disable();
+		prefetch(skb->cb);
 	}
 	return ret;
 }
@@ -166,25 +179,22 @@ static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 //	if (ppe->thread->state != TASK_RUNNING)
 //		wake_up_process(ppe->thread);
 
-	int queue, ret, need_lock = 0;
-	unsigned long budget = 100;
+	int queue, ret;
+//	unsigned long flags;
 	struct sk_buff *skb;
 	struct worker_engine *ppe = per_cpu_ptr(engines, smp_processor_id());
 
 	if (test_bit(PPE_RUNNING, &ppe->state))
 		return HRTIMER_NORESTART;
+	clear_bit(PPE_TIMER_SET, &ppe->state);
+	preempt_disable();
 	set_bit(PPE_RUNNING, &ppe->state);
-	if (!rcu_read_lock_held())
-		need_lock = 1;
 	if ((queue = ppe_queues_have_load(ppe)) < 0)
 		goto out;
-	while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) != NULL &&
-		budget-- > 0) {
-		if (need_lock)
-			rcu_read_lock();
+	while ((skb = skb_dequeue(&ppe->inqs[queue].queue)) != NULL) {
+//		local_irq_save(flags);
 		ret = process_packet(skb, ppe->inqs[queue].type);
-		if (need_lock)
-			rcu_read_unlock();
+//		local_irq_restore(flags);
 		u64_stats_update_begin(&ppe->inqs[queue].stats.syncp);
 		ppe->inqs[queue].stats.packets++;
 		ppe->inqs[queue].stats.bytes += skb->len;
@@ -195,10 +205,13 @@ static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 			kfree_skb(skb);
 		}
 		u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
+		preempt_enable_no_resched();
+		cond_resched();
+		preempt_disable();
 	}
+	preempt_enable();
 out:
 	clear_bit(PPE_RUNNING, &ppe->state);
-	clear_bit(PPE_TIMER_SET, &ppe->state);
 	return HRTIMER_NORESTART;
 }
 
@@ -273,6 +286,7 @@ void cleanup_worker_engines(void)
 //			kthread_stop(ppe->thread);
 //		}
 		tasklet_hrtimer_cancel(&ppe->htimer);
+		ppe_queues_free_skbs(ppe);
 		if (ppe->proc)
 			remove_proc_entry(name, lana_proc_dir);
 	}
