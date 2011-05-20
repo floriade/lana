@@ -48,7 +48,7 @@ struct worker_engine {
 	struct task_struct *thread;
 	struct tasklet_hrtimer htimer;
 	unsigned int cpu;
-	unsigned int pkts;
+	volatile int load;
 	volatile int ppe_timer_set;
 } ____cacheline_aligned;
 
@@ -56,12 +56,13 @@ extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);
 extern struct worker_engine __percpu *engines;
 
-#define WAKE_TIME_MAX (1 << 30)
-#define WAKE_TIME_MIN (1 << 15)
+#define PPE_LOAD_LOW    0
+#define PPE_LOAD_MEDIUM 1
+#define PPE_LOAD_HIGH   2
 
 static inline void wake_engine_cond(unsigned int cpu)
 {
-	unsigned long n = 0;
+	unsigned long next_s = 0, next_ns = 0;
 	struct worker_engine *ppe = per_cpu_ptr(engines, cpu);
 #ifdef __MIGRATE
 	if (cpu == USERSPACECPU)
@@ -70,14 +71,22 @@ static inline void wake_engine_cond(unsigned int cpu)
 	if (ppe->ppe_timer_set)
 		return;
 	ppe->ppe_timer_set = 1;
-	n = (WAKE_TIME_MIN | ppe->pkts) & 0xffffffff;
-	n = ((n >>  1) & 0x55555555) | ((n <<  1) & 0xaaaaaaaa);
-	n = ((n >>  2) & 0x33333333) | ((n <<  2) & 0xcccccccc);
-	n = ((n >>  4) & 0x0f0f0f0f) | ((n <<  4) & 0xf0f0f0f0);
-	n = ((n >>  8) & 0x00ff00ff) | ((n <<  8) & 0xff00ff00);
-	n = ((n >> 16) & 0x0000ffff) | ((n << 16) & 0xffff0000);
-	n = n & (WAKE_TIME_MAX - 1);
-	tasklet_hrtimer_start(&ppe->htimer, ktime_set(0, n),
+	switch (ppe->load) {
+	case PPE_LOAD_HIGH:
+		next_s = 1;
+		next_ns = 0;
+		break;
+	case PPE_LOAD_MEDIUM:
+		next_s = 0;
+		next_ns = 1000000;
+		break;
+	default:
+	case PPE_LOAD_LOW:
+		next_s = 0;
+		next_ns = 10000;
+		break;
+	}
+	tasklet_hrtimer_start(&ppe->htimer, ktime_set(next_s, next_ns),
 			      HRTIMER_MODE_REL);
 }
 
