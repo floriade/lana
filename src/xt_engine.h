@@ -57,6 +57,7 @@ struct worker_engine {
 extern int init_worker_engines(void);
 extern void cleanup_worker_engines(void);
 extern struct worker_engine __percpu *engines;
+extern int process_packet(struct sk_buff *skb, enum path_type dir);
 
 static inline void wake_engine_cond(unsigned int cpu)
 {
@@ -81,7 +82,7 @@ static inline void enqueue_egress_on_engine(struct sk_buff *skb,
 		return;
 #endif /* __MIGRATE */
 	skb_queue_tail(&ppe->inqs[TYPE_EGRESS].queue, skb);
-	wake_engine_cond(cpu);
+//	wake_engine_cond(cpu);
 }
 
 static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
@@ -93,7 +94,7 @@ static inline void enqueue_ingress_on_engine(struct sk_buff *skb,
 		return;
 #endif /* __MIGRATE */
 	skb_queue_tail(&ppe->inqs[TYPE_INGRESS].queue, skb);
-	wake_engine_cond(cpu);
+//	wake_engine_cond(cpu);
 }
 
 static inline void enqueue_on_engine(struct sk_buff *skb,
@@ -106,7 +107,7 @@ static inline void enqueue_on_engine(struct sk_buff *skb,
 		return;
 #endif /* __MIGRATE */
 	skb_queue_tail(&ppe->inqs[type].queue, skb);
-	wake_engine_cond(cpu);
+//	wake_engine_cond(cpu);
 }
 
 #endif /* XT_ENGINE_H */

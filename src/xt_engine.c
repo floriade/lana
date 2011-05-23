@@ -33,6 +33,8 @@ struct worker_engine __percpu *engines;
 EXPORT_SYMBOL_GPL(engines);
 extern struct proc_dir_entry *lana_proc_dir;
 
+#define TIME_RETRIGGER 10000
+
 void cleanup_worker_engines(void);
 
 static inline int ppe_queues_have_load(struct worker_engine *ppe)
@@ -55,7 +57,7 @@ static void ppe_queues_free_skbs(struct worker_engine *ppe)
 		kfree_skb(skb);
 }
 
-static inline int process_packet(struct sk_buff *skb, enum path_type dir)
+int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_ERROR;
 	idp_t cont;
@@ -78,8 +80,8 @@ static inline int process_packet(struct sk_buff *skb, enum path_type dir)
 	}
 	return ret;
 }
+EXPORT_SYMBOL_GPL(process_packet);
 
-#if 0
 static int engine_thread(void *arg)
 {
 	int ret, queue, need_lock = 0;
@@ -109,7 +111,6 @@ static int engine_thread(void *arg)
 			if (need_lock)
 				rcu_read_lock();
 			ret = process_packet(skb, ppe->inqs[queue].type);
-			ret = PPE_ERROR;
 			if (need_lock)
 				rcu_read_unlock();
 			if (unlikely(skb_is_time_marked_last(skb)))
@@ -136,7 +137,6 @@ static int engine_thread(void *arg)
 	       "on CPU%u!\n", smp_processor_id());
 	return 0;
 }
-#endif
 
 static int engine_procfs_stats(char *page, char **start, off_t offset, 
 			       int count, int *eof, void *data)
@@ -174,11 +174,16 @@ static int engine_procfs_stats(char *page, char **start, off_t offset,
 
 static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 {
-//	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
-//	struct worker_engine *ppe = container_of(thr, struct worker_engine, htimer);
-//	if (ppe->thread->state != TASK_RUNNING)
-//		wake_up_process(ppe->thread);
+	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
+	struct worker_engine *ppe = container_of(thr, struct worker_engine, htimer);
+//	clear_bit(PPE_TIMER_SET, &ppe->state);
+	tasklet_hrtimer_start(&ppe->htimer, ktime_set(0, TIME_RETRIGGER),
+			      HRTIMER_MODE_REL);
+	if (ppe->thread->state != TASK_RUNNING)
+		wake_up_process(ppe->thread);
+	return HRTIMER_NORESTART;
 
+#if 0
 	int queue, ret;
 //	unsigned long flags;
 	struct sk_buff *skb;
@@ -187,7 +192,7 @@ static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 	if (test_bit(PPE_RUNNING, &ppe->state))
 		return HRTIMER_NORESTART;
 	clear_bit(PPE_TIMER_SET, &ppe->state);
-	preempt_disable();
+//	preempt_disable();
 	set_bit(PPE_RUNNING, &ppe->state);
 	if ((queue = ppe_queues_have_load(ppe)) < 0)
 		goto out;
@@ -205,14 +210,15 @@ static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 			kfree_skb(skb);
 		}
 		u64_stats_update_end(&ppe->inqs[queue].stats.syncp);
-		preempt_enable_no_resched();
-		cond_resched();
-		preempt_disable();
+//		preempt_enable_no_resched();
+//		cond_resched();
+//		preempt_disable();
 	}
-	preempt_enable();
+//	preempt_enable();
 out:
 	clear_bit(PPE_RUNNING, &ppe->state);
 	return HRTIMER_NORESTART;
+#endif
 }
 
 int init_worker_engines(void)
@@ -220,6 +226,7 @@ int init_worker_engines(void)
 	int i, ret = 0;
 	unsigned int cpu;
 	char name[64];
+	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
 	engines = alloc_percpu(struct worker_engine);
 	if (!engines)
@@ -254,9 +261,12 @@ int init_worker_engines(void)
 //			break;
 //		}
 //		kthread_bind(ppe->thread, cpu);
+//		sched_setscheduler(ppe->thread, SCHED_FIFO, &param);
 //		wake_up_process(ppe->thread);
-		tasklet_hrtimer_init(&ppe->htimer, engine_timer_handler,
-				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
+//		tasklet_hrtimer_init(&ppe->htimer, engine_timer_handler,
+//				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
+//		tasklet_hrtimer_start(&ppe->htimer, ktime_set(0, TIME_RETRIGGER),
+//				      HRTIMER_MODE_REL);
 	}
 	put_online_cpus();
 
@@ -283,10 +293,9 @@ void cleanup_worker_engines(void)
 		ppe = per_cpu_ptr(engines, cpu);
 //		if (!IS_ERR(ppe->thread)) {
 //			tasklet_hrtimer_cancel(&ppe->htimer);
+//			ppe_queues_free_skbs(ppe);
 //			kthread_stop(ppe->thread);
 //		}
-		tasklet_hrtimer_cancel(&ppe->htimer);
-		ppe_queues_free_skbs(ppe);
 		if (ppe->proc)
 			remove_proc_entry(name, lana_proc_dir);
 	}
