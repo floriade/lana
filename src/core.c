@@ -15,7 +15,6 @@
 
 #include "xt_fblock.h"
 #include "xt_vlink.h"
-#include "xt_engine.h"
 #include "xt_builder.h"
 #include "xt_user.h"
 
@@ -38,26 +37,21 @@ static int __init init_lana_core_module(void)
 	ret = init_vlink_system();
 	if (ret)
 		goto err1;
-	ret = init_worker_engines();
-	if (ret)
-		goto err2;
 	ret = init_fblock_tables();
 	if (ret)
-		goto err3;
+		goto err2;
 	ret = init_fblock_builder();
 	if (ret)
-		goto err4;
+		goto err3;
 	ret = init_userctl_system();
 	if (ret)
-		goto err5;
+		goto err4;
 	printk(KERN_INFO "[lana] core up and running!\n");
 	return 0;
-err5:
-	cleanup_fblock_builder();
 err4:
-	cleanup_fblock_tables();
+	cleanup_fblock_builder();
 err3:
-	cleanup_worker_engines();
+	cleanup_fblock_tables();
 err2:
 	cleanup_vlink_system();
 err1:
@@ -71,7 +65,6 @@ static void __exit cleanup_lana_core_module(void)
 {
 	printk(KERN_INFO "[lana] halting core ...\n");
 	cleanup_userctl_system();
-	cleanup_worker_engines();
 	cleanup_fblock_tables();
 	cleanup_fblock_builder();
 	cleanup_vlink_system();
