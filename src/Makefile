@@ -7,13 +7,11 @@
 #
 
 lana-y   := core.o      \
-	   xt_sched.o   \
 	   xt_vlink.o   \
 	   xt_engine.o  \
 	   xt_fblock.o  \
 	   xt_builder.o \
 	   xt_critbit.o \
-	   xt_migrate.o \
 	   xt_user.o
 obj-m    += lana.o
 
@@ -22,17 +20,10 @@ obj-m    += lana.o
 # module.
 
 # Test modules
-obj-m    += fb_eth.o
 obj-m    += fb_dummy.o
-obj-m    += testskb.o
-obj-m    += testskb2.o
 
 # Real modules
-obj-m    += sd_blackhole.o
-obj-m    += sd_rr.o
-obj-m    += sd_single.o
-obj-m    += sd_curr.o
-obj-m    += sd_rand.o
+obj-m    += fb_eth.o
 obj-m    += fb_ethvlink.o
 
 MDIR     := /lib/modules/$(shell uname -r)
