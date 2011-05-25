@@ -29,9 +29,6 @@ struct fb_pflana_priv {
 	seqlock_t lock;
 };
 
-static int instantiated = 0;
-static struct fblock *fb;
-
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
 			   enum path_type * const dir)
@@ -58,9 +55,9 @@ static struct fblock *fb_pflana_ctor(char *name)
 {
 	int i, ret = 0;
 	unsigned int cpu;
+	struct fblock *fb;
 	struct fb_pflana_priv __percpu *fb_priv;
 
-	if (instantiated)
 		return NULL;
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
@@ -88,16 +85,8 @@ static struct fblock *fb_pflana_ctor(char *name)
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
-	ret = init_fb_pflana();
-	if (ret)
-		goto err4;
 	__module_get(THIS_MODULE);
-	instantiated = 1;
-	smp_wmb();
 	return fb;
-err4:
-	unregister_fblock_namespace(fb);
-	return NULL;
 err3:
 	cleanup_fblock_ctor(fb);
 err2:
@@ -112,8 +101,6 @@ static void fb_pflana_dtor(struct fblock *fb)
 {
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
-	instantiated = 0;
-	cleanup_fb_pflana();
 }
 
 static struct fblock_factory fb_pflana_factory = {
@@ -126,11 +113,19 @@ static struct fblock_factory fb_pflana_factory = {
 
 static int __init init_fb_pflana_module(void)
 {
-	return register_fblock_type(&fb_pflana_factory);
+	int ret;
+	ret = init_fb_pflana();
+	if (ret)
+		return ret;
+	ret = register_fblock_type(&fb_pflana_factory);
+	if (ret)
+		cleanup_fb_pflana();
+	return ret;
 }
 
 static void __exit cleanup_fb_pflana_module(void)
 {
+	cleanup_fb_pflana();
 	unregister_fblock_type(&fb_pflana_factory);
 }
 
