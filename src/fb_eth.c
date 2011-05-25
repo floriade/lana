@@ -21,10 +21,11 @@
 #include <linux/seqlock.h>
 
 #include "xt_idp.h"
-#include "xt_skb.h"
 #include "xt_engine.h"
+#include "xt_skb.h"
 #include "xt_fblock.h"
 #include "xt_builder.h"
+#include "xt_vlink.h"
 
 #define IFF_IS_BRIDGED  0x60000
 
@@ -55,22 +56,17 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 {
 	unsigned int seq;
 	struct sk_buff *skb = *pskb;
-//	struct net_device *dev = skb->dev;
 	struct fb_eth_priv __percpu *fb_priv_cpu;
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
 
-//	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
-//		goto drop;
+	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
+		goto drop;
 
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (unlikely(!skb))
 		return RX_HANDLER_CONSUMED;
-
-//	if ((eth_hdr(skb)->h_proto & __constant_htons(ETH_P_ARP)) ==
-//	    __constant_htons(ETH_P_ARP))
-//		return RX_HANDLER_PASS; /* Let OS handle ARP */
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
@@ -78,13 +74,12 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 		write_next_idp_to_skb(skb, fb->idp,
 				      fb_priv_cpu->port[TYPE_INGRESS]);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
-//	ppesched_sched(skb, TYPE_INGRESS);
 	if (process_packet(skb, TYPE_INGRESS) != PPE_DROPPED)
-		kfree_skb(skb);
+		kfree_skb(skb); //XXX
 	return RX_HANDLER_CONSUMED;
-//drop:
-//	kfree_skb(skb);
-//	return RX_HANDLER_CONSUMED;
+drop:
+	kfree_skb(skb);
+	return RX_HANDLER_CONSUMED;
 }
 
 static int fb_eth_netrx(const struct fblock * const fb,
@@ -254,14 +249,48 @@ static struct fblock_factory fb_eth_factory = {
 	.owner = THIS_MODULE,
 };
 
+static struct vlink_subsys fb_eth_sys __read_mostly = {
+	.name = "eth",
+	.type = VLINKNLGRP_ETHERNET,
+	.rwsem = __RWSEM_INITIALIZER(fb_eth_sys.rwsem),
+};
+
+static int fb_eth_start_hook_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+{
+	return NETLINK_VLINK_RX_NXT;
+}
+
+static int fb_eth_stop_hook_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
+{
+	return NETLINK_VLINK_RX_NXT;
+}
+
+static struct vlink_callback fb_eth_start_hook_dev_cb =
+	VLINK_CALLBACK_INIT(fb_eth_start_hook_dev, NETLINK_VLINK_PRIO_HIGH);
+static struct vlink_callback fb_eth_stop_hook_dev_cb =
+	VLINK_CALLBACK_INIT(fb_eth_stop_hook_dev, NETLINK_VLINK_PRIO_HIGH);
+
 static int __init init_fb_eth_module(void)
 {
-	return register_fblock_type(&fb_eth_factory);
+	int ret = 0;
+	ret = vlink_subsys_register(&fb_eth_sys);
+	if (ret)
+		return ret;
+
+	vlink_add_callback(&fb_eth_sys, &fb_eth_start_hook_dev_cb);
+        vlink_add_callback(&fb_eth_sys, &fb_eth_stop_hook_dev_cb);
+
+	ret = register_fblock_type(&fb_eth_factory);
+	if (ret)
+		vlink_subsys_unregister_batch(&fb_eth_sys);
+	return ret;
 }
 
 static void __exit cleanup_fb_eth_module(void)
 {
 	unregister_fblock_type(&fb_eth_factory);
+		vlink_subsys_unregister_batch(&fb_eth_sys);
+	vlink_subsys_unregister_batch(&fb_eth_sys);
 }
 
 module_init(init_fb_eth_module);
