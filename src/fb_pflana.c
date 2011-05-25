@@ -16,6 +16,7 @@
 #include <linux/seqlock.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
+#include <net/sock.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -23,6 +24,9 @@
 #include "xt_skb.h"
 #include "xt_engine.h"
 #include "xt_builder.h"
+
+#define AF_LANA		66	/* For now.. */
+#define PF_LANA		AF_LANA
 
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
@@ -41,6 +45,45 @@ static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 {
 	return 0;
 }
+
+struct lana_sock {
+	/* struct sock must be the first member of lana_sock */
+	struct sock sk;
+};
+
+static const struct net_proto_family lana_ui_family_ops = {
+	.family = PF_LANA,
+//	.create = lana_ui_create,
+	.owner	= THIS_MODULE,
+};
+
+static const struct proto_ops lana_ui_ops = {
+	.family	     = PF_LANA,
+	.owner       = THIS_MODULE,
+//	.release     = lana_ui_release,
+//	.bind	     = lana_ui_bind,
+//	.connect     = lana_ui_connect,
+	.socketpair  = sock_no_socketpair,
+//	.accept      = lana_ui_accept,
+//	.getname     = lana_ui_getname,
+	.poll	     = datagram_poll,
+//	.ioctl       = lana_ui_ioctl,
+//	.listen      = lana_ui_listen,
+//	.shutdown    = lana_ui_shutdown,
+//	.setsockopt  = lana_ui_setsockopt,
+//	.getsockopt  = lana_ui_getsockopt,
+//	.sendmsg     = lana_ui_sendmsg,
+//	.recvmsg     = lana_ui_recvmsg,
+	.mmap	     = sock_no_mmap,
+	.sendpage    = sock_no_sendpage,
+};
+
+static struct proto lana_proto = {
+	.name	  = "LANA",
+	.owner	  = THIS_MODULE,
+	.obj_size = sizeof(struct lana_sock),
+	.slab_flags = SLAB_DESTROY_BY_RCU,
+};
 
 static void cleanup_fb_pflana(void)
 {
