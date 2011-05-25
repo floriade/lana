@@ -1,7 +1,7 @@
 /*
  * Lightweight Autonomic Network Architecture
  *
- * Dummy test module.
+ * PF_LANA userspace module.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -24,119 +24,55 @@
 #include "xt_engine.h"
 #include "xt_builder.h"
 
-struct fb_dummy_priv {
+struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
 };
 
-static int fb_dummy_netrx(const struct fblock * const fb,
-			  struct sk_buff * const skb,
-			  enum path_type * const dir)
-{
-	int drop = 0;
-	unsigned int seq;
-	struct fb_dummy_priv __percpu *fb_priv_cpu;
+static int instantiated = 0;
+static struct fblock *fb;
 
-	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-#ifdef __DEBUG
-	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
-#endif
-	prefetchw(skb->cb);
-	do {
-		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
-		if (fb_priv_cpu->port[*dir] == IDP_UNKNOWN)
-			drop = 1;
-	} while (read_seqretry(&fb_priv_cpu->lock, seq));
-	if (drop) {
-		kfree_skb(skb);
-		return PPE_DROPPED;
-	}
+static int fb_pflana_netrx(const struct fblock * const fb,
+			   struct sk_buff * const skb,
+			   enum path_type * const dir)
+{
 	return PPE_SUCCESS;
 }
 
-static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
-			  void *args)
+static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
+			   void *args)
 {
-	int ret = NOTIFY_OK;
-	unsigned int cpu;
-	struct fblock *fb;
-	struct fb_dummy_priv __percpu *fb_priv;
-
-	rcu_read_lock();
-	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
-	fb_priv = (struct fb_dummy_priv __percpu *) rcu_dereference_raw(fb->private_data);
-	rcu_read_unlock();
-
-#ifdef __DEBUG
-	printk("Got event %lu on %p!\n", cmd, fb);
-#endif
-
-	switch (cmd) {
-	case FBLOCK_BIND_IDP: {
-		struct fblock_bind_msg *msg = args;
-		get_online_cpus();
-		for_each_online_cpu(cpu) {
-			struct fb_dummy_priv *fb_priv_cpu;
-			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
-			if (fb_priv_cpu->port[msg->dir] == IDP_UNKNOWN) {
-				write_seqlock(&fb_priv_cpu->lock);
-				fb_priv_cpu->port[msg->dir] = msg->idp;
-				write_sequnlock(&fb_priv_cpu->lock);
-			} else {
-				ret = NOTIFY_BAD;
-				break;
-			}
-		}
-		put_online_cpus();
-		} break;
-	case FBLOCK_UNBIND_IDP: {
-		struct fblock_bind_msg *msg = args;
-		get_online_cpus();
-		for_each_online_cpu(cpu) {
-			struct fb_dummy_priv *fb_priv_cpu;
-			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
-			if (fb_priv_cpu->port[msg->dir] == msg->idp) {
-				write_seqlock(&fb_priv_cpu->lock);
-				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
-				write_sequnlock(&fb_priv_cpu->lock);
-			} else {
-				ret = NOTIFY_BAD;
-				break;
-			}
-			put_online_cpus();
-		}
-		put_online_cpus();
-		} break;
-	case FBLOCK_SET_OPT: {
-		struct fblock_opt_msg *msg = args;
-		printk("Set option %s to %s!\n", msg->key, msg->val);
-		} break;
-	default:
-		break;
-	}
-
-	return ret;
+	return 0;
 }
 
-static struct fblock *fb_dummy_ctor(char *name)
+static void cleanup_fb_pflana(void)
+{
+}
+
+static int init_fb_pflana(void)
+{
+	return 0;
+}
+
+static struct fblock *fb_pflana_ctor(char *name)
 {
 	int i, ret = 0;
 	unsigned int cpu;
-	struct fblock *fb;
-	struct fb_dummy_priv __percpu *fb_priv;
+	struct fb_pflana_priv __percpu *fb_priv;
 
+	if (instantiated)
+		return NULL;
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
 		return NULL;
 
-	fb_priv = alloc_percpu(struct fb_dummy_priv);
+	fb_priv = alloc_percpu(struct fb_pflana_priv);
 	if (!fb_priv)
 		goto err;
 
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
-		struct fb_dummy_priv *fb_priv_cpu;
+		struct fb_pflana_priv *fb_priv_cpu;
 		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
 		seqlock_init(&fb_priv_cpu->lock);
 		for (i = 0; i < NUM_TYPES; ++i)
@@ -147,49 +83,60 @@ static struct fblock *fb_dummy_ctor(char *name)
 	ret = init_fblock(fb, name, fb_priv);
 	if (ret)
 		goto err2;
-	fb->netfb_rx = fb_dummy_netrx;
-	fb->event_rx = fb_dummy_event;
+	fb->netfb_rx = fb_pflana_netrx;
+	fb->event_rx = fb_pflana_event;
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
+	ret = init_fb_pflana();
+	if (ret)
+		goto err4;
 	__module_get(THIS_MODULE);
+	instantiated = 1;
+	smp_wmb();
 	return fb;
+err4:
+	unregister_fblock_namespace(fb);
+	return NULL;
 err3:
 	cleanup_fblock_ctor(fb);
 err2:
 	free_percpu(fb_priv);
 err:
 	kfree_fblock(fb);
+	fb = NULL;
 	return NULL;
 }
 
-static void fb_dummy_dtor(struct fblock *fb)
+static void fb_pflana_dtor(struct fblock *fb)
 {
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
+	instantiated = 0;
+	cleanup_fb_pflana();
 }
 
-static struct fblock_factory fb_dummy_factory = {
-	.type = "dummy",
-	.mode = MODE_DUAL,
-	.ctor = fb_dummy_ctor,
-	.dtor = fb_dummy_dtor,
+static struct fblock_factory fb_pflana_factory = {
+	.type = "pflana",
+	.mode = MODE_SINK,
+	.ctor = fb_pflana_ctor,
+	.dtor = fb_pflana_dtor,
 	.owner = THIS_MODULE,
 };
 
-static int __init init_fb_dummy_module(void)
+static int __init init_fb_pflana_module(void)
 {
-	return register_fblock_type(&fb_dummy_factory);
+	return register_fblock_type(&fb_pflana_factory);
 }
 
-static void __exit cleanup_fb_dummy_module(void)
+static void __exit cleanup_fb_pflana_module(void)
 {
-	unregister_fblock_type(&fb_dummy_factory);
+	unregister_fblock_type(&fb_pflana_factory);
 }
 
-module_init(init_fb_dummy_module);
-module_exit(cleanup_fb_dummy_module);
+module_init(init_fb_pflana_module);
+module_exit(cleanup_fb_pflana_module);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
-MODULE_DESCRIPTION("LANA dummy/test module");
+MODULE_DESCRIPTION("LANA PF_LANA module");
