@@ -10,7 +10,6 @@
 #define XT_SKB_H
 
 #include <linux/skbuff.h>
-#include "xt_conf.h"
 #include "xt_idp.h"
 
 #define MARKER_TIME_MARKED_FIRST	(1 << 0)

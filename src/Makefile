@@ -6,6 +6,7 @@
 # Subject to the GPL.
 #
 
+# LANA core backend
 lana-y   := core.o      \
 	   xt_vlink.o   \
 	   xt_engine.o  \
@@ -15,9 +16,8 @@ lana-y   := core.o      \
 	   xt_user.o
 obj-m    += lana.o
 
-# Some of the optional modules are packed, so that we have two packages:
-# basic and extra, nevertheless modules can also be developed as a single
-# module.
+# Some of the optional modules are packed, so that we have two or more
+# packages: lana.ko and each loadable functional block
 
 # Test modules
 obj-m    += fb_dummy.o
@@ -25,6 +25,7 @@ obj-m    += fb_dummy.o
 # Real modules
 obj-m    += fb_eth.o
 obj-m    += fb_ethvlink.o
+obj-m    += fb_pflana.o
 
 MDIR     := /lib/modules/$(shell uname -r)
 KDIR     := $(MDIR)/build

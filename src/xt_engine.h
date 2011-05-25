@@ -10,8 +10,6 @@
 #define XT_ENGINE_H
 
 #include <linux/skbuff.h>
-
-#include "xt_conf.h"
 #include "xt_fblock.h"
 
 #define PPE_SUCCESS             0

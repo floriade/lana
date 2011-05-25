@@ -11,8 +11,6 @@
 
 #include <linux/types.h>
 
-#include "xt_conf.h"
-
 typedef /* volatile */ __u32   idp32_t;
 typedef idp32_t idp_t;
 

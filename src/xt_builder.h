@@ -9,7 +9,6 @@
 #ifndef XT_BUILDER_H
 #define XT_BUILDER_H
 
-#include "xt_conf.h"
 #include "xt_fblock.h"
 
 extern int register_fblock_type(struct fblock_factory *fops);
