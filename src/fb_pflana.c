@@ -31,15 +31,29 @@
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
+	struct lana_sock *sock_self; /* Only set on init, never changed! */
+};
+
+struct lana_sock {
+	/* struct sock must be the first member of lana_sock */
+	struct sock sk;
+	struct fblock *fb;
 };
 
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
+static struct fblock *fb_pflana_ctor(char *name);
+static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
 			   enum path_type * const dir)
 {
+	/* TODO: check if we also have egress ports, clone if neccessary,
+	 *       deliver to backlog */
+	struct fb_pflana_priv __percpu *fb_priv_cpu;
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
+	lana_backlog_rcv((struct sock *) fb_priv_cpu->sock_self, skb);
 	return PPE_SUCCESS;
 }
 
@@ -49,11 +63,23 @@ static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 	return 0;
 }
 
-struct lana_sock {
-	/* struct sock must be the first member of lana_sock */
-	struct sock sk;
-	/* ... */
-};
+static struct fblock *get_bound_fblock(struct fblock *self, enum path_type dir)
+{
+	idp_t fbidp;
+	unsigned int seq;
+	struct fb_pflana_priv __percpu *fb_priv_cpu;
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(self->private_data));
+	do {
+		seq = read_seqbegin(&fb_priv_cpu->lock);
+                fbidp = fb_priv_cpu->port[dir];
+	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+	return search_fblock(fbidp);
+}
+
+static inline struct lana_sock *to_lana_sk(const struct sock *sk)
+{
+	return (struct lana_sock *) sk;
+}
 
 static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
@@ -69,10 +95,26 @@ static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
 	sock->ops = &lana_ui_ops;
 }
 
-static void lana_sk_init(struct sock* sk)
+static int lana_sk_init(struct sock* sk)
 {
-	/* default struct vals*/
+	int cpu;
+	char name[256];
+	struct lana_sock *lana = to_lana_sk(sk);
+
+	memset(name, 0, sizeof(name));
+	snprintf(name, sizeof(name), "pflana-%p", lana);
 	sk->sk_backlog_rcv = lana_backlog_rcv;
+	lana->fb = fb_pflana_ctor(name);
+	if (!lana->fb)
+		return -ENOMEM;
+	get_online_cpus();
+	for_each_online_cpu(cpu) {
+		struct fb_pflana_priv *fb_priv_cpu;
+		fb_priv_cpu = per_cpu_ptr(lana->fb->private_data, cpu);
+		fb_priv_cpu->sock_self = lana;
+	}
+	put_online_cpus();
+	return 0;
 }
 
 static struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
@@ -81,13 +123,41 @@ static struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
 	struct sock *sk = sk_alloc(net, family, priority, prot);
 	if (!sk)
 		return NULL;
-	lana_sk_init(sk);
+	if (lana_sk_init(sk) < 0) {
+		sock_put(sk);
+		return NULL;
+	}
 	sock_init_data(NULL, sk);
 	return sk;
 }
 
 static void lana_sk_free(struct sock *sk)
 {
+	int ret;
+	struct fblock *fb_bound;
+	struct lana_sock *lana = to_lana_sk(sk);
+
+	fb_bound = get_bound_fblock(lana->fb, TYPE_INGRESS);
+	if (fb_bound) {
+		ret = fblock_unbind(fb_bound, lana->fb);
+		if (ret)
+			put_fblock(fb_bound);
+		else
+			printk(KERN_ERR "pflana: failed to unbind fblock %p!\n", fb_bound);
+	}
+
+	fb_bound = get_bound_fblock(lana->fb, TYPE_EGRESS);
+	if (fb_bound) {
+		ret = fblock_unbind(lana->fb, fb_bound);
+		if (ret)
+			put_fblock(fb_bound);
+		else
+			printk(KERN_ERR "pflana: failed to unbind fblock %p!\n", fb_bound);
+	}
+
+	/* Other subscriptions are not allowed! */
+
+	unregister_fblock_namespace(lana->fb);
 	skb_queue_purge(&sk->sk_receive_queue);
 	skb_queue_purge(&sk->sk_write_queue);
 	sock_put(sk);
