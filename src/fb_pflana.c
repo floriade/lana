@@ -38,6 +38,7 @@ struct lana_sock {
 	/* struct sock must be the first member of lana_sock */
 	struct sock sk;
 	struct fblock *fb;
+	int bound;
 };
 
 static struct fblock_factory fb_pflana_factory;
@@ -50,12 +51,23 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
 			   enum path_type * const dir)
 {
-	/* TODO: check if we also have egress ports, clone if neccessary,
-	 *       deliver to backlog */
+	struct sock *sk;
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
+
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-	lana_backlog_rcv((struct sock *) fb_priv_cpu->sock_self, skb);
+	sk = (struct sock *) fb_priv_cpu->sock_self;
+
+	sock_hold(sk);
+	bh_lock_sock(sk);
+	if (sk_add_backlog(sk, skb))
+		goto drop;
+out:
+	bh_unlock_sock(sk);
+	sock_put(sk);
 	return PPE_SUCCESS;
+drop:
+	kfree_skb(skb);
+	goto out;
 }
 
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
@@ -105,6 +117,7 @@ static int lana_sk_init(struct sock* sk)
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "pflana-%p", &lana->sk);
 	sk->sk_backlog_rcv = lana_backlog_rcv;
+	lana->bound = 0;
 	lana->fb = fb_pflana_ctor(name);
 	if (!lana->fb)
 		return -ENOMEM;
@@ -175,6 +188,32 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 	return rc;
 }
 
+static int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
+			   struct msghdr *msg, size_t len, int flags)
+{
+	int target;
+	const int nonblock = flags & MSG_DONTWAIT;
+	unsigned long used;
+	size_t copied = 0;
+	struct sock *sk = sock->sk;
+	struct lana_sock *lana = to_lana_sk(sk);
+	struct sk_buff *skb = NULL;
+
+	lock_sock(sk);
+	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
+	copied = 0;
+	do {
+		u32 offset;
+		//TODO
+		//fetch skb from backlog
+		if (used + offset < skb->len)
+			continue;
+	} while (len > 0);
+	release_sock(sk);
+
+	return copied;
+}
+
 static int lana_ui_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
@@ -184,7 +223,6 @@ static int lana_ui_release(struct socket *sock)
 	sock_hold(sk);
 	lock_sock(sk);
 	release_sock(sk);
-	//TODO dev_put();
 	sock_put(sk);
 	lana_sk_free(sk);
 	return 0;
@@ -212,7 +250,7 @@ static const struct proto_ops lana_ui_ops = {
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
 	.sendmsg     = sock_no_sendmsg,
-	.recvmsg     = sock_no_recvmsg,
+	.recvmsg     = lana_ui_recvmsg,
 	.mmap	     = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
 };
