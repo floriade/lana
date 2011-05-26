@@ -16,6 +16,7 @@
 #include <linux/seqlock.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
+#include <linux/capability.h>
 #include <net/sock.h>
 
 #include "xt_fblock.h"
@@ -33,6 +34,9 @@ struct fb_pflana_priv {
 	seqlock_t lock;
 };
 
+static struct proto lana_proto;
+static const struct proto_ops lana_ui_ops;
+
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
 			   enum path_type * const dir)
@@ -49,11 +53,64 @@ static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 struct lana_sock {
 	/* struct sock must be the first member of lana_sock */
 	struct sock sk;
+	/* ... */
 };
+
+static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb)
+{
+	printk(KERN_INFO "packet in backlog queue\n");
+	kfree_skb(skb);
+	return 0;
+}
+
+static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
+{
+	sock_graft(sk, sock);
+	sk->sk_type = sock->type;
+	sock->ops = &lana_ui_ops;
+}
+
+static void lana_sk_init(struct sock* sk)
+{
+	sk->sk_backlog_rcv = lana_backlog_rcv;
+}
+
+struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
+			   struct proto *prot)
+{
+	struct sock *sk = sk_alloc(net, family, priority, prot);
+	if (!sk)
+		return NULL;
+	lana_sk_init(sk);
+	sock_init_data(NULL, sk);
+	return sk;
+}
+
+static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
+			  int kern)
+{
+	struct sock *sk;
+	int rc = -ESOCKTNOSUPPORT;
+
+	if (!capable(CAP_NET_RAW))
+		return -EPERM;
+	if (!net_eq(net, &init_net))
+		return -EAFNOSUPPORT;
+	if (likely(sock->type == SOCK_DGRAM ||
+		   sock->type == SOCK_STREAM)) {
+		rc = -ENOMEM;
+		sk = lana_sk_alloc(net, PF_LANA, GFP_KERNEL, &lana_proto);
+		if (sk) {
+			rc = 0;
+			lana_ui_sk_init(sock, sk);
+		}
+	}
+	return rc;
+}
 
 static const struct net_proto_family lana_ui_family_ops = {
 	.family = PF_LANA,
-//	.create = lana_ui_create,
+	.create = lana_ui_create,
 	.owner	= THIS_MODULE,
 };
 
