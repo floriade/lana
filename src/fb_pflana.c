@@ -75,8 +75,8 @@ static void lana_sk_init(struct sock* sk)
 	sk->sk_backlog_rcv = lana_backlog_rcv;
 }
 
-struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
-			   struct proto *prot)
+static struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
+				  struct proto *prot)
 {
 	struct sock *sk = sk_alloc(net, family, priority, prot);
 	if (!sk)
@@ -84,6 +84,13 @@ struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
 	lana_sk_init(sk);
 	sock_init_data(NULL, sk);
 	return sk;
+}
+
+static void lana_sk_free(struct sock *sk)
+{
+	skb_queue_purge(&sk->sk_receive_queue);
+	skb_queue_purge(&sk->sk_write_queue);
+	sock_put(sk);
 }
 
 static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
@@ -106,6 +113,21 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 	return rc;
 }
 
+static int lana_ui_release(struct socket *sock)
+{
+	struct sock *sk = sock->sk;
+
+	if (unlikely(sk == NULL))
+		return 0;
+	sock_hold(sk);
+	lock_sock(sk);
+	release_sock(sk);
+	//TODO dev_put();
+	sock_put(sk);
+	lana_sk_free(sk);
+	return 0;
+}
+
 static const struct net_proto_family lana_ui_family_ops = {
 	.family = PF_LANA,
 	.create = lana_ui_create,
@@ -115,20 +137,20 @@ static const struct net_proto_family lana_ui_family_ops = {
 static const struct proto_ops lana_ui_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
-//	.release     = lana_ui_release,
-//	.bind	     = lana_ui_bind,
-//	.connect     = lana_ui_connect,
+	.release     = lana_ui_release,
+	.bind	     = sock_no_bind,
+	.connect     = sock_no_connect,
 	.socketpair  = sock_no_socketpair,
-//	.accept      = lana_ui_accept,
-//	.getname     = lana_ui_getname,
-	.poll	     = datagram_poll,
-//	.ioctl       = lana_ui_ioctl,
-//	.listen      = lana_ui_listen,
-//	.shutdown    = lana_ui_shutdown,
-//	.setsockopt  = lana_ui_setsockopt,
-//	.getsockopt  = lana_ui_getsockopt,
-//	.sendmsg     = lana_ui_sendmsg,
-//	.recvmsg     = lana_ui_recvmsg,
+	.accept      = sock_no_accept,
+	.getname     = sock_no_getname,
+	.poll	     = sock_no_poll,
+	.ioctl       = sock_no_ioctl,
+	.listen      = sock_no_listen,
+	.shutdown    = sock_no_shutdown,
+	.setsockopt  = sock_no_setsockopt,
+	.getsockopt  = sock_no_getsockopt,
+	.sendmsg     = sock_no_sendmsg,
+	.recvmsg     = sock_no_recvmsg,
 	.mmap	     = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
 };
