@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
 
 #define AF_LANA		27
@@ -28,6 +30,10 @@ static inline void register_signal(int signal, void (*handler)(int))
 int main(void)
 {
 	int sock;
+	char buff[256];
+	struct iovec iov[1];
+	struct msghdr msg;
+
 	register_signal(SIGINT, intr);
 	sock = socket(AF_LANA, SOCK_STREAM, 0);
 	if (sock < 0) {
@@ -35,8 +41,22 @@ int main(void)
 		return 0;
 	}
 
+	memset(&msg, 0, sizeof(msg));
+	memset(iov, 0, sizeof(iov));
+	iov[0].iov_base = buff;
+	iov[0].iov_len = sizeof(buff);
+	msg.msg_iov = iov;
+	msg.msg_iovlen = 1;
+
 	printf("Worked! Abort with ^C\n");
-	while (!sigint);
+	while (!sigint) {
+		int ret = recvmsg(sock, &msg, 0);
+		if (ret < 0) {
+			perror("recvmsg");
+		} else {
+			printf("msg received!\n");
+		}
+	}
 
 	close(sock);
 	return 0;
