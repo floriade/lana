@@ -39,6 +39,7 @@ struct lana_sock {
 	struct sock sk;
 	struct fblock *fb;
 	int bound;
+	u32 copied_seq;
 };
 
 static struct fblock_factory fb_pflana_factory;
@@ -96,8 +97,10 @@ static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 
 static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	printk(KERN_INFO "packet in backlog queue\n");
-	kfree_skb(skb);
+	if (unlikely(sock_queue_rcv_skb(sk, skb))) {
+		printk(KERN_ERR "%s: sock_queue_rcv_skb failed!\n", __func__);
+		kfree_skb(skb);
+	}
 	return 0;
 }
 
@@ -193,6 +196,8 @@ static int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 {
 	int target;
 	const int nonblock = flags & MSG_DONTWAIT;
+	u32 peek_seq = 0, *seq;
+	long timeout;
 	unsigned long used;
 	size_t copied = 0;
 	struct sock *sk = sock->sk;
@@ -200,12 +205,81 @@ static int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 	struct sk_buff *skb = NULL;
 
 	lock_sock(sk);
+	timeout = sock_rcvtimeo(sk, nonblock);
+	seq = &lana->copied_seq;
+	if (flags & MSG_PEEK) {
+		peek_seq = lana->copied_seq;
+		seq = &peek_seq;
+	}
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
 	copied = 0;
+
 	do {
 		u32 offset;
-		//TODO
-		//fetch skb from backlog
+		if (signal_pending(current)) {
+			if (copied)
+				break;
+			copied = timeout ? sock_intr_errno(timeout) : -EAGAIN;
+			break;
+		}
+		skb = skb_peek(&sk->sk_receive_queue);
+		if (skb) {
+			offset = *seq;
+			goto found_good_skb;
+		}
+		if (copied >= target && !sk->sk_backlog.tail)
+			break;
+		if (copied) {
+			if (sk->sk_err || !timeout || (flags & MSG_PEEK) ||
+			    (sk->sk_shutdown & RCV_SHUTDOWN))
+				break;
+		} else {
+			if (sock_flag(sk, SOCK_DONE))
+				break;
+			if (sk->sk_err) {
+				copied = sock_error(sk);
+				break;
+			}
+			if (sk->sk_shutdown & RCV_SHUTDOWN)
+				break;
+			if (!timeout) {
+				copied = -EAGAIN;
+				break;
+			}
+		}
+		if (copied >= target) {
+			/* Process backlog queue */
+			release_sock(sk);
+			lock_sock(sk);
+		} else
+			sk_wait_data(sk, &timeout);
+		if ((flags & MSG_PEEK) && peek_seq != lana->copied_seq) {
+			/* BUG in MSG_PEEK */
+			peek_seq = lana->copied_seq;
+		}
+		continue;
+found_good_skb:
+		used = skb->len - offset;
+		if (len < used)
+			used = len;
+		if (!(flags & MSG_TRUNC)) {
+			int ret = skb_copy_datagram_iovec(skb, offset,
+							 msg->msg_iov, used);
+			if (ret) {
+				if (!copied)
+					copied = -EFAULT;
+				break;
+			}
+		}
+		*seq += used;
+		copied += used;
+		len -= used;
+		if (!(flags & MSG_PEEK)) {
+			sk_eat_skb(sk, skb, 0);
+			*seq = 0;
+		}
+		if (sk->sk_type != SOCK_STREAM)
+			break;
 		if (used + offset < skb->len)
 			continue;
 	} while (len > 0);
