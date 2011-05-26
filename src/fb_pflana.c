@@ -25,7 +25,7 @@
 #include "xt_engine.h"
 #include "xt_builder.h"
 
-#define AF_LANA		66	/* For now.. */
+#define AF_LANA		27	/* For now.. */
 #define PF_LANA		AF_LANA
 
 struct fb_pflana_priv {
