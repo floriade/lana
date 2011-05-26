@@ -16,7 +16,6 @@
 #include <linux/seqlock.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
-#include <linux/capability.h>
 #include <net/sock.h>
 
 #include "xt_fblock.h"
@@ -72,6 +71,7 @@ static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
 
 static void lana_sk_init(struct sock* sk)
 {
+	/* default struct vals*/
 	sk->sk_backlog_rcv = lana_backlog_rcv;
 }
 
@@ -92,8 +92,6 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 	struct sock *sk;
 	int rc = -ESOCKTNOSUPPORT;
 
-	if (!capable(CAP_NET_RAW))
-		return -EPERM;
 	if (!net_eq(net, &init_net))
 		return -EAFNOSUPPORT;
 	if (likely(sock->type == SOCK_DGRAM ||
@@ -142,13 +140,24 @@ static struct proto lana_proto = {
 	.slab_flags = SLAB_DESTROY_BY_RCU,
 };
 
-static void cleanup_fb_pflana(void)
-{
-}
-
 static int init_fb_pflana(void)
 {
+	int ret;
+	ret = proto_register(&lana_proto, 0);
+	if (ret)
+		return ret;
+	ret = sock_register(&lana_ui_family_ops);
+	if (ret) {
+		proto_unregister(&lana_proto);
+		return ret;
+	}
 	return 0;
+}
+
+static void cleanup_fb_pflana(void)
+{
+	sock_unregister(PF_LANA);
+	proto_unregister(&lana_proto);
 }
 
 static struct fblock *fb_pflana_ctor(char *name)
