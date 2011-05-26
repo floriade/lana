@@ -40,6 +40,7 @@ struct lana_sock {
 	struct fblock *fb;
 };
 
+static struct fblock_factory fb_pflana_factory;
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
@@ -102,7 +103,7 @@ static int lana_sk_init(struct sock* sk)
 	struct lana_sock *lana = to_lana_sk(sk);
 
 	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "pflana-%p", lana);
+	snprintf(name, sizeof(name), "pflana-%p", &lana->sk);
 	sk->sk_backlog_rcv = lana_backlog_rcv;
 	lana->fb = fb_pflana_ctor(name);
 	if (!lana->fb)
@@ -133,34 +134,25 @@ static struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
 
 static void lana_sk_free(struct sock *sk)
 {
-	int ret;
 	struct fblock *fb_bound;
 	struct lana_sock *lana = to_lana_sk(sk);
 
 	fb_bound = get_bound_fblock(lana->fb, TYPE_INGRESS);
 	if (fb_bound) {
-		ret = fblock_unbind(fb_bound, lana->fb);
-		if (ret)
-			put_fblock(fb_bound);
-		else
-			printk(KERN_ERR "pflana: failed to unbind fblock %p!\n", fb_bound);
+		fblock_unbind(fb_bound, lana->fb);
+		put_fblock(fb_bound);
 	}
 
 	fb_bound = get_bound_fblock(lana->fb, TYPE_EGRESS);
 	if (fb_bound) {
-		ret = fblock_unbind(lana->fb, fb_bound);
-		if (ret)
-			put_fblock(fb_bound);
-		else
-			printk(KERN_ERR "pflana: failed to unbind fblock %p!\n", fb_bound);
+		fblock_unbind(lana->fb, fb_bound);
+		put_fblock(fb_bound);
 	}
 
-	/* Other subscriptions are not allowed! */
-
-	unregister_fblock_namespace(lana->fb);
 	skb_queue_purge(&sk->sk_receive_queue);
 	skb_queue_purge(&sk->sk_write_queue);
 	sock_put(sk);
+	unregister_fblock_namespace(lana->fb);
 }
 
 static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
@@ -259,15 +251,12 @@ static struct fblock *fb_pflana_ctor(char *name)
 	struct fblock *fb;
 	struct fb_pflana_priv __percpu *fb_priv;
 
-		return NULL;
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
 		return NULL;
-
 	fb_priv = alloc_percpu(struct fb_pflana_priv);
 	if (!fb_priv)
 		goto err;
-
 	get_online_cpus();
 	for_each_online_cpu(cpu) {
 		struct fb_pflana_priv *fb_priv_cpu;
@@ -283,6 +272,7 @@ static struct fblock *fb_pflana_ctor(char *name)
 		goto err2;
 	fb->netfb_rx = fb_pflana_netrx;
 	fb->event_rx = fb_pflana_event;
+	fb->factory = &fb_pflana_factory;
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
