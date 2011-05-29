@@ -118,7 +118,7 @@ static int lana_sk_init(struct sock* sk)
 	struct lana_sock *lana = to_lana_sk(sk);
 
 	memset(name, 0, sizeof(name));
-	snprintf(name, sizeof(name), "pflana-%p", &lana->sk);
+	snprintf(name, sizeof(name), "%p", &lana->sk);
 	sk->sk_backlog_rcv = lana_backlog_rcv;
 	lana->bound = 0;
 	lana->fb = fb_pflana_ctor(name);
