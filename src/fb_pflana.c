@@ -46,7 +46,6 @@ static struct fblock_factory fb_pflana_factory;
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
-static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
@@ -58,17 +57,9 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
-	sock_hold(sk);
-	bh_lock_sock(sk);
-	if (sk_add_backlog(sk, skb))
-		goto drop;
-out:
-	bh_unlock_sock(sk);
-	sock_put(sk);
+	if (sock_queue_rcv_skb(sk, skb))
+		kfree_skb(skb);
 	return PPE_SUCCESS;
-drop:
-	kfree_skb(skb);
-	goto out;
 }
 
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
@@ -95,15 +86,6 @@ static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 	return (struct lana_sock *) sk;
 }
 
-static int lana_backlog_rcv(struct sock *sk, struct sk_buff *skb)
-{
-	if (unlikely(sock_queue_rcv_skb(sk, skb))) {
-		printk(KERN_ERR "%s: sock_queue_rcv_skb failed!\n", __func__);
-		kfree_skb(skb);
-	}
-	return 0;
-}
-
 static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
 {
 	sock_graft(sk, sock);
@@ -119,8 +101,8 @@ static int lana_sk_init(struct sock* sk)
 
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "%p", &lana->sk);
-	sk->sk_backlog_rcv = lana_backlog_rcv;
 	lana->bound = 0;
+	lana->copied_seq = 0;
 	lana->fb = fb_pflana_ctor(name);
 	if (!lana->fb)
 		return -ENOMEM;
@@ -194,98 +176,62 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 static int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 			   struct msghdr *msg, size_t len, int flags)
 {
-	int target;
-	const int nonblock = flags & MSG_DONTWAIT;
-	u32 peek_seq = 0, *seq;
+	int err = 0;
 	long timeout;
-	unsigned long used;
-	size_t copied = 0;
+	size_t target, chunk, copied = 0;
 	struct sock *sk = sock->sk;
-	struct lana_sock *lana = to_lana_sk(sk);
 	struct sk_buff *skb = NULL;
 
+	msg->msg_namelen = 0;
 	lock_sock(sk);
-	timeout = sock_rcvtimeo(sk, nonblock);
-	seq = &lana->copied_seq;
-	if (flags & MSG_PEEK) {
-		peek_seq = lana->copied_seq;
-		seq = &peek_seq;
-	}
+	timeout = sock_rcvtimeo(sk, flags & MSG_DONTWAIT);
 	target = sock_rcvlowat(sk, flags & MSG_WAITALL, len);
-	copied = 0;
-
 	do {
-		u32 offset;
-		if (signal_pending(current)) {
-			if (copied)
+		skb = skb_dequeue(&sk->sk_receive_queue);
+		if (!skb) {
+			if (copied >= target)
 				break;
-			copied = timeout ? sock_intr_errno(timeout) : -EAGAIN;
-			break;
-		}
-		skb = skb_peek(&sk->sk_receive_queue);
-		if (skb) {
-			offset = *seq;
-			goto found_good_skb;
-		}
-		if (copied >= target && !sk->sk_backlog.tail)
-			break;
-		if (copied) {
-			if (sk->sk_err || !timeout || (flags & MSG_PEEK) ||
-			    (sk->sk_shutdown & RCV_SHUTDOWN))
+			err = sock_error(sk);
+			if (err)
 				break;
-		} else {
-			if (sock_flag(sk, SOCK_DONE))
-				break;
-			if (sk->sk_err) {
-				copied = sock_error(sk);
-				break;
-			}
 			if (sk->sk_shutdown & RCV_SHUTDOWN)
 				break;
-			if (!timeout) {
-				copied = -EAGAIN;
+			err = -EAGAIN;
+			if (!timeout)
 				break;
+			timeout = sk_wait_data(sk, &timeout);
+			if (signal_pending(current)) {
+				err = sock_intr_errno(timeout);
+				goto out;
 			}
-		}
-		if (copied >= target) {
-			/* Process backlog queue */
-			release_sock(sk);
-			lock_sock(sk);
-		} else
-			sk_wait_data(sk, &timeout);
-		if ((flags & MSG_PEEK) && peek_seq != lana->copied_seq) {
-			/* BUG in MSG_PEEK */
-			peek_seq = lana->copied_seq;
-		}
-		continue;
-found_good_skb:
-		used = skb->len - offset;
-		if (len < used)
-			used = len;
-		if (!(flags & MSG_TRUNC)) {
-			int ret = skb_copy_datagram_iovec(skb, offset,
-							 msg->msg_iov, used);
-			if (ret) {
-				if (!copied)
-					copied = -EFAULT;
-				break;
-			}
-		}
-		*seq += used;
-		copied += used;
-		len -= used;
-		if (!(flags & MSG_PEEK)) {
-			sk_eat_skb(sk, skb, 0);
-			*seq = 0;
-		}
-		if (sk->sk_type != SOCK_STREAM)
-			break;
-		if (used + offset < skb->len)
 			continue;
+		}
+		chunk = min_t(size_t, skb->len, len);
+		if (memcpy_toiovec(msg->msg_iov, skb->data, chunk)) {
+			skb_queue_head(&sk->sk_receive_queue, skb);
+			if (!copied)
+				copied = -EFAULT;
+			break;
+		}
+		copied += chunk;
+		len -= chunk;
+		sock_recv_ts_and_drops(msg, sk, skb);
+		if (!(flags & MSG_PEEK)) {
+			skb_pull(skb, chunk);
+			if (skb->len) {
+				skb_queue_head(&sk->sk_receive_queue, skb);
+				break;
+			}
+			kfree_skb(skb);
+		} else {
+			/* put message back and return */
+			skb_queue_head(&sk->sk_receive_queue, skb);
+			break;
+		}
 	} while (len > 0);
+out:
 	release_sock(sk);
-
-	return copied;
+	return copied ? : err;
 }
 
 static int lana_ui_release(struct socket *sock)
