@@ -284,6 +284,14 @@ out:
 	return copied ? : err;
 }
 
+static int lana_ui_common_recvmsg(struct kiocb *iocb, struct socket *sock,
+				  struct msghdr *msg, size_t len, int flags)
+{
+	if (sock->type == SOCK_STREAM)
+		return lana_ui_stream_recvmsg(iocb, sock, msg, len, flags);
+	return lana_ui_recvmsg(iocb, sock, msg, len, flags);
+}
+
 static int lana_ui_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
@@ -309,7 +317,7 @@ static const struct proto_ops lana_ui_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
 	.release     = lana_ui_release,
-	.recvmsg     = lana_ui_recvmsg,
+	.recvmsg     = lana_ui_common_recvmsg,
 	.setsockopt  = sock_common_setsockopt,
 	.getsockopt  = sock_common_getsockopt,
 	.bind	     = sock_no_bind,
