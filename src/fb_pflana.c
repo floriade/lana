@@ -17,6 +17,7 @@
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
 #include <net/sock.h>
+#include <net/tcp_states.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -56,7 +57,10 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
+
+	sock_hold(sk);
 	sk_receive_skb(sk, skb, 0);
+
 	return PPE_SUCCESS;
 }
 
@@ -111,7 +115,11 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
+
 	sk->sk_backlog_rcv = lana_ui_backlog_rcv;
+	sk->sk_family = PF_LANA;
+	sk->sk_state = TCP_ESTABLISHED;
+
 	return 0;
 }
 
@@ -167,6 +175,10 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 		if (sk) {
 			rc = 0;
 			lana_ui_sk_init(sock, sk);
+			sk_set_socket(sk, sock);
+			sk->sk_type = sock->type;
+			sk->sk_wq = sock->wq;
+			sock->sk = sk;
 		}
 	}
 	return rc;
@@ -175,7 +187,7 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 		    struct msghdr *msg, size_t len, int flags)
 {
-	int err;
+	int err = 0;
 	struct sk_buff *skb = NULL;
 	struct sock *sk = sock->sk;
 	size_t copied = 0;
@@ -194,10 +206,10 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 		msg->msg_flags |= MSG_TRUNC;
 		copied = len;
 	}
-	skb_reset_transport_header(skb);
-	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
-	if (err == 0)
-		sock_recv_ts_and_drops(msg, sk, skb);
+//	skb_reset_transport_header(skb);
+//	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
+//	if (err == 0)
+//		sock_recv_ts_and_drops(msg, sk, skb);
 	skb_free_datagram(sk, skb);
 	return err ? : copied;
 }
@@ -278,6 +290,7 @@ static int lana_ui_release(struct socket *sock)
 
 	if (unlikely(sk == NULL))
 		return 0;
+	sk->sk_state = TCP_CLOSE;
 	sock_hold(sk);
 	lock_sock(sk);
 	release_sock(sk);
@@ -297,6 +310,8 @@ static const struct proto_ops lana_ui_ops = {
 	.owner       = THIS_MODULE,
 	.release     = lana_ui_release,
 	.recvmsg     = lana_ui_recvmsg,
+	.setsockopt  = sock_common_setsockopt,
+	.getsockopt  = sock_common_getsockopt,
 	.bind	     = sock_no_bind,
 	.connect     = sock_no_connect,
 	.socketpair  = sock_no_socketpair,
@@ -306,8 +321,6 @@ static const struct proto_ops lana_ui_ops = {
 	.ioctl       = sock_no_ioctl,
 	.listen      = sock_no_listen,
 	.shutdown    = sock_no_shutdown,
-	.setsockopt  = sock_no_setsockopt,
-	.getsockopt  = sock_no_getsockopt,
 	.sendmsg     = sock_no_sendmsg,
 	.mmap	     = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
