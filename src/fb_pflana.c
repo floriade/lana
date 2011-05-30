@@ -59,6 +59,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 
 	if (sock_queue_rcv_skb(sk, skb))
 		kfree_skb(skb);
+
 	return PPE_SUCCESS;
 }
 
@@ -173,8 +174,40 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 	return rc;
 }
 
-static int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
-			   struct msghdr *msg, size_t len, int flags)
+int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
+		    struct msghdr *msg, size_t len, int flags)
+{
+	int err;
+	struct sk_buff *skb = NULL;
+	struct sock *sk = sock->sk;
+	size_t copied = 0;
+
+	if (flags & (MSG_OOB))
+		return -EOPNOTSUPP;
+	msg->msg_namelen = 0;
+	skb = skb_recv_datagram(sk, flags, flags & MSG_DONTWAIT, &err);
+	if (!skb) {
+		if (sk->sk_shutdown & RCV_SHUTDOWN)
+			return 0;
+		return err;
+	}
+	printk("in %s got skb\n", __func__);
+	copied = skb->len;
+	if (len < copied) {
+		msg->msg_flags |= MSG_TRUNC;
+		copied = len;
+	}
+	skb_reset_transport_header(skb);
+	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
+	if (err == 0)
+		sock_recv_ts_and_drops(msg, sk, skb);
+	skb_free_datagram(sk, skb);
+	printk("in %s done with skb\n", __func__);
+	return err ? : copied;
+}
+
+static int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
+				  struct msghdr *msg, size_t len, int flags)
 {
 	int err = 0;
 	long timeout;

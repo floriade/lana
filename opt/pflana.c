@@ -52,7 +52,7 @@ int main(void)
 	while (!sigint) {
 		int ret = recvmsg(sock, &msg, 0);
 		if (ret < 0) {
-			perror("recvmsg");
+	//		perror("recvmsg");
 		} else {
 			printf("msg received!\n");
 		}
