@@ -71,8 +71,8 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp,
-				      fb_priv_cpu->port[TYPE_INGRESS]);
+		write_next_idp_to_skb(skb, fb->idp, 1
+				      /*fb_priv_cpu->port[TYPE_INGRESS]*/);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
 	if (process_packet(skb, TYPE_INGRESS) != PPE_DROPPED)
 		kfree_skb(skb); //XXX

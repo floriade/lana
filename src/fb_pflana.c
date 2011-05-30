@@ -46,6 +46,7 @@ static struct fblock_factory fb_pflana_factory;
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
+static int lana_ui_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
@@ -53,13 +54,9 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 {
 	struct sock *sk;
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
-
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
-
-	if (sock_queue_rcv_skb(sk, skb))
-		kfree_skb(skb);
-
+	sk_backlog_rcv(sk, skb);
 	return PPE_SUCCESS;
 }
 
@@ -114,6 +111,7 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
+	sk->sk_backlog_rcv = lana_ui_backlog_rcv;
 	return 0;
 }
 
@@ -206,6 +204,15 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 	return err ? : copied;
 }
 
+static int lana_ui_backlog_rcv(struct sock *sk, struct sk_buff *skb)
+{
+	int err;
+	err = sock_queue_rcv_skb(sk, skb);
+	if (err < 0)
+		kfree_skb(skb);
+	return err ? NET_RX_DROP : NET_RX_SUCCESS;
+}
+
 static int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 				  struct msghdr *msg, size_t len, int flags)
 {
@@ -291,6 +298,7 @@ static const struct proto_ops lana_ui_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
 	.release     = lana_ui_release,
+	.recvmsg     = lana_ui_recvmsg,
 	.bind	     = sock_no_bind,
 	.connect     = sock_no_connect,
 	.socketpair  = sock_no_socketpair,
@@ -303,7 +311,6 @@ static const struct proto_ops lana_ui_ops = {
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
 	.sendmsg     = sock_no_sendmsg,
-	.recvmsg     = lana_ui_recvmsg,
 	.mmap	     = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
 };
