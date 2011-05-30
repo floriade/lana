@@ -62,7 +62,7 @@ int main(void)
 			size_t len = iov[0].iov_len;
 			printf("msg received:\n");
 			for (; len-- > 0; ptr++)
-				printf("%c ", isprint(*buff) ? *buff : '.');
+				printf("0x%x ", *ptr);
 			printf("\n\n");
 //			memset(iov[0].iov_base, 0, iov[0].iov_len);
 			memset(buff, 0, sizeof(buff));
