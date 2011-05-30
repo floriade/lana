@@ -189,7 +189,6 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 			return 0;
 		return err;
 	}
-	printk("in %s got skb\n", __func__);
 	copied = skb->len;
 	if (len < copied) {
 		msg->msg_flags |= MSG_TRUNC;
@@ -200,7 +199,6 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 	if (err == 0)
 		sock_recv_ts_and_drops(msg, sk, skb);
 	skb_free_datagram(sk, skb);
-	printk("in %s done with skb\n", __func__);
 	return err ? : copied;
 }
 
