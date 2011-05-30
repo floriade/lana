@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <sys/socket.h>
 
 #define AF_LANA		27
@@ -35,7 +36,7 @@ int main(void)
 	struct msghdr msg;
 
 	register_signal(SIGINT, intr);
-	sock = socket(AF_LANA, SOCK_STREAM, 0);
+	sock = socket(AF_LANA, SOCK_DGRAM, 0);
 	if (sock < 0) {
 		perror("socket");
 		return 0;
@@ -50,14 +51,21 @@ int main(void)
 
 	printf("Worked! Abort with ^C\n");
 	while (!sigint) {
-		int ret = recvmsg(sock, &msg, 0);
+//		int ret = recvmsg(sock, &msg, 0);
+		int ret = recv(sock, buff, sizeof(buff), 0);
 		if (ret < 0) {
 			perror("recvmsg");
 			sleep(1);
 			continue;
 		} else {
-			printf("msg received: %s!\n", (char *) iov[0].iov_base);
-			break;
+			char *ptr = (char *) iov[0].iov_base;
+			size_t len = iov[0].iov_len;
+			printf("msg received:\n");
+			for (; len-- > 0; ptr++)
+				printf("%c ", isprint(*buff) ? *buff : '.');
+			printf("\n\n");
+//			memset(iov[0].iov_base, 0, iov[0].iov_len);
+			memset(buff, 0, sizeof(buff));
 		}
 	}
 

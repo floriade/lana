@@ -53,16 +53,12 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 			   enum path_type * const dir)
 {
 	struct sock *sk;
-	struct sk_buff *clone;
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
-	clone = skb_clone(skb, GFP_ATOMIC);
-	if (clone)
-		lana_ui_rcv_skb(sk, clone);
-
+	lana_ui_rcv_skb(sk, skb);
 	return PPE_SUCCESS;
 }
 
@@ -193,8 +189,6 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 	struct sock *sk = sock->sk;
 	size_t copied = 0;
 
-	if (flags & (MSG_OOB))
-		return -EOPNOTSUPP;
 	skb = skb_recv_datagram(sk, flags, flags & MSG_DONTWAIT, &err);
 	if (!skb) {
 		if (sk->sk_shutdown & RCV_SHUTDOWN)

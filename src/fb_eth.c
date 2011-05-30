@@ -74,8 +74,8 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 		write_next_idp_to_skb(skb, fb->idp, 1
 				      /*fb_priv_cpu->port[TYPE_INGRESS]*/);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
-	if (process_packet(skb, TYPE_INGRESS) != PPE_DROPPED)
-		kfree_skb(skb); //XXX
+
+	process_packet(skb, TYPE_INGRESS);
 	return RX_HANDLER_CONSUMED;
 drop:
 	kfree_skb(skb);
