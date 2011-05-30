@@ -52,9 +52,12 @@ int main(void)
 	while (!sigint) {
 		int ret = recvmsg(sock, &msg, 0);
 		if (ret < 0) {
-	//		perror("recvmsg");
+			perror("recvmsg");
+			sleep(1);
+			continue;
 		} else {
-			printf("msg received!\n");
+			printf("msg received: %s!\n", (char *) iov[0].iov_base);
+			break;
 		}
 	}
 

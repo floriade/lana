@@ -56,7 +56,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
-	sk_backlog_rcv(sk, skb);
+	sk_receive_skb(sk, skb, 0);
 	return PPE_SUCCESS;
 }
 
@@ -182,13 +182,13 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 
 	if (flags & (MSG_OOB))
 		return -EOPNOTSUPP;
-	msg->msg_namelen = 0;
 	skb = skb_recv_datagram(sk, flags, flags & MSG_DONTWAIT, &err);
 	if (!skb) {
 		if (sk->sk_shutdown & RCV_SHUTDOWN)
 			return 0;
 		return err;
 	}
+	msg->msg_namelen = 0;
 	copied = skb->len;
 	if (len < copied) {
 		msg->msg_flags |= MSG_TRUNC;
