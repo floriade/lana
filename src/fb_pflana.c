@@ -40,26 +40,28 @@ struct lana_sock {
 	struct sock sk;
 	struct fblock *fb;
 	int bound;
-	u32 copied_seq;
 };
 
 static struct fblock_factory fb_pflana_factory;
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
-static int lana_ui_backlog_rcv(struct sock *sk, struct sk_buff *skb);
+static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff * const skb,
 			   enum path_type * const dir)
 {
 	struct sock *sk;
+	struct sk_buff *clone;
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
+
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
-	sock_hold(sk);
-	sk_receive_skb(sk, skb, 0);
+	clone = skb_clone(skb, GFP_ATOMIC);
+	if (clone)
+		lana_ui_rcv_skb(sk, clone);
 
 	return PPE_SUCCESS;
 }
@@ -104,7 +106,6 @@ static int lana_sk_init(struct sock* sk)
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "%p", &lana->sk);
 	lana->bound = 0;
-	lana->copied_seq = 0;
 	lana->fb = fb_pflana_ctor(name);
 	if (!lana->fb)
 		return -ENOMEM;
@@ -116,7 +117,7 @@ static int lana_sk_init(struct sock* sk)
 	}
 	put_online_cpus();
 
-	sk->sk_backlog_rcv = lana_ui_backlog_rcv;
+	sk->sk_backlog_rcv = lana_ui_rcv_skb;
 	sk->sk_family = PF_LANA;
 	sk->sk_state = TCP_ESTABLISHED;
 
@@ -206,15 +207,14 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 		msg->msg_flags |= MSG_TRUNC;
 		copied = len;
 	}
-//	skb_reset_transport_header(skb);
-//	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
-//	if (err == 0)
-//		sock_recv_ts_and_drops(msg, sk, skb);
+	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
+	if (err == 0)
+		sock_recv_ts_and_drops(msg, sk, skb);
 	skb_free_datagram(sk, skb);
 	return err ? : copied;
 }
 
-static int lana_ui_backlog_rcv(struct sock *sk, struct sk_buff *skb)
+static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
 	int err;
 	err = sock_queue_rcv_skb(sk, skb);
