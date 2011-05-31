@@ -210,14 +210,6 @@ static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
-#if 0
-static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
-{
-	sock_graft(sk, sock);
-	sk->sk_type = sock->type;
-	sock->ops = &lana_ui_ops;
-}
-
 int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 			   struct msghdr *msg, size_t len, int flags)
 {
@@ -279,16 +271,6 @@ out:
 	return copied ? : err;
 }
 
-static int lana_ui_common_recvmsg(struct kiocb *iocb, struct socket *sock,
-				  struct msghdr *msg, size_t len, int flags)
-{
-	if (sock->type == SOCK_STREAM)
-		return lana_ui_stream_recvmsg(iocb, sock, msg, len, flags);
-	return lana_recvmsg(iocb, sock->sk, msg, len, flags & MSG_DONTWAIT,
-			    flags, NULL);
-}
-#endif
-
 static void lana_proto_destruct(struct sock *sk)
 {
 	/* Destroy the socket, including fblock! */
@@ -314,22 +296,27 @@ static struct hlist_head *lana_hash_list(u16 obj)
 
 static void lana_proto_hash(struct sock *sk)
 {
+#if 0
 	struct hlist_head *hlist = lana_hash_list(to_lana_sk(sk)->sobject);
 	mutex_lock(&lanasocks.lock);
 	sk_add_node_rcu(sk, hlist);
 	mutex_unlock(&lanasocks.lock);
+#endif
 }
 
 static void lana_proto_unhash(struct sock *sk)
 {
+#if 0
 	mutex_lock(&lanasocks.lock);
 	sk_del_node_init_rcu(sk);
 	mutex_unlock(&lanasocks.lock);
 	synchronize_rcu();
+#endif
 }
 
 static int lana_proto_get_port(struct sock *sk, unsigned short sport)
 {
+	/* Fake */
 	return 0;
 }
 

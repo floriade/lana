@@ -41,6 +41,7 @@ int main(void)
 		return 0;
 	}
 
+/*
 	printf("Worked! Abort with ^C\n");
 	while (!sigint) {
 		memset(buff, 0, sizeof(buff));
@@ -56,6 +57,7 @@ int main(void)
 			printf("\n\n");
 		}
 	}
+*/
 
 	close(sock);
 	return 0;
