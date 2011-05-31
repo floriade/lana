@@ -14,20 +14,17 @@
 
 #include <linux/kernel.h>
 #include <linux/skbuff.h>
-#include <linux/prefetch.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
 #include "xt_fblock.h"
 
-/* Main function */
+/* Main function, must be called in rcu_read_lock context */
 int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
-	prefetch(skb->cb);
-	rcu_read_lock();
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
 		if (unlikely(!fb)) {
@@ -40,9 +37,7 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 			ret = PPE_DROPPED;
 			break;
 		}
-		prefetch(skb->cb);
 	}
-	rcu_read_unlock();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(process_packet);
