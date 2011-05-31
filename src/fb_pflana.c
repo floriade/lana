@@ -61,15 +61,10 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
-	if (skb->pkt_type == PACKET_LOOPBACK)
-		goto drop;
-	if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize >=
-	    (unsigned)sk->sk_rcvbuf)
-		goto drop_rest;
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
 		if (nskb == NULL)
-			goto drop_rest;
+			goto drop;
 		if (skb_head != skb->data) {
 			skb->data = skb_head;
 			skb->len = skb_len;
@@ -78,20 +73,13 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 		skb = nskb;
 	}
 
-	skb_set_owner_r(skb, sk);
-	skb->dev = NULL;
-	skb_dst_drop(skb);
-	/* throw away the connection ref */
-	nf_reset(skb);
-
 	lana_ui_rcv_skb(sk, skb);
 	return PPE_SUCCESS;
-drop_rest:
+drop:
 	if (skb_head != skb->data && skb_shared(skb)) {
 		skb->data = skb_head;
 		skb->len = skb_len;
 	}
-drop:
 	consume_skb(skb);
 	return PPE_DROPPED;
 }
@@ -215,21 +203,23 @@ static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
 	return rc;
 }
 
-int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
-		    struct msghdr *msg, size_t len, int flags)
+static int lana_recvmsg(struct kiocb *iocb, struct sock *sk,
+			struct msghdr *msg, size_t len, int noblock,
+			int flags, int *addr_len)
 {
 	int err = 0;
-	struct sk_buff *skb = NULL;
-	struct sock *sk = sock->sk;
+	struct sk_buff *skb;
 	size_t copied = 0;
 
-	skb = skb_recv_datagram(sk, flags, flags & MSG_DONTWAIT, &err);
+	skb = skb_recv_datagram(sk, flags, noblock, &err);
 	if (!skb) {
 		if (sk->sk_shutdown & RCV_SHUTDOWN)
 			return 0;
 		return err;
 	}
 	msg->msg_namelen = 0;
+	if (addr_len)
+		*addr_len = msg->msg_namelen;
 	copied = skb->len;
 	if (len < copied) {
 		msg->msg_flags |= MSG_TRUNC;
@@ -250,14 +240,14 @@ static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb)
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
-static int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
-				  struct msghdr *msg, size_t len, int flags)
+int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
+			   struct msghdr *msg, size_t len, int flags)
 {
 	int err = 0;
 	long timeout;
 	size_t target, chunk, copied = 0;
 	struct sock *sk = sock->sk;
-	struct sk_buff *skb = NULL;
+	struct sk_buff *skb;
 
 	msg->msg_namelen = 0;
 	lock_sock(sk);
@@ -316,7 +306,8 @@ static int lana_ui_common_recvmsg(struct kiocb *iocb, struct socket *sock,
 {
 	if (sock->type == SOCK_STREAM)
 		return lana_ui_stream_recvmsg(iocb, sock, msg, len, flags);
-	return lana_ui_recvmsg(iocb, sock, msg, len, flags);
+	return lana_recvmsg(iocb, sock->sk, msg, len, flags & MSG_DONTWAIT,
+			    flags, NULL);
 }
 
 static int lana_ui_release(struct socket *sock)
@@ -362,10 +353,12 @@ static const struct proto_ops lana_ui_ops = {
 };
 
 static struct proto lana_proto = {
-	.name	  = "LANA",
-	.owner	  = THIS_MODULE,
-	.obj_size = sizeof(struct lana_sock),
-	.slab_flags = SLAB_DESTROY_BY_RCU,
+	.name	  	= "LANA",
+	.owner	  	= THIS_MODULE,
+	.obj_size 	= sizeof(struct lana_sock),
+	.slab_flags	= SLAB_DESTROY_BY_RCU,
+	.recvmsg	= lana_recvmsg,
+	.backlog_rcv	= lana_ui_rcv_skb,
 };
 
 static int init_fb_pflana(void)
