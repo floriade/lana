@@ -16,6 +16,7 @@
 #include <linux/seqlock.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
+#include <linux/atomic.h>
 #include <net/sock.h>
 #include <net/tcp_states.h>
 
@@ -49,17 +50,50 @@ static struct fblock *fb_pflana_ctor(char *name);
 static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
-			   struct sk_buff * const skb,
+			   struct sk_buff *skb,
 			   enum path_type * const dir)
 {
+	u8 *skb_head = skb->data;
+	int skb_len = skb->len;
 	struct sock *sk;
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
+	if (skb->pkt_type == PACKET_LOOPBACK)
+		goto drop;
+	if (atomic_read(&sk->sk_rmem_alloc) + skb->truesize >=
+	    (unsigned)sk->sk_rcvbuf)
+		goto drop_rest;
+	if (skb_shared(skb)) {
+		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
+		if (nskb == NULL)
+			goto drop_rest;
+		if (skb_head != skb->data) {
+			skb->data = skb_head;
+			skb->len = skb_len;
+		}
+		kfree_skb(skb);
+		skb = nskb;
+	}
+
+	skb_set_owner_r(skb, sk);
+	skb->dev = NULL;
+	skb_dst_drop(skb);
+	/* throw away the connection ref */
+	nf_reset(skb);
+
 	lana_ui_rcv_skb(sk, skb);
 	return PPE_SUCCESS;
+drop_rest:
+	if (skb_head != skb->data && skb_shared(skb)) {
+		skb->data = skb_head;
+		skb->len = skb_len;
+	}
+drop:
+	consume_skb(skb);
+	return PPE_DROPPED;
 }
 
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
@@ -210,8 +244,7 @@ int lana_ui_recvmsg(struct kiocb *iocb, struct socket *sock,
 
 static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb)
 {
-	int err;
-	err = sock_queue_rcv_skb(sk, skb);
+	int err = sock_queue_rcv_skb(sk, skb);
 	if (err < 0)
 		kfree_skb(skb);
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;

@@ -60,10 +60,8 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 
 	if (unlikely(skb->pkt_type == PACKET_LOOPBACK))
 		return RX_HANDLER_PASS;
-
 	if (unlikely(!is_valid_ether_addr(eth_hdr(skb)->h_source)))
 		goto drop;
-
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (unlikely(!skb))
 		return RX_HANDLER_CONSUMED;

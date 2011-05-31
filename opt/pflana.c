@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 #include <sys/socket.h>
 
 #define AF_LANA		27
@@ -49,7 +50,8 @@ int main(void)
 			sleep(1);
 			continue;
 		} else {
-			for (i = 0; i < sizeof(buff); i++)
+			assert(ret <= sizeof(buff));
+			for (i = 0; i < ret; i++)
 				printf("0x%x ", buff[i]);
 			printf("\n\n");
 		}
