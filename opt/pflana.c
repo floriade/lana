@@ -26,14 +26,16 @@ int main(void)
 		int ret = recv(sock, buff, sizeof(buff), 0);
 		if (ret < 0) {
 			perror("recvmsg");
-			sleep(1);
 			continue;
 		} else {
 			assert(ret <= sizeof(buff));
 			for (i = 0; i < ret; i++)
 				printf("0x%x ", buff[i]);
 			printf("\n\n");
+			fflush(stdout);
 		}
+		sleep(1);
+		printf("next call\n");
 	}
 
 	close(sock);

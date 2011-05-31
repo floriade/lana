@@ -70,6 +70,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
+	sock_hold(sk);
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
 		if (nskb == NULL)
@@ -81,8 +82,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 		kfree_skb(skb);
 		skb = nskb;
 	}
-
-	lana_proto_backlog_rcv(sk, skb);
+	sk_receive_skb(sk, skb, 0);
 	return PPE_SUCCESS;
 drop:
 	if (skb_head != skb->data && skb_shared(skb)) {
@@ -198,18 +198,31 @@ static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
 	if (err == 0)
 		sock_recv_ts_and_drops(msg, sk, skb);
+	printk("Got datagram!!!!\n");
 	skb_free_datagram(sk, skb);
+	printk("Released datagram!!!!\n");
 	return err ? : copied;
 }
 
 static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	int err = sock_queue_rcv_skb(sk, skb);
-	if (err < 0)
+	int err = 0;
+	if (unlikely(!sk)) {
 		kfree_skb(skb);
+		return NET_RX_DROP;
+	}
+	if (atomic_read(&sk->sk_rmem_alloc) >=
+	    sk->sk_rcvbuf) {
+		kfree_skb(skb);
+	} else {
+		err = sock_queue_rcv_skb(sk, skb);
+		if (err != 0)
+			kfree_skb(skb);
+	}
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
+#if 0
 int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 			   struct msghdr *msg, size_t len, int flags)
 {
@@ -270,6 +283,7 @@ out:
 	release_sock(sk);
 	return copied ? : err;
 }
+#endif
 
 static void lana_proto_destruct(struct sock *sk)
 {
