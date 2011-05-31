@@ -47,7 +47,7 @@ static struct fblock_factory fb_pflana_factory;
 static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
-static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb);
+static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff *skb,
@@ -73,7 +73,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 		skb = nskb;
 	}
 
-	lana_ui_rcv_skb(sk, skb);
+	lana_proto_backlog_rcv(sk, skb);
 	return PPE_SUCCESS;
 drop:
 	if (skb_head != skb->data && skb_shared(skb)) {
@@ -108,13 +108,6 @@ static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 	return (struct lana_sock *) sk;
 }
 
-static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
-{
-	sock_graft(sk, sock);
-	sk->sk_type = sock->type;
-	sock->ops = &lana_ui_ops;
-}
-
 static int lana_sk_init(struct sock* sk)
 {
 	int cpu;
@@ -134,32 +127,16 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
-
-	sk->sk_backlog_rcv = lana_ui_rcv_skb;
-	sk->sk_family = PF_LANA;
-	sk->sk_state = TCP_ESTABLISHED;
-
 	return 0;
-}
-
-static struct sock *lana_sk_alloc(struct net *net, int family, gfp_t priority,
-				  struct proto *prot)
-{
-	struct sock *sk = sk_alloc(net, family, priority, prot);
-	if (!sk)
-		return NULL;
-	if (lana_sk_init(sk) < 0) {
-		sock_put(sk);
-		return NULL;
-	}
-	sock_init_data(NULL, sk);
-	return sk;
 }
 
 static void lana_sk_free(struct sock *sk)
 {
 	struct fblock *fb_bound;
-	struct lana_sock *lana = to_lana_sk(sk);
+	struct lana_sock *lana;
+
+	sock_hold(sk);
+	lana = to_lana_sk(sk);
 
 	fb_bound = get_bound_fblock(lana->fb, TYPE_INGRESS);
 	if (fb_bound) {
@@ -173,39 +150,23 @@ static void lana_sk_free(struct sock *sk)
 		put_fblock(fb_bound);
 	}
 
-	skb_queue_purge(&sk->sk_receive_queue);
-	skb_queue_purge(&sk->sk_write_queue);
 	sock_put(sk);
 	unregister_fblock_namespace(lana->fb);
 }
 
-static int lana_ui_create(struct net *net, struct socket *sock, int protocol,
-			  int kern)
+static int lana_ui_release(struct socket *sock)
 {
-	struct sock *sk;
-	int rc = -ESOCKTNOSUPPORT;
-
-	if (!net_eq(net, &init_net))
-		return -EAFNOSUPPORT;
-	if (likely(sock->type == SOCK_DGRAM ||
-		   sock->type == SOCK_STREAM)) {
-		rc = -ENOMEM;
-		sk = lana_sk_alloc(net, PF_LANA, GFP_KERNEL, &lana_proto);
-		if (sk) {
-			rc = 0;
-			lana_ui_sk_init(sock, sk);
-			sk_set_socket(sk, sock);
-			sk->sk_type = sock->type;
-			sk->sk_wq = sock->wq;
-			sock->sk = sk;
-		}
+	struct sock *sk = sock->sk;
+	if (sk) {
+		sock->sk = NULL;
+		sk->sk_prot->close(sk, 0);
 	}
-	return rc;
+	return 0;
 }
 
-static int lana_recvmsg(struct kiocb *iocb, struct sock *sk,
-			struct msghdr *msg, size_t len, int noblock,
-			int flags, int *addr_len)
+static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
+			      struct msghdr *msg, size_t len, int noblock,
+			      int flags, int *addr_len)
 {
 	int err = 0;
 	struct sk_buff *skb;
@@ -232,12 +193,20 @@ static int lana_recvmsg(struct kiocb *iocb, struct sock *sk,
 	return err ? : copied;
 }
 
-static int lana_ui_rcv_skb(struct sock *sk, struct sk_buff *skb)
+static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	int err = sock_queue_rcv_skb(sk, skb);
 	if (err < 0)
 		kfree_skb(skb);
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
+}
+
+#if 0
+static void lana_ui_sk_init(struct socket *sock, struct sock *sk)
+{
+	sock_graft(sk, sock);
+	sk->sk_type = sock->type;
+	sock->ops = &lana_ui_ops;
 }
 
 int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
@@ -309,25 +278,59 @@ static int lana_ui_common_recvmsg(struct kiocb *iocb, struct socket *sock,
 	return lana_recvmsg(iocb, sock->sk, msg, len, flags & MSG_DONTWAIT,
 			    flags, NULL);
 }
+#endif
 
-static int lana_ui_release(struct socket *sock)
+static void lana_proto_destruct(struct sock *sk)
 {
-	struct sock *sk = sock->sk;
-
-	if (unlikely(sk == NULL))
-		return 0;
-	sk->sk_state = TCP_CLOSE;
-	sock_hold(sk);
-	lock_sock(sk);
-	release_sock(sk);
-	sock_put(sk);
+	/* Destroy the socket, including fblock! */
+	skb_queue_purge(&sk->sk_receive_queue);
 	lana_sk_free(sk);
+}
+
+static int lana_proto_init(struct sock *sk)
+{
+	sk->sk_destruct = lana_proto_destruct;
+	return 0;
+}
+
+static void lana_proto_close(struct sock *sk, long timeout)
+{
+	sk_common_release(sk);
+}
+
+static int lana_family_create(struct net *net, struct socket *sock,
+			      int protocol, int kern)
+{
+	struct sock *sk;
+
+	if (!net_eq(net, &init_net))
+		return -EAFNOSUPPORT;
+	if (sock->type != SOCK_DGRAM)
+		return -ESOCKTNOSUPPORT;
+
+	sk = sk_alloc(net, PF_LANA, GFP_KERNEL, &lana_proto);
+	if (!sk)
+		return -ENOMEM;
+	if (lana_sk_init(sk) < 0) {
+		sock_put(sk);
+		return -ENOMEM;
+	}
+
+	sock_init_data(sock, sk);
+	sock->state = SS_UNCONNECTED;
+	sock->ops = &lana_ui_ops;
+	sk->sk_backlog_rcv = lana_proto_backlog_rcv;
+	sk->sk_protocol = protocol;
+	sk->sk_family = PF_LANA;
+	sk->sk_type = sock->type;
+	sk->sk_prot->init(sk);
+
 	return 0;
 }
 
 static const struct net_proto_family lana_ui_family_ops = {
 	.family = PF_LANA,
-	.create = lana_ui_create,
+	.create = lana_family_create,
 	.owner	= THIS_MODULE,
 };
 
@@ -335,9 +338,9 @@ static const struct proto_ops lana_ui_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
 	.release     = lana_ui_release,
-	.recvmsg     = lana_ui_common_recvmsg,
-	.setsockopt  = sock_common_setsockopt,
-	.getsockopt  = sock_common_getsockopt,
+	.recvmsg     = sock_common_recvmsg,
+	.setsockopt  = sock_no_setsockopt,
+	.getsockopt  = sock_no_getsockopt,
 	.bind	     = sock_no_bind,
 	.connect     = sock_no_connect,
 	.socketpair  = sock_no_socketpair,
@@ -356,15 +359,16 @@ static struct proto lana_proto = {
 	.name	  	= "LANA",
 	.owner	  	= THIS_MODULE,
 	.obj_size 	= sizeof(struct lana_sock),
-	.slab_flags	= SLAB_DESTROY_BY_RCU,
-	.recvmsg	= lana_recvmsg,
-	.backlog_rcv	= lana_ui_rcv_skb,
+	.backlog_rcv	= lana_proto_backlog_rcv,
+	.close		= lana_proto_close,
+	.init		= lana_proto_init,
+	.recvmsg	= lana_proto_recvmsg,
 };
 
 static int init_fb_pflana(void)
 {
 	int ret;
-	ret = proto_register(&lana_proto, 0);
+	ret = proto_register(&lana_proto, 1);
 	if (ret)
 		return ret;
 	ret = sock_register(&lana_ui_family_ops);
