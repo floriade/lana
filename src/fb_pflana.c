@@ -30,6 +30,9 @@
 #define AF_LANA		27	/* For now.. */
 #define PF_LANA		AF_LANA
 
+#define LANA_HASHSIZE	16
+#define LANA_HASHMASK	(LANA_HASHSIZE - 1)
+
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
@@ -41,6 +44,7 @@ struct lana_sock {
 	struct sock sk;
 	struct fblock *fb;
 	int bound;
+	u16 sobject;
 };
 
 static struct fblock_factory fb_pflana_factory;
@@ -48,6 +52,11 @@ static struct proto lana_proto;
 static const struct proto_ops lana_ui_ops;
 static struct fblock *fb_pflana_ctor(char *name);
 static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
+
+static struct  {
+	struct hlist_head hlist[LANA_HASHSIZE];
+	struct mutex lock;
+} lanasocks;
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff *skb,
@@ -298,6 +307,32 @@ static void lana_proto_close(struct sock *sk, long timeout)
 	sk_common_release(sk);
 }
 
+static struct hlist_head *lana_hash_list(u16 obj)
+{
+	return lanasocks.hlist + (obj & LANA_HASHMASK);
+}
+
+static void lana_proto_hash(struct sock *sk)
+{
+	struct hlist_head *hlist = lana_hash_list(to_lana_sk(sk)->sobject);
+	mutex_lock(&lanasocks.lock);
+	sk_add_node_rcu(sk, hlist);
+	mutex_unlock(&lanasocks.lock);
+}
+
+static void lana_proto_unhash(struct sock *sk)
+{
+	mutex_lock(&lanasocks.lock);
+	sk_del_node_init_rcu(sk);
+	mutex_unlock(&lanasocks.lock);
+	synchronize_rcu();
+}
+
+static int lana_proto_get_port(struct sock *sk, unsigned short sport)
+{
+	return 0;
+}
+
 static int lana_family_create(struct net *net, struct socket *sock,
 			      int protocol, int kern)
 {
@@ -363,6 +398,9 @@ static struct proto lana_proto = {
 	.close		= lana_proto_close,
 	.init		= lana_proto_init,
 	.recvmsg	= lana_proto_recvmsg,
+	.hash		= lana_proto_hash,
+	.unhash		= lana_proto_unhash,
+	.get_port	= lana_proto_get_port,
 };
 
 static int init_fb_pflana(void)
