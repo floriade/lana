@@ -136,7 +136,6 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
-	smp_wb();
 	return 0;
 }
 
@@ -199,9 +198,7 @@ static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 	err = skb_copy_datagram_iovec(skb, 0, msg->msg_iov, copied);
 	if (err == 0)
 		sock_recv_ts_and_drops(msg, sk, skb);
-	printk("Got datagram!!!!\n");
 	skb_free_datagram(sk, skb);
-	printk("Released datagram!!!!\n");
 	return err ? : copied;
 }
 
