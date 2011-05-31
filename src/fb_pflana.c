@@ -136,6 +136,7 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
+	smp_wb();
 	return 0;
 }
 
