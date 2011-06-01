@@ -48,12 +48,6 @@ struct lana_sock {
 
 static struct lana_protocol *proto_tab[LANA_NPROTO] __read_mostly;
 
-static struct fblock_factory fb_pflana_factory;
-
-static struct fblock *fb_pflana_ctor(char *name);
-
-static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
-
 #define LANA_HASHSIZE	16
 #define LANA_HASHMASK	(LANA_HASHSIZE - 1)
 
@@ -120,6 +114,8 @@ static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 {
 	return (struct lana_sock *) sk;
 }
+
+static struct fblock *fb_pflana_ctor(char *name);
 
 static int lana_sk_init(struct sock* sk)
 {
@@ -329,6 +325,8 @@ static int lana_proto_get_port(struct sock *sk, unsigned short sport)
 
 static const struct proto_ops lana_raw_ops;
 
+static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
+
 static int lana_family_create(struct net *net, struct socket *sock,
 			      int protocol, int kern)
 {
@@ -434,6 +432,8 @@ static void cleanup_fb_pflana(void)
 	sock_unregister(PF_LANA);
 	proto_unregister(&lana_proto);
 }
+
+static struct fblock_factory fb_pflana_factory;
 
 static struct fblock *fb_pflana_ctor(char *name)
 {
