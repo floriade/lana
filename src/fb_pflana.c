@@ -15,6 +15,7 @@
 #include <linux/notifier.h>
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
+#include <linux/bug.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
 #include <linux/atomic.h>
@@ -30,8 +31,6 @@
 #include "fb_pflana.h"
 
 static struct proto lana_proto;
-
-static const struct proto_ops lana_ui_ops;
 
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
@@ -328,6 +327,8 @@ static int lana_proto_get_port(struct sock *sk, unsigned short sport)
 	return 0;
 }
 
+static const struct proto_ops lana_raw_ops;
+
 static int lana_family_create(struct net *net, struct socket *sock,
 			      int protocol, int kern)
 {
@@ -348,7 +349,17 @@ static int lana_family_create(struct net *net, struct socket *sock,
 
 	sock_init_data(sock, sk);
 	sock->state = SS_UNCONNECTED;
-	sock->ops = &lana_ui_ops;
+
+	switch (protocol) {
+	case LANA_PROTO_RAW:
+		sock->ops = &lana_raw_ops;
+		break;
+	default:
+		sock->ops = &lana_raw_ops;
+		WARN(1, "Invalid protocol number!\n");
+		break;
+	}
+
 	sk->sk_backlog_rcv = lana_proto_backlog_rcv;
 	sk->sk_protocol = protocol;
 	sk->sk_family = PF_LANA;
@@ -364,7 +375,7 @@ static const struct net_proto_family lana_ui_family_ops = {
 	.owner	= THIS_MODULE,
 };
 
-static const struct proto_ops lana_ui_ops = {
+static const struct proto_ops lana_raw_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
 	.release     = lana_ui_release,
@@ -385,7 +396,7 @@ static const struct proto_ops lana_ui_ops = {
 	.sendpage    = sock_no_sendpage,
 };
 
-static struct proto lana_proto = {
+static struct proto lana_proto __read_mostly = {
 	.name	  	= "LANA",
 	.owner	  	= THIS_MODULE,
 	.obj_size 	= sizeof(struct lana_sock),
@@ -396,6 +407,12 @@ static struct proto lana_proto = {
 	.hash		= lana_proto_hash,
 	.unhash		= lana_proto_unhash,
 	.get_port	= lana_proto_get_port,
+};
+
+static struct lana_protocol lana_proto_raw __read_mostly = {
+	.proto = LANA_PROTO_RAW,
+	.ops = &lana_raw_ops,
+	.proto = &lana_proto,
 };
 
 static int init_fb_pflana(void)

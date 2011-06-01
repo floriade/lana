@@ -20,9 +20,9 @@
 
 /* Protocols in LANA family */
 struct lana_protocol {
-	int proto;
+	int protocol;
 	const struct proto_ops *ops;
-	struct proto *prot;
+	struct proto *proto;
 };
 
 extern int pflana_proto_register(int proto, struct lana_protocol *lp);
