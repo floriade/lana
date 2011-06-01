@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@
 int main(void)
 {
 	int sock, i;
-	char buff[256];
+	char buff[1600];
 
 	sock = socket(AF_LANA, SOCK_RAW, 0);
 	if (sock < 0) {
@@ -29,13 +30,16 @@ int main(void)
 			continue;
 		} else {
 			assert(ret <= sizeof(buff));
+			printf("RECEIVED ......\n");
+			printf("hex:\n");
 			for (i = 0; i < ret; i++)
-				printf("0x%x ", buff[i]);
+				printf("0x%.2x ", (uint8_t) buff[i]);
+			printf("ascii:\n");
+			for (i = 0; i < ret; i++)
+				printf("%c ", isprint(buff[i]) ? buff[i] : '.');
 			printf("\n\n");
 			fflush(stdout);
 		}
-		sleep(1);
-		printf("next call\n");
 	}
 
 	close(sock);
