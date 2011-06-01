@@ -45,6 +45,7 @@ struct lana_sock {
 };
 
 static DEFINE_MUTEX(proto_tab_lock);
+
 static struct lana_protocol *proto_tab[LANA_NPROTO] __read_mostly;
 
 static int fb_pflana_netrx(const struct fblock * const fb,
@@ -156,6 +157,7 @@ int lana_raw_release(struct socket *sock)
 	if (sk) {
 		sock->sk = NULL;
 		sk->sk_prot->close(sk, 0);
+		lana_sk_free(sk);
 	}
 	return 0;
 }
@@ -262,8 +264,6 @@ EXPORT_SYMBOL(lana_common_stream_recvmsg);
 
 static void lana_proto_destruct(struct sock *sk)
 {
-	/* Destroy the socket, including fblock! */
-	lana_sk_free(sk);
 	skb_queue_purge(&sk->sk_receive_queue);
 }
 

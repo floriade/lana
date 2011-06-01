@@ -36,7 +36,6 @@ static int __userctl_rcv(struct sk_buff *skb, struct nlmsghdr *nlh)
 		return 0;
 
 	lmsg = NLMSG_DATA(nlh);
-
 	switch (lmsg->cmd) {
 	case NETLINK_USERCTL_CMD_ADD: {
 		struct fblock *fb;
