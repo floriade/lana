@@ -30,8 +30,6 @@
 #include "xt_builder.h"
 #include "fb_pflana.h"
 
-static struct proto lana_proto;
-
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
@@ -46,15 +44,8 @@ struct lana_sock {
 	u16 sobject;
 };
 
+static DEFINE_MUTEX(proto_tab_lock);
 static struct lana_protocol *proto_tab[LANA_NPROTO] __read_mostly;
-
-#define LANA_HASHSIZE	16
-#define LANA_HASHMASK	(LANA_HASHSIZE - 1)
-
-static struct  {
-	struct hlist_head hlist[LANA_HASHSIZE];
-	struct mutex lock;
-} lanasocks;
 
 static int fb_pflana_netrx(const struct fblock * const fb,
 			   struct sk_buff *skb,
@@ -164,7 +155,7 @@ static void lana_sk_free(struct sock *sk)
 	unregister_fblock_namespace(lana->fb);
 }
 
-static int lana_ui_release(struct socket *sock)
+int lana_common_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 	if (sk) {
@@ -173,6 +164,7 @@ static int lana_ui_release(struct socket *sock)
 	}
 	return 0;
 }
+EXPORT_SYMBOL(lana_common_release);
 
 static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 			      struct msghdr *msg, size_t len, int noblock,
@@ -211,9 +203,8 @@ static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
-#if 0
-int lana_ui_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
-			   struct msghdr *msg, size_t len, int flags)
+int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
+			       struct msghdr *msg, size_t len, int flags)
 {
 	int err = 0;
 	long timeout;
@@ -272,7 +263,7 @@ out:
 	release_sock(sk);
 	return copied ? : err;
 }
-#endif
+EXPORT_SYMBOL(lana_common_stream_recvmsg);
 
 static void lana_proto_destruct(struct sock *sk)
 {
@@ -292,52 +283,59 @@ static void lana_proto_close(struct sock *sk, long timeout)
 	sk_common_release(sk);
 }
 
-static struct hlist_head *lana_hash_list(u16 obj)
-{
-	return lanasocks.hlist + (obj & LANA_HASHMASK);
-}
-
 static void lana_proto_hash(struct sock *sk)
 {
-#if 0
-	struct hlist_head *hlist = lana_hash_list(to_lana_sk(sk)->sobject);
-	mutex_lock(&lanasocks.lock);
-	sk_add_node_rcu(sk, hlist);
-	mutex_unlock(&lanasocks.lock);
-#endif
 }
 
 static void lana_proto_unhash(struct sock *sk)
 {
-#if 0
-	mutex_lock(&lanasocks.lock);
-	sk_del_node_init_rcu(sk);
-	mutex_unlock(&lanasocks.lock);
-	synchronize_rcu();
-#endif
 }
 
 static int lana_proto_get_port(struct sock *sk, unsigned short sport)
 {
-	/* Fake */
 	return 0;
 }
 
-static const struct proto_ops lana_raw_ops;
+static struct lana_protocol *pflana_proto_get(int proto)
+{
+	struct lana_protocol *ret = NULL;
 
-static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
+	if (proto < 0 || proto >= LANA_NPROTO)
+		return NULL;
+	rcu_read_lock();
+	ret = rcu_dereference_raw(proto_tab[proto]);
+	rcu_read_unlock();
+
+	return ret;
+}
 
 static int lana_family_create(struct net *net, struct socket *sock,
 			      int protocol, int kern)
 {
 	struct sock *sk;
+	struct lana_protocol *lp;
+	struct lana_sock *ls;
 
 	if (!net_eq(net, &init_net))
 		return -EAFNOSUPPORT;
-	if (sock->type != SOCK_DGRAM)
-		return -ESOCKTNOSUPPORT;
 
-	sk = sk_alloc(net, PF_LANA, GFP_KERNEL, &lana_proto);
+	if (protocol == LANA_PROTO_AUTO) {
+		switch (sock->type) {
+		case SOCK_RAW:
+			if (!capable(CAP_SYS_ADMIN))
+				return -EPERM;
+			protocol = LANA_PROTO_RAW;
+			break;
+		default:
+			return -EPROTONOSUPPORT;
+		}
+	}
+
+	lp = pflana_proto_get(protocol);
+	if (!lp)
+		return -EPROTONOSUPPORT;
+
+	sk = sk_alloc(net, PF_LANA, GFP_KERNEL, lp->proto);
 	if (!sk)
 		return -ENOMEM;
 	if (lana_sk_init(sk) < 0) {
@@ -347,27 +345,21 @@ static int lana_family_create(struct net *net, struct socket *sock,
 
 	sock_init_data(sock, sk);
 	sock->state = SS_UNCONNECTED;
+	sock->ops = lp->ops;
 
-	switch (protocol) {
-	case LANA_PROTO_RAW:
-		sock->ops = &lana_raw_ops;
-		break;
-	default:
-		sock->ops = &lana_raw_ops;
-		WARN(1, "Invalid protocol number!\n");
-		break;
-	}
-
-	sk->sk_backlog_rcv = lana_proto_backlog_rcv;
+	sk->sk_backlog_rcv = sk->sk_prot->backlog_rcv;
 	sk->sk_protocol = protocol;
 	sk->sk_family = PF_LANA;
 	sk->sk_type = sock->type;
 	sk->sk_prot->init(sk);
 
+	ls = to_lana_sk(sk);
+	ls->bound = 0;
+
 	return 0;
 }
 
-static const struct net_proto_family lana_ui_family_ops = {
+static const struct net_proto_family lana_family_ops = {
 	.family = PF_LANA,
 	.create = lana_family_create,
 	.owner	= THIS_MODULE,
@@ -376,7 +368,7 @@ static const struct net_proto_family lana_ui_family_ops = {
 static const struct proto_ops lana_raw_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
-	.release     = lana_ui_release,
+	.release     = lana_common_release,
 	.recvmsg     = sock_common_recvmsg,
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
@@ -408,20 +400,70 @@ static struct proto lana_proto __read_mostly = {
 };
 
 static struct lana_protocol lana_proto_raw __read_mostly = {
-	.proto = LANA_PROTO_RAW,
+	.protocol = LANA_PROTO_RAW,
 	.ops = &lana_raw_ops,
 	.proto = &lana_proto,
+	.owner = THIS_MODULE,
 };
+
+int pflana_proto_register(int proto, struct lana_protocol *lp)
+{
+	int err;
+
+	if (!lp || proto < 0 || proto >= LANA_NPROTO)
+		return -EINVAL;
+	if (rcu_dereference_raw(proto_tab[proto]))
+		return -EBUSY;
+
+	err = proto_register(lp->proto, 1);
+	if (err)
+		return err;
+
+	mutex_lock(&proto_tab_lock);
+	lp->protocol = proto;
+	rcu_assign_pointer(proto_tab[proto], lp);
+	mutex_unlock(&proto_tab_lock);
+
+	__module_get(THIS_MODULE);
+	return 0;
+}
+EXPORT_SYMBOL(pflana_proto_register);
+
+void pflana_proto_unregister(struct lana_protocol *lp)
+{
+	if (!lp)
+		return;
+	if (lp->protocol < 0 || lp->protocol >= LANA_NPROTO)
+		return;
+	if (!rcu_dereference_raw(proto_tab[lp->protocol]))
+		return;
+
+	BUG_ON(proto_tab[lp->protocol] != lp);
+
+	mutex_lock(&proto_tab_lock);
+	rcu_assign_pointer(proto_tab[lp->protocol], NULL);
+	mutex_unlock(&proto_tab_lock);
+	synchronize_rcu();
+
+	proto_unregister(lp->proto);
+	module_put(lp->owner);
+}
+EXPORT_SYMBOL(pflana_proto_unregister);
 
 static int init_fb_pflana(void)
 {
-	int ret;
-	ret = proto_register(&lana_proto, 1);
+	int ret, i;
+	for (i = 0; i < LANA_NPROTO; ++i)
+		rcu_assign_pointer(proto_tab[i], NULL);
+
+	/* Default proto types we definately want to load */
+	ret = pflana_proto_register(LANA_PROTO_RAW, &lana_proto_raw);
 	if (ret)
 		return ret;
-	ret = sock_register(&lana_ui_family_ops);
+
+	ret = sock_register(&lana_family_ops);
 	if (ret) {
-		proto_unregister(&lana_proto);
+		pflana_proto_unregister(&lana_proto_raw);
 		return ret;
 	}
 	return 0;
@@ -429,8 +471,10 @@ static int init_fb_pflana(void)
 
 static void cleanup_fb_pflana(void)
 {
+	int i;
 	sock_unregister(PF_LANA);
-	proto_unregister(&lana_proto);
+	for (i = 0; i < LANA_NPROTO; ++i)
+		pflana_proto_unregister(rcu_dereference_raw(proto_tab[i]));
 }
 
 static struct fblock_factory fb_pflana_factory;
