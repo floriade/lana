@@ -30,7 +30,6 @@ struct lana_protocol {
 extern int pflana_proto_register(int proto, struct lana_protocol *lp);
 extern void pflana_proto_unregister(struct lana_protocol *lp);
 
-extern int lana_common_release(struct socket *sock);
 extern int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 				      struct msghdr *msg, size_t len, int flags);
 

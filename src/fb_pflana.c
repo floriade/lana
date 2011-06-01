@@ -155,7 +155,7 @@ static void lana_sk_free(struct sock *sk)
 	unregister_fblock_namespace(lana->fb);
 }
 
-int lana_common_release(struct socket *sock)
+int lana_raw_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 	if (sk) {
@@ -164,7 +164,6 @@ int lana_common_release(struct socket *sock)
 	}
 	return 0;
 }
-EXPORT_SYMBOL(lana_common_release);
 
 static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 			      struct msghdr *msg, size_t len, int noblock,
@@ -368,7 +367,7 @@ static const struct net_proto_family lana_family_ops = {
 static const struct proto_ops lana_raw_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
-	.release     = lana_common_release,
+	.release     = lana_raw_release,
 	.recvmsg     = sock_common_recvmsg,
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
