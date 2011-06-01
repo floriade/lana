@@ -1,7 +1,8 @@
 /*
  * Lightweight Autonomic Network Architecture
  *
- * PF_LANA userspace module.
+ * LANA BSD Socket interface for communication with user level.
+ * PF_LANA protocol family socket handler.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -17,8 +18,8 @@
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
 #include <linux/atomic.h>
+#include <linux/slab.h>
 #include <net/sock.h>
-#include <net/tcp_states.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -26,17 +27,16 @@
 #include "xt_skb.h"
 #include "xt_engine.h"
 #include "xt_builder.h"
+#include "fb_pflana.h"
 
-#define AF_LANA		27	/* For now.. */
-#define PF_LANA		AF_LANA
+static struct proto lana_proto;
 
-#define LANA_HASHSIZE	16
-#define LANA_HASHMASK	(LANA_HASHSIZE - 1)
+static const struct proto_ops lana_ui_ops;
 
 struct fb_pflana_priv {
 	idp_t port[NUM_TYPES];
 	seqlock_t lock;
-	struct lana_sock *sock_self; /* Only set on init, never changed! */
+	struct lana_sock *sock_self;
 };
 
 struct lana_sock {
@@ -47,11 +47,16 @@ struct lana_sock {
 	u16 sobject;
 };
 
+static struct lana_protocol *proto_tab[LANA_NPROTO] __read_mostly;
+
 static struct fblock_factory fb_pflana_factory;
-static struct proto lana_proto;
-static const struct proto_ops lana_ui_ops;
+
 static struct fblock *fb_pflana_ctor(char *name);
+
 static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb);
+
+#define LANA_HASHSIZE	16
+#define LANA_HASHMASK	(LANA_HASHSIZE - 1)
 
 static struct  {
 	struct hlist_head hlist[LANA_HASHSIZE];
@@ -136,6 +141,7 @@ static int lana_sk_init(struct sock* sk)
 		fb_priv_cpu->sock_self = lana;
 	}
 	put_online_cpus();
+	smp_wmb();
 	return 0;
 }
 
