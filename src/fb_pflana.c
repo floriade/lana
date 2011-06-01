@@ -136,22 +136,17 @@ static void lana_sk_free(struct sock *sk)
 	struct fblock *fb_bound;
 	struct lana_sock *lana;
 
-	sock_hold(sk);
 	lana = to_lana_sk(sk);
-
 	fb_bound = get_bound_fblock(lana->fb, TYPE_INGRESS);
 	if (fb_bound) {
 		fblock_unbind(fb_bound, lana->fb);
 		put_fblock(fb_bound);
 	}
-
 	fb_bound = get_bound_fblock(lana->fb, TYPE_EGRESS);
 	if (fb_bound) {
 		fblock_unbind(lana->fb, fb_bound);
 		put_fblock(fb_bound);
 	}
-
-	sock_put(sk);
 	unregister_fblock_namespace(lana->fb);
 }
 
@@ -267,8 +262,8 @@ EXPORT_SYMBOL(lana_common_stream_recvmsg);
 static void lana_proto_destruct(struct sock *sk)
 {
 	/* Destroy the socket, including fblock! */
-	skb_queue_purge(&sk->sk_receive_queue);
 	lana_sk_free(sk);
+	skb_queue_purge(&sk->sk_receive_queue);
 }
 
 static int lana_proto_init(struct sock *sk)

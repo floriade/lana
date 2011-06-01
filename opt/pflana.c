@@ -14,7 +14,7 @@ int main(void)
 	int sock, i;
 	char buff[256];
 
-	sock = socket(AF_LANA, SOCK_DGRAM, 0);
+	sock = socket(AF_LANA, SOCK_RAW, 0);
 	if (sock < 0) {
 		perror("socket");
 		return 0;
