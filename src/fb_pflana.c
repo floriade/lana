@@ -194,9 +194,20 @@ static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 
 static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
-	int err = sock_queue_rcv_skb(sk, skb);
-	if (err != 0)
+	int err = -EPROTONOSUPPORT;
+
+	switch (sk->sk_protocol) {
+	case LANA_PROTO_RAW:
+		err = sock_queue_rcv_skb(sk, skb);
+		if (err != 0)
+			kfree_skb(skb);
+		break;
+	default:
 		kfree_skb(skb);
+		err = -EPROTONOSUPPORT;
+		break;
+	}
+
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
