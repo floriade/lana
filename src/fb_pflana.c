@@ -59,7 +59,6 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	sk = (struct sock *) fb_priv_cpu->sock_self;
 
-	sock_hold(sk);
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
 		if (nskb == NULL)
@@ -72,14 +71,15 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 		skb = nskb;
 	}
 	sk_receive_skb(sk, skb, 0);
-	return PPE_SUCCESS;
+out:
+	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
+	return PPE_HALT;
 drop:
 	if (skb_head != skb->data && skb_shared(skb)) {
 		skb->data = skb_head;
 		skb->len = skb_len;
 	}
-	consume_skb(skb);
-	return PPE_DROPPED;
+	goto out;
 }
 
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
@@ -186,6 +186,7 @@ static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
 	if (err == 0)
 		sock_recv_ts_and_drops(msg, sk, skb);
 	skb_free_datagram(sk, skb);
+
 	return err ? : copied;
 }
 

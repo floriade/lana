@@ -35,6 +35,7 @@ struct fb_eth_priv {
 };
 
 static int instantiated = 0;
+
 static struct fblock *fb;
 
 static inline int fb_eth_dev_is_bridged(struct net_device *dev)
@@ -84,7 +85,8 @@ static int fb_eth_netrx(const struct fblock * const fb,
 			struct sk_buff * const skb,
 			enum path_type * const dir)
 {
-	kfree_skb(skb);
+	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
+	consume_skb(skb);
 	return PPE_DROPPED;
 }
 
