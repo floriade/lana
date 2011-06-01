@@ -418,7 +418,8 @@ int pflana_proto_register(int proto, struct lana_protocol *lp)
 	rcu_assign_pointer(proto_tab[proto], lp);
 	mutex_unlock(&proto_tab_lock);
 
-	__module_get(THIS_MODULE);
+	if (lp->owner != THIS_MODULE)
+		__module_get(lp->owner);
 	return 0;
 }
 EXPORT_SYMBOL(pflana_proto_register);
@@ -440,7 +441,8 @@ void pflana_proto_unregister(struct lana_protocol *lp)
 	synchronize_rcu();
 
 	proto_unregister(lp->proto);
-	module_put(lp->owner);
+	if (lp->owner != THIS_MODULE)
+		module_put(lp->owner);
 }
 EXPORT_SYMBOL(pflana_proto_unregister);
 
