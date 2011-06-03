@@ -73,7 +73,11 @@ static inline struct sk_buff *engine_backlog_test_reduce(void)
 	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue));
 }
 
-/* TODO: handle emergency queue, or backlog */
+/* TODO: handle emergency queue, or backlog
+ * idea: mark with jiffies where we definately expect the blog to be 
+ * present again, peek the skbs, test for jiffies and unlink conditionally
+ * if after certain periods the fblock is still missing, drop the skb
+ */
 
 /* Main function, must be called in rcu_read_lock context */
 int process_packet(struct sk_buff *skb, enum path_type dir)
