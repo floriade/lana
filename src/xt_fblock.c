@@ -592,7 +592,6 @@ static int procfs_fblocks(char *page, char **start, off_t offset,
 	struct fblock_notifier *fn;
 	long long max = atomic64_read(&idp_counter);
 
-	len += sprintf(page + len, "name type addr idp refcnt next subscr\n");
 	rcu_read_lock();
 	for (i = 0; i <= max; ++i) {
 		fb = radix_tree_lookup(&fblmap, i);
