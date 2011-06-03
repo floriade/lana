@@ -31,7 +31,7 @@
 #include "fb_pflana.h"
 
 struct fb_pflana_priv {
-	idp_t port[NUM_TYPES];
+	idp_t port[2];
 	seqlock_t lock;
 	struct lana_sock *sock_self;
 };
@@ -489,7 +489,7 @@ static struct fblock_factory fb_pflana_factory;
 
 static struct fblock *fb_pflana_ctor(char *name)
 {
-	int i, ret = 0;
+	int ret = 0;
 	unsigned int cpu;
 	struct fblock *fb;
 	struct fb_pflana_priv __percpu *fb_priv;
@@ -505,8 +505,8 @@ static struct fblock *fb_pflana_ctor(char *name)
 		struct fb_pflana_priv *fb_priv_cpu;
 		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
 		seqlock_init(&fb_priv_cpu->lock);
-		for (i = 0; i < NUM_TYPES; ++i)
-			fb_priv_cpu->port[i] = IDP_UNKNOWN;
+		fb_priv_cpu->port[0] = IDP_UNKNOWN;
+		fb_priv_cpu->port[1] = IDP_UNKNOWN;
 	}
 	put_online_cpus();
 

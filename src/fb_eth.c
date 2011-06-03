@@ -30,7 +30,7 @@
 #define IFF_IS_BRIDGED  0x60000
 
 struct fb_eth_priv {
-	idp_t port[NUM_TYPES];
+	idp_t port[2];
 	seqlock_t lock;
 };
 
@@ -181,7 +181,7 @@ static int init_fb_eth(void)
 
 static struct fblock *fb_eth_ctor(char *name)
 {
-	int i, ret = 0;
+	int ret = 0;
 	unsigned int cpu;
 	struct fb_eth_priv __percpu *fb_priv;
 
@@ -200,8 +200,8 @@ static struct fblock *fb_eth_ctor(char *name)
 		struct fb_eth_priv *fb_priv_cpu;
 		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
 		seqlock_init(&fb_priv_cpu->lock);
-		for (i = 0; i < NUM_TYPES; ++i)
-			fb_priv_cpu->port[i] = IDP_UNKNOWN;
+		fb_priv_cpu->port[0] = IDP_UNKNOWN;
+		fb_priv_cpu->port[1] = IDP_UNKNOWN;
 	}
 	put_online_cpus();
 
