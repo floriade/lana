@@ -18,6 +18,7 @@
 #define PPE_ERROR		2
 
 extern int process_packet(struct sk_buff *skb, enum path_type dir);
+extern void engine_backlog_tail(struct sk_buff *skb, enum path_type dir);
 
 extern int init_engine(void);
 extern void cleanup_engine(void);

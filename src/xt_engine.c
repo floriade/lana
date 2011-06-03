@@ -25,7 +25,8 @@ struct engine_iostats {
 } ____cacheline_aligned;
 
 struct engine_disc {
-	struct sk_buff_head ppe_rcv_emerg_queue;
+	struct sk_buff_head ppe_emerg_queue;
+	struct sk_buff_head ppe_backlog_queue;
 } ____cacheline_aligned;
 
 static struct engine_iostats __percpu *iostats;
@@ -49,14 +50,26 @@ static inline void engine_add_bytes_stats(unsigned long bytes)
 	this_cpu_add(iostats->bytes, bytes);
 }
 
-static inline void engine_rcv_emerg_tail(struct sk_buff *skb)
+static inline void engine_emerg_tail(struct sk_buff *skb)
 {
-	skb_queue_tail(&(this_cpu_ptr(emdiscs)->ppe_rcv_emerg_queue), skb);
+	skb_queue_tail(&(this_cpu_ptr(emdiscs)->ppe_emerg_queue), skb);
 }
 
-static inline struct sk_buff *engine_rcv_emerg_test_reduce(void)
+void engine_backlog_tail(struct sk_buff *skb, enum path_type dir)
 {
-	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_rcv_emerg_queue));
+	//TODO: path information
+	skb_queue_tail(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue), skb);
+}
+EXPORT_SYMBOL(engine_backlog_tail);
+
+static inline struct sk_buff *engine_emerg_test_reduce(void)
+{
+	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_emerg_queue));
+}
+
+static inline struct sk_buff *engine_backlog_test_reduce(void)
+{
+	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue));
 }
 
 /* TODO: handle emergency queue, or backlog */
@@ -102,10 +115,11 @@ static int engine_procfs(char *page, char **start, off_t offset,
 		struct engine_disc *emdisc_cpu;
 		iostats_cpu = per_cpu_ptr(iostats, cpu);
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
-		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%u\n",
+		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%u\t%u\n",
 			       cpu, iostats_cpu->pkts, iostats_cpu->bytes,
 			       iostats_cpu->fblocks,
-			       skb_queue_len(&emdisc_cpu->ppe_rcv_emerg_queue));
+			       skb_queue_len(&emdisc_cpu->ppe_emerg_queue),
+			       skb_queue_len(&emdisc_cpu->ppe_backlog_queue));
 	}
 	put_online_cpus();
 
@@ -137,7 +151,8 @@ int init_engine(void)
 	for_each_online_cpu(cpu) {
 		struct engine_disc *emdisc_cpu;
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
-		skb_queue_head_init(&emdisc_cpu->ppe_rcv_emerg_queue);
+		skb_queue_head_init(&emdisc_cpu->ppe_emerg_queue);
+		skb_queue_head_init(&emdisc_cpu->ppe_backlog_queue);
 	}
 	put_online_cpus();
 
@@ -165,7 +180,8 @@ void cleanup_engine(void)
 		for_each_online_cpu(cpu) {
 			struct engine_disc *emdisc_cpu;
 			emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
-			skb_queue_purge(&emdisc_cpu->ppe_rcv_emerg_queue);
+			skb_queue_purge(&emdisc_cpu->ppe_emerg_queue);
+			skb_queue_purge(&emdisc_cpu->ppe_backlog_queue);
 		}
 		put_online_cpus();
 		free_percpu(emdiscs);
