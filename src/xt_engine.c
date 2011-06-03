@@ -43,7 +43,7 @@ static inline void engine_inc_pkts_stats(void)
 
 static inline void engine_inc_fblock_stats(void)
 {
-	this_cpu_inc(iostats->pkts);
+	this_cpu_inc(iostats->fblocks);
 }
 
 static inline void engine_add_bytes_stats(unsigned long bytes)
