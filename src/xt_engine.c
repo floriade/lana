@@ -13,6 +13,7 @@
 #include <linux/percpu.h>
 #include <linux/cache.h>
 #include <linux/proc_fs.h>
+#include <linux/rcupdate.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
@@ -81,6 +82,8 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	idp_t cont;
 	struct fblock *fb;
 
+	BUG_ON(!rcu_read_lock_held());
+
 	engine_inc_pkts_stats();
 	engine_add_bytes_stats(skb->len);
 
@@ -90,6 +93,7 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 			ret = PPE_ERROR;
 			break;
 		}
+
 		ret = fb->netfb_rx(fb, skb, &dir);
 		put_fblock(fb);
 		engine_inc_fblock_stats();
