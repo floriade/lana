@@ -31,12 +31,22 @@ struct idp_elem {
 } ____cacheline_aligned;
 
 static struct critbit_tree idpmap;
+
 RADIX_TREE(fblmap, GFP_ATOMIC);
+
 static atomic64_t idp_counter;
+
 static struct kmem_cache *fblock_cache = NULL;
 
 extern struct proc_dir_entry *lana_proc_dir;
+
 static struct proc_dir_entry *fblocks_proc;
+
+const char *path_names[] = {
+        "ingress",
+        "egress",
+};
+EXPORT_SYMBOL(path_names);
 
 static inline idp_t provide_new_fblock_idp(void)
 {

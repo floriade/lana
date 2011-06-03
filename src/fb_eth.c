@@ -103,6 +103,7 @@ static int fb_eth_event(struct notifier_block *self, unsigned long cmd,
 
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
+		int bound = 0;
 		struct fblock_bind_msg *msg = args;
 		get_online_cpus();
 		for_each_online_cpu(cpu) {
@@ -112,14 +113,20 @@ static int fb_eth_event(struct notifier_block *self, unsigned long cmd,
 				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = msg->idp;
 				write_sequnlock(&fb_priv_cpu->lock);
+				bound = 1;
 			} else {
 				ret = NOTIFY_BAD;
 				break;
 			}
 		}
 		put_online_cpus();
+		if (bound)
+			printk(KERN_INFO "[%s::%s] port %s bound to IDP%u\n",
+			       fb->name, fb->factory->type,
+			       path_names[msg->dir], msg->idp);
 		} break;
 	case FBLOCK_UNBIND_IDP: {
+		int unbound = 0;
 		struct fblock_bind_msg *msg = args;
 		get_online_cpus();
 		for_each_online_cpu(cpu) {
@@ -129,13 +136,17 @@ static int fb_eth_event(struct notifier_block *self, unsigned long cmd,
 				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
 				write_sequnlock(&fb_priv_cpu->lock);
+				unbound = 1;
 			} else {
 				ret = NOTIFY_BAD;
 				break;
 			}
-			put_online_cpus();
 		}
 		put_online_cpus();
+		if (unbound)
+			printk(KERN_INFO "[%s::%s] port %s unbound\n",
+			       fb->name, fb->factory->type,
+			       path_names[msg->dir]);
 		} break;
 	default:
 		break;

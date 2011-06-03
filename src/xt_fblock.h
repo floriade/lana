@@ -30,6 +30,8 @@ enum path_type {
         _TYPE_MAX,
 };
 
+extern const char *path_names[];
+
 enum fblock_mode {
 	MODE_SOURCE = 0,
 #define MODE_SOURCE		MODE_SOURCE
