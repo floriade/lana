@@ -41,7 +41,6 @@ struct lana_sock {
 	struct sock sk;
 	struct fblock *fb;
 	int bound;
-	u16 sobject;
 };
 
 static DEFINE_MUTEX(proto_tab_lock);
