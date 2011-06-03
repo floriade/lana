@@ -107,6 +107,7 @@ static int fb_dummy_event(struct notifier_block *self, unsigned long cmd,
 				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
 				write_sequnlock(&fb_priv_cpu->lock);
+				unbound = 1;
 			} else {
 				ret = NOTIFY_BAD;
 				break;
