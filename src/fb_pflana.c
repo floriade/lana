@@ -37,7 +37,6 @@ struct fb_pflana_priv {
 };
 
 struct lana_sock {
-	/* struct sock must be the first member of lana_sock */
 	struct sock sk;
 	struct fblock *fb;
 	int bound;
@@ -57,7 +56,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	struct fb_pflana_priv __percpu *fb_priv_cpu;
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-	sk = (struct sock *) fb_priv_cpu->sock_self;
+	sk = &fb_priv_cpu->sock_self->sk;
 
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
