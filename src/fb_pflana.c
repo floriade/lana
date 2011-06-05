@@ -104,7 +104,7 @@ static struct fblock *fb_pflana_ctor(char *name);
 static int lana_sk_init(struct sock* sk)
 {
 	int cpu;
-	char name[256];
+	char name[32];
 	struct lana_sock *lana = to_lana_sk(sk);
 
 	memset(name, 0, sizeof(name));
