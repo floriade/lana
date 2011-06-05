@@ -60,8 +60,13 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
-		if (nskb == NULL)
-			goto drop;
+		if (nskb == NULL) {
+			if (skb_head != skb->data && skb_shared(skb)) {
+				skb->data = skb_head;
+				skb->len = skb_len;
+			}
+			goto out;
+		}
 		if (skb_head != skb->data) {
 			skb->data = skb_head;
 			skb->len = skb_len;
@@ -73,12 +78,6 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 out:
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
 	return PPE_HALT;
-drop:
-	if (skb_head != skb->data && skb_shared(skb)) {
-		skb->data = skb_head;
-		skb->len = skb_len;
-	}
-	goto out;
 }
 
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
