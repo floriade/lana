@@ -100,7 +100,6 @@ struct fblock {
 	struct fblock_factory *factory;
 	struct fblock_notifier *notifiers;
 	struct fblock_subscrib *others;
-	struct fblock *next;
 	struct rcu_head rcu;
 	atomic_t refcnt;
 	idp_t idp;
@@ -237,8 +236,8 @@ extern void cleanup_fblock_tables(void);
 static inline void fblock_over_panic(struct fblock *fb, void *here)
 {
 	printk(KERN_EMERG "fblock_over_panic: text:%p ptr:%p idp:%u refs:%d "
-			  "name:%s next:%p priv:%p fac:%p not:%p others: %p\n",
-	       here, fb, fb->idp, atomic_read(&fb->refcnt), fb->name, fb->next,
+			  "name:%s priv:%p fac:%p not:%p others: %p\n",
+	       here, fb, fb->idp, atomic_read(&fb->refcnt), fb->name, 
 	       fb->private_data, fb->factory, fb->notifiers, fb->others);
 	BUG();
 }
