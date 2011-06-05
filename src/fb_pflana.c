@@ -60,17 +60,12 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 
 	if (skb_shared(skb)) {
 		struct sk_buff *nskb = skb_clone(skb, GFP_ATOMIC);
-		if (nskb == NULL) {
-			if (skb_head != skb->data && skb_shared(skb)) {
-				skb->data = skb_head;
-				skb->len = skb_len;
-			}
-			goto out;
-		}
 		if (skb_head != skb->data) {
 			skb->data = skb_head;
 			skb->len = skb_len;
 		}
+		if (nskb == NULL)
+			goto out;
 		kfree_skb(skb);
 		skb = nskb;
 	}
