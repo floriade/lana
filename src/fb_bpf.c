@@ -1,7 +1,7 @@
 /*
  * Lightweight Autonomic Network Architecture
  *
- * LANA Berkeley Packet Filter module.
+ * LANA Berkeley Packet Filter (BPF) module using the BPF JIT compiler.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -14,8 +14,10 @@
 #include <linux/notifier.h>
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
+#include <linux/spinlock.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
+#include <linux/filter.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -26,32 +28,49 @@
 
 struct fb_bpf_priv {
 	idp_t port[2];
-	seqlock_t lock;
+	struct sk_filter *filter;
+	spinlock_t flock;
 };
+
+static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
+			      struct sock_fprog *fprog)
+{
+	return 0;
+}
+
+static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
+{
+}
 
 static int fb_bpf_netrx(const struct fblock * const fb,
 			struct sk_buff * const skb,
 			enum path_type * const dir)
 {
 	int drop = 0;
-	unsigned int seq;
+	unsigned int pkt_len;
+	unsigned long flags;
 	struct fb_bpf_priv __percpu *fb_priv_cpu;
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-#ifdef __DEBUG
-	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
-#endif
-	prefetchw(skb->cb);
-	do {
-		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
-		if (fb_priv_cpu->port[*dir] == IDP_UNKNOWN)
-			drop = 1;
-	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+
+	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
+	if (fb_priv_cpu->filter) {
+		pkt_len = SK_RUN_FILTER(fb_priv_cpu->filter, skb);
+		if (pkt_len < skb->len) {
+			spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
+			kfree_skb(skb);
+			return PPE_DROPPED;
+		}
+	}
+	write_next_idp_to_skb(skb, fb->idp, fb_priv_cpu->port[*dir]);
+	if (fb_priv_cpu->port[*dir] == IDP_UNKNOWN)
+		drop = 1;
+	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 	if (drop) {
 		kfree_skb(skb);
 		return PPE_DROPPED;
 	}
+
 	return PPE_SUCCESS;
 }
 
@@ -80,15 +99,16 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 		for_each_online_cpu(cpu) {
 			struct fb_bpf_priv *fb_priv_cpu;
 			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			spin_lock(&fb_priv_cpu->flock);
 			if (fb_priv_cpu->port[msg->dir] == IDP_UNKNOWN) {
-				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = msg->idp;
-				write_sequnlock(&fb_priv_cpu->lock);
 				bound = 1;
 			} else {
 				ret = NOTIFY_BAD;
+				spin_unlock(&fb_priv_cpu->flock);
 				break;
 			}
+			spin_unlock(&fb_priv_cpu->flock);
 		}
 		put_online_cpus();
 		if (bound)
@@ -103,25 +123,22 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 		for_each_online_cpu(cpu) {
 			struct fb_bpf_priv *fb_priv_cpu;
 			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			spin_lock(&fb_priv_cpu->flock);
 			if (fb_priv_cpu->port[msg->dir] == msg->idp) {
-				write_seqlock(&fb_priv_cpu->lock);
 				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
-				write_sequnlock(&fb_priv_cpu->lock);
 				unbound = 1;
 			} else {
 				ret = NOTIFY_BAD;
+				spin_unlock(&fb_priv_cpu->flock);
 				break;
 			}
+			spin_unlock(&fb_priv_cpu->flock);
 		}
 		put_online_cpus();
 		if (unbound)
 			printk(KERN_INFO "[%s::%s] port %s unbound\n",
 			       fb->name, fb->factory->type,
 			       path_names[msg->dir]);
-		} break;
-	case FBLOCK_SET_OPT: {
-		struct fblock_opt_msg *msg = args;
-		printk("Set option %s to %s!\n", msg->key, msg->val);
 		} break;
 	default:
 		break;
@@ -149,9 +166,10 @@ static struct fblock *fb_bpf_ctor(char *name)
 	for_each_online_cpu(cpu) {
 		struct fb_bpf_priv *fb_priv_cpu;
 		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
-		seqlock_init(&fb_priv_cpu->lock);
+		spin_lock_init(&fb_priv_cpu->flock);
 		fb_priv_cpu->port[0] = IDP_UNKNOWN;
 		fb_priv_cpu->port[1] = IDP_UNKNOWN;
+		fb_priv_cpu->filter = NULL;
 	}
 	put_online_cpus();
 
