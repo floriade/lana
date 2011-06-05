@@ -230,7 +230,7 @@ int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 			timeout = sk_wait_data(sk, &timeout);
 			if (signal_pending(current)) {
 				err = sock_intr_errno(timeout);
-				goto out;
+				break;
 			}
 			continue;
 		}
@@ -257,7 +257,7 @@ int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 			break;
 		}
 	} while (len > 0);
-out:
+
 	release_sock(sk);
 	return copied ? : err;
 }
