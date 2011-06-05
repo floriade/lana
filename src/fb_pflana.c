@@ -419,6 +419,7 @@ int pflana_proto_register(int proto, struct lana_protocol *lp)
 	lp->protocol = proto;
 	rcu_assign_pointer(proto_tab[proto], lp);
 	mutex_unlock(&proto_tab_lock);
+	synchronize_rcu();
 
 	if (lp->owner != THIS_MODULE)
 		__module_get(lp->owner);
