@@ -50,7 +50,9 @@ static int userctl_set(struct lananlmsg *lmsg)
 	fb = search_fblock_n(msg->name);
 	if (!fb)
 		return -EINVAL;
+
 	ret = fblock_set_option(fb, msg->option);
+
 	put_fblock(fb);
 
 	return ret;
@@ -65,6 +67,7 @@ static int userctl_replace(struct lananlmsg *lmsg)
 	fb1 = search_fblock_n(msg->name1);
 	if (!fb1)
 		return -EINVAL;
+
 	fb2 = search_fblock_n(msg->name2);
 	if (!fb2) {
 		put_fblock(fb1);
@@ -90,6 +93,7 @@ static int userctl_replace(struct lananlmsg *lmsg)
 	unregister_fblock(fb1);
 
 	ret = register_fblock(fb2, fb2->idp);
+
 	put_fblock(fb1);
 	put_fblock(fb2);
 
@@ -100,11 +104,12 @@ static int userctl_subscribe(struct lananlmsg *lmsg)
 {
 	int ret;
 	struct fblock *fb1, *fb2;
-	struct lananlmsg_subscribe *msg = (struct lananlmsg_subscribe *) lmsg->buff;
+	struct lananlmsg_tuple *msg = (struct lananlmsg_tuple *) lmsg->buff;
 
 	fb1 = search_fblock_n(msg->name1);
 	if (!fb1)
 		return -EINVAL;
+
 	fb2 = search_fblock_n(msg->name2);
 	if (!fb2) {
 		put_fblock(fb1);
@@ -115,6 +120,7 @@ static int userctl_subscribe(struct lananlmsg *lmsg)
 	 * wishes to be notified.
 	 */
 	ret = subscribe_to_remote_fblock(fb2, fb1);
+
 	put_fblock(fb1);
 	put_fblock(fb2);
 
@@ -124,12 +130,12 @@ static int userctl_subscribe(struct lananlmsg *lmsg)
 static int userctl_unsubscribe(struct lananlmsg *lmsg)
 {
 	struct fblock *fb1, *fb2;
-	struct lananlmsg_unsubscribe *msg = 
-		(struct lananlmsg_unsubscribe *) lmsg->buff;
+	struct lananlmsg_tuple *msg = (struct lananlmsg_tuple *) lmsg->buff;
 
 	fb1 = search_fblock_n(msg->name1);
 	if (!fb1)
 		return -EINVAL;
+
 	fb2 = search_fblock_n(msg->name2);
 	if (!fb2) {
 		put_fblock(fb1);
@@ -137,6 +143,7 @@ static int userctl_unsubscribe(struct lananlmsg *lmsg)
 	}
 
 	unsubscribe_from_remote_fblock(fb2, fb1);
+
 	put_fblock(fb1);
 	put_fblock(fb2);
 
@@ -168,7 +175,7 @@ static int userctl_bind(struct lananlmsg *lmsg)
 {
 	int ret;
 	struct fblock *fb1, *fb2;
-	struct lananlmsg_bind *msg = (struct lananlmsg_bind *) lmsg->buff;
+	struct lananlmsg_tuple *msg = (struct lananlmsg_tuple *) lmsg->buff;
 
 	fb1 = search_fblock_n(msg->name1);
 	if (!fb1)
@@ -192,7 +199,7 @@ static int userctl_unbind(struct lananlmsg *lmsg)
 {
 	int ret;
 	struct fblock *fb1, *fb2;
-	struct lananlmsg_unbind *msg = (struct lananlmsg_unbind *) lmsg->buff;
+	struct lananlmsg_tuple *msg = (struct lananlmsg_tuple *) lmsg->buff;
 
 	fb1 = search_fblock_n(msg->name1);
 	if (!fb1)

@@ -51,12 +51,7 @@ struct lananlmsg_set {
 	char option[USERCTL_BUF_LEN - FBNAMSIZ];
 };
 
-struct lananlmsg_bind {
-	char name1[FBNAMSIZ];
-	char name2[FBNAMSIZ];
-};
-
-struct lananlmsg_unbind {
+struct lananlmsg_tuple {
 	char name1[FBNAMSIZ];
 	char name2[FBNAMSIZ];
 };
@@ -65,16 +60,6 @@ struct lananlmsg_replace {
 	char name1[FBNAMSIZ];
 	char name2[FBNAMSIZ];
 	uint8_t drop_priv;
-};
-
-struct lananlmsg_subscribe {
-	char name1[FBNAMSIZ];
-	char name2[FBNAMSIZ];
-};
-
-struct lananlmsg_unsubscribe {
-	char name1[FBNAMSIZ];
-	char name2[FBNAMSIZ];
 };
 
 extern int init_userctl_system(void);
