@@ -222,9 +222,7 @@ int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 			if (copied >= target)
 				break;
 			err = sock_error(sk);
-			if (err)
-				break;
-			if (sk->sk_shutdown & RCV_SHUTDOWN)
+			if (err || sk->sk_shutdown & RCV_SHUTDOWN)
 				break;
 			err = -EAGAIN;
 			if (!timeout)
