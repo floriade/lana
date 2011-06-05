@@ -96,7 +96,7 @@ static struct fblock *get_bound_fblock(struct fblock *self, enum path_type dir)
 
 static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 {
-	return (struct lana_sock *) sk;
+	return container_of(sk, struct lana_sock, sk);
 }
 
 static struct fblock *fb_pflana_ctor(char *name);
