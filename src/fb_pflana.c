@@ -28,7 +28,22 @@
 #include "xt_skb.h"
 #include "xt_engine.h"
 #include "xt_builder.h"
-#include "fb_pflana.h"
+
+#define AF_LANA         27      /* For now.. */
+#define PF_LANA         AF_LANA
+
+/* LANA protocol types on top of the PF_LANA family */
+#define LANA_PROTO_AUTO 0
+#define LANA_PROTO_RAW  1
+#define LANA_NPROTO     2
+
+/* Protocols in LANA family */
+struct lana_protocol {
+	int protocol;
+	const struct proto_ops *ops;
+	struct proto *proto;
+	struct module *owner;
+};
 
 struct fb_pflana_priv {
 	idp_t port[2];
