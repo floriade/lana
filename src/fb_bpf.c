@@ -156,6 +156,7 @@ static int fb_bpf_netrx(const struct fblock * const fb,
 	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
 	if (fb_priv_cpu->filter) {
 		pkt_len = SK_RUN_FILTER(fb_priv_cpu->filter, skb);
+		/* No snap, either drop or pass */
 		if (pkt_len < skb->len) {
 			spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 			kfree_skb(skb);
