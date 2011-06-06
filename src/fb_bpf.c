@@ -249,7 +249,45 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 
 static int fb_bpf_proc_show_filter(struct seq_file *seq, void *v)
 {
-//	seq_puts(seq, result);
+	unsigned long flags;
+	struct fblock *fb = v;
+	struct fb_bpf_priv __percpu *fb_priv;
+	struct fb_bpf_priv *fb_priv_cpu;
+	struct sk_filter *sf;
+
+	rcu_read_lock();
+	fb_priv = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
+	rcu_read_unlock();
+
+	get_online_cpus();
+	fb_priv_cpu = per_cpu_ptr(fb_priv, smp_processor_id());
+	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
+
+	sf = fb_priv_cpu->filter;
+	if (sf) {
+		unsigned int i;
+		if (sf->bpf_func == sk_run_filter)
+			seq_puts(seq, "bpf jit: 0\n");
+		else
+			seq_puts(seq, "bpf jit: 1\n");
+		seq_puts(seq, "code:\n");
+		for (i = 0; i < sf->len; ++i) {
+			char sline[32];
+			memset(sline, 0, sizeof(sline));
+			snprintf(sline, sizeof(sline),
+				 "0x%x %d %d 0x%x\n",
+				 sf->insns[i].code,
+				 sf->insns[i].jt,
+				 sf->insns[i].jf,
+				 sf->insns[i].k);
+			sline[sizeof(sline) - 1] = 0;
+			seq_puts(seq, sline);
+		}
+	}
+
+	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
+	put_online_cpus();
+
 	return 0;
 }
 
