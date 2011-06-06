@@ -19,6 +19,9 @@
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
 #include <linux/filter.h>
+#include <linux/proc_fs.h>
+#include <linux/seq_file.h>
+#include <linux/uaccess.h>
 
 #include "xt_fblock.h"
 #include "xt_builder.h"
@@ -244,12 +247,39 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 	return ret;
 }
 
+static int fb_bpf_proc_show_filter(struct seq_file *seq, void *v)
+{
+//	seq_puts(seq, result);
+	return 0;
+}
+
+static int fb_bpf_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, fb_bpf_proc_show_filter, PDE(inode)->data);
+}
+
+static ssize_t fb_bpf_proc_write(struct file *file, const char __user * user_buffer,
+				 size_t count, loff_t * offset)
+{
+	return 0;
+}
+
+static const struct file_operations fb_bpf_proc_fops = {
+	.owner   = THIS_MODULE,
+	.open    = fb_bpf_proc_open,
+	.read    = seq_read,
+	.llseek  = seq_lseek,
+	.write   = fb_bpf_proc_write,
+	.release = single_release,
+};
+
 static struct fblock *fb_bpf_ctor(char *name)
 {
 	int ret = 0;
 	unsigned int cpu;
 	struct fblock *fb;
 	struct fb_bpf_priv __percpu *fb_priv;
+	struct proc_dir_entry *fb_proc;
 
 	fb = alloc_fblock(GFP_ATOMIC);
 	if (!fb)
@@ -273,13 +303,24 @@ static struct fblock *fb_bpf_ctor(char *name)
 	ret = init_fblock(fb, name, fb_priv);
 	if (ret)
 		goto err2;
+
 	fb->netfb_rx = fb_bpf_netrx;
 	fb->event_rx = fb_bpf_event;
+
+	fb_proc = proc_create_data(fb->name, 0444, fblock_proc_dir,
+				   &fb_bpf_proc_fops, fb);
+	if (!fb_proc)
+		goto err3;
+
 	ret = register_fblock_namespace(fb);
 	if (ret)
-		goto err3;
+		goto err4;
+
 	__module_get(THIS_MODULE);
+
 	return fb;
+err4:
+	remove_proc_entry(fb->name, fblock_proc_dir);
 err3:
 	cleanup_fblock_ctor(fb);
 err2:
@@ -292,6 +333,7 @@ err:
 static void fb_bpf_dtor(struct fblock *fb)
 {
 	free_percpu(rcu_dereference_raw(fb->private_data));
+	remove_proc_entry(fb->name, fblock_proc_dir);
 	module_put(THIS_MODULE);
 }
 
