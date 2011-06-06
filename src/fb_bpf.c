@@ -15,6 +15,7 @@
 #include <linux/rcupdate.h>
 #include <linux/seqlock.h>
 #include <linux/spinlock.h>
+#include <linux/slab.h>
 #include <linux/percpu.h>
 #include <linux/prefetch.h>
 #include <linux/filter.h>
@@ -33,13 +34,58 @@ struct fb_bpf_priv {
 };
 
 static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
-			      struct sock_fprog *fprog)
+			      struct sock_fprog *fprog, unsigned int cpu)
 {
+	int err;
+	struct sk_filter *sf, *sfold;
+	unsigned int fsize;
+	unsigned long flags;
+
+	if (fprog->filter == NULL)
+		return -EINVAL;
+
+	fsize = sizeof(struct sock_filter) * fprog->len;
+
+	sf = kmalloc_node(fsize + sizeof(*sf), GFP_KERNEL, cpu_to_node(cpu));
+	if (!sf)
+		return -ENOMEM;
+
+	memcpy(sf->insns, fprog->filter, fsize);
+	atomic_set(&sf->refcnt, 1);
+	sf->len = fprog->len;
+	sf->bpf_func = sk_run_filter;
+
+	err = sk_chk_filter(sf->insns, sf->len);
+	if (err) {
+		kfree(sf);
+		return err;
+	}
+
+	bpf_jit_compile(sf);
+
+	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
+	sfold = fb_priv_cpu->filter;
+	fb_priv_cpu->filter = sf;
+	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
+
+	if (sfold)
+		kfree(sfold);
+
 	return 0;
 }
 
 static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
 {
+	unsigned long flags;
+	struct sk_filter *sfold;
+
+	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
+	sfold = fb_priv_cpu->filter;
+	fb_priv_cpu->filter = NULL;
+	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
+
+	if (sfold)
+		kfree(sfold);
 }
 
 static int fb_bpf_netrx(const struct fblock * const fb,
