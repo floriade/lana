@@ -48,7 +48,9 @@ int main(void)
 		return 0;
 	}
 
-	printf("Worked! Abort with ^C\n");
+	printf("Hit key to start!\n");
+	getchar();
+	printf("Abort with ^C\n");
 
 	memset(&before, 0, sizeof(before));
 	memset(&after, 0, sizeof(after));
@@ -70,6 +72,8 @@ int main(void)
 	x2 = timespec_to_double(&before);
 	elapsed = x1 - x2;
 
+	printf("\n\n");
+	fflush(stdout);
 	printf("time: %lf, pkts/s: %.2lf, bytes/s: %.2lf\n",
 	       elapsed, 1.0 * pkts / elapsed, 1.0 * byte / elapsed);
 
