@@ -76,6 +76,35 @@ static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 	return 0;
 }
 
+static int fb_bpf_init_filter_cpus(struct fblock *fb, struct sock_fprog *fprog)
+{
+	int err = 0;
+	unsigned int cpu;
+	struct fb_bpf_priv __percpu *fb_priv;
+
+	if (!fprog || !fb)
+		return -EINVAL;
+
+	rcu_read_lock();
+	fb_priv = (struct fb_bpf_priv __percpu *) rcu_dereference_raw(fb->private_data);
+	rcu_read_unlock();
+
+	get_online_cpus();
+	for_each_online_cpu(cpu) {
+		struct fb_bpf_priv *fb_priv_cpu;
+		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		err = fb_bpf_init_filter(fb_priv_cpu, fprog, cpu);
+		if (err != 0) {
+			printk(KERN_ERR "[%s::%s] fb_bpf_init_filter error: %d\n",
+			       fb->name, fb->factory->type, err);
+			break;
+		}
+	}
+	put_online_cpus();
+
+	return err;
+}
+
 static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
 {
 	unsigned long flags;
@@ -90,6 +119,27 @@ static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
 		bpf_jit_free(sfold);
 		kfree(sfold);
 	}
+}
+
+static void fb_bpf_cleanup_filter_cpus(struct fblock *fb)
+{
+	unsigned int cpu;
+	struct fb_bpf_priv __percpu *fb_priv;
+
+	if (!fb)
+		return;
+
+	rcu_read_lock();
+	fb_priv = (struct fb_bpf_priv __percpu *) rcu_dereference_raw(fb->private_data);
+	rcu_read_unlock();
+
+	get_online_cpus();
+	for_each_online_cpu(cpu) {
+		struct fb_bpf_priv *fb_priv_cpu;
+		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		fb_bpf_cleanup_filter(fb_priv_cpu);
+	}
+	put_online_cpus();
 }
 
 static int fb_bpf_netrx(const struct fblock * const fb,
@@ -136,10 +186,6 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
 	fb_priv = (struct fb_bpf_priv __percpu *) rcu_dereference_raw(fb->private_data);
 	rcu_read_unlock();
-
-#ifdef __DEBUG
-	printk("Got event %lu on %p!\n", cmd, fb);
-#endif
 
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
