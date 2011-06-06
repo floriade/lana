@@ -68,8 +68,10 @@ static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 	fb_priv_cpu->filter = sf;
 	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 
-	if (sfold)
+	if (sfold) {
+		bpf_jit_free(sfold);
 		kfree(sfold);
+	}
 
 	return 0;
 }
@@ -84,8 +86,10 @@ static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
 	fb_priv_cpu->filter = NULL;
 	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 
-	if (sfold)
+	if (sfold) {
+		bpf_jit_free(sfold);
 		kfree(sfold);
+	}
 }
 
 static int fb_bpf_netrx(const struct fblock * const fb,
