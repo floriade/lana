@@ -299,6 +299,7 @@ static int fb_bpf_proc_open(struct inode *inode, struct file *file)
 static ssize_t fb_bpf_proc_write(struct file *file, const char __user * user_buffer,
 				 size_t count, loff_t * offset)
 {
+	/* TODO: Parse struct sock_fprog and init filter */
 	return 0;
 }
 
