@@ -278,7 +278,7 @@ static int fb_bpf_proc_show_filter(struct seq_file *m, void *v)
 			char sline[32];
 			memset(sline, 0, sizeof(sline));
 			snprintf(sline, sizeof(sline),
-				 "0x%x %d %d 0x%x\n",
+				 "0x%x, %d, %d, 0x%x\n",
 				 sf->insns[i].code,
 				 sf->insns[i].jt,
 				 sf->insns[i].jf,
@@ -361,10 +361,21 @@ static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 
 	printk(KERN_ERR "[%s::%s] parsed code:\n", fb->name, fb->factory->type);
 	for (i = 0; i < fp->len; ++i) {
-		printk(KERN_ERR "[%s::%s] %d: c:0x%x jt:%u jf:%u k:0x%x\n",
+		printk(KERN_INFO "[%s::%s] %d: c:0x%x jt:%u jf:%u k:0x%x\n",
 		       fb->name, fb->factory->type, i,
 		       fp->filter[i].code, fp->filter[i].jt, fp->filter[i].jf,
 		       fp->filter[i].k);
+	}
+
+	fb_bpf_cleanup_filter_cpus(fb);
+	ret = fb_bpf_init_filter_cpus(fb, fp);
+	if (!ret)
+		printk(KERN_INFO "[%s::%s] Filter injected!\n",
+		       fb->name, fb->factory->type);
+	else {
+		printk(KERN_ERR "[%s::%s] Filter injection error: %ld!\n",
+		       fb->name, fb->factory->type, ret);
+		fb_bpf_cleanup_filter_cpus(fb);
 	}
 
 	kfree(code);
