@@ -276,7 +276,6 @@ int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 	release_sock(sk);
 	return copied ? : err;
 }
-EXPORT_SYMBOL(lana_common_stream_recvmsg);
 
 static void lana_proto_destruct(struct sock *sk)
 {

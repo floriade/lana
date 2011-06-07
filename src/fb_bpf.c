@@ -247,30 +247,27 @@ static int fb_bpf_event(struct notifier_block *self, unsigned long cmd,
 	return ret;
 }
 
-static int fb_bpf_proc_show_filter(struct seq_file *seq, void *v)
+static int fb_bpf_proc_show_filter(struct seq_file *m, void *v)
 {
 	unsigned long flags;
-	struct fblock *fb = v;
-	struct fb_bpf_priv __percpu *fb_priv;
+	struct fblock *fb = (struct fblock *) m->private;
 	struct fb_bpf_priv *fb_priv_cpu;
 	struct sk_filter *sf;
 
+	get_online_cpus();
 	rcu_read_lock();
-	fb_priv = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
 	rcu_read_unlock();
 
-	get_online_cpus();
-	fb_priv_cpu = per_cpu_ptr(fb_priv, smp_processor_id());
 	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
-
 	sf = fb_priv_cpu->filter;
 	if (sf) {
 		unsigned int i;
 		if (sf->bpf_func == sk_run_filter)
-			seq_puts(seq, "bpf jit: 0\n");
+			seq_puts(m, "bpf jit: 0\n");
 		else
-			seq_puts(seq, "bpf jit: 1\n");
-		seq_puts(seq, "code:\n");
+			seq_puts(m, "bpf jit: 1\n");
+		seq_puts(m, "code:\n");
 		for (i = 0; i < sf->len; ++i) {
 			char sline[32];
 			memset(sline, 0, sizeof(sline));
@@ -281,10 +278,9 @@ static int fb_bpf_proc_show_filter(struct seq_file *seq, void *v)
 				 sf->insns[i].jf,
 				 sf->insns[i].k);
 			sline[sizeof(sline) - 1] = 0;
-			seq_puts(seq, sline);
+			seq_puts(m, sline);
 		}
 	}
-
 	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 	put_online_cpus();
 
@@ -296,10 +292,31 @@ static int fb_bpf_proc_open(struct inode *inode, struct file *file)
 	return single_open(file, fb_bpf_proc_show_filter, PDE(inode)->data);
 }
 
-static ssize_t fb_bpf_proc_write(struct file *file, const char __user * user_buffer,
+#define MAX_BUFF_SIZ	16384
+
+static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 				 size_t count, loff_t * offset)
 {
-	/* TODO: Parse struct sock_fprog and init filter */
+	size_t len = MAX_BUFF_SIZ;
+	char *code;
+	struct sock_fprog *fp;
+	struct fblock *fb = PDE(file->f_path.dentry->d_inode)->data;
+
+	if (count > MAX_BUFF_SIZ)
+		return -EINVAL;
+	if (count < MAX_BUFF_SIZ)
+		len = count;
+
+	code = kmalloc(len, GFP_KERNEL);
+	if (!code)
+		return -ENOMEM;
+	memset(code, 0, len);
+	if (copy_from_user(code, ubuff, len))
+		return -EFAULT;
+
+	printk(KERN_INFO "Got: '%s'\n", code);
+
+	kfree(code);
 	return 0;
 }
 
@@ -347,7 +364,7 @@ static struct fblock *fb_bpf_ctor(char *name)
 	fb->event_rx = fb_bpf_event;
 
 	fb_proc = proc_create_data(fb->name, 0444, fblock_proc_dir,
-				   &fb_bpf_proc_fops, fb);
+				   &fb_bpf_proc_fops, (void *)(long) fb);
 	if (!fb_proc)
 		goto err3;
 
