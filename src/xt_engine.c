@@ -94,11 +94,14 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	while ((cont = read_next_idp_from_skb(skb))) {
 		fb = __search_fblock(cont);
 		if (unlikely(!fb)) {
+			/* We free the skb since the fb doesn't exist! */
+			kfree_skb(skb);
 			ret = PPE_ERROR;
 			break;
 		}
 
 		ret = fb->netfb_rx(fb, skb, &dir);
+		/* The FB frees the skb and we don't! */
 		put_fblock(fb);
 		engine_inc_fblock_stats();
 		if (ret == PPE_DROPPED) {
