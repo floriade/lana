@@ -1,7 +1,7 @@
 /*
  * Lightweight Autonomic Network Architecture
  *
- * LANA Berkeley Packet Filter (BPF) module using the BPF JIT compiler.
+ * LANA Berkeley Packet Filter (BPF) module.
  *
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
@@ -41,6 +41,25 @@ struct sock_fprog_kern {
 	struct sock_filter *filter;
 };
 
+/*
+ * Note:
+ *  To use the BPF JIT compiler, you need to export symbols from
+ *  /arch/x86/net/ so that they can be used from a module. Then,
+ *  recompile your kernel with CONFIG_BPF_JIT=y and change symbols
+ *  within this file from fb_bpf_jit_<x> to bpf_jit_<x> and the macro
+ *  FB_SK_RUN_FILTER to SK_RUN_FILTER.
+ */
+
+static inline void fb_bpf_jit_compile(struct sk_filter *fp)
+{
+}
+
+static inline void fb_bpf_jit_free(struct sk_filter *fp)
+{
+}
+
+#define FB_SK_RUN_FILTER(FILTER, SKB) sk_run_filter(SKB, FILTER->insns)
+
 static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 			      struct sock_fprog_kern *fprog, unsigned int cpu)
 {
@@ -69,7 +88,7 @@ static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 		return err;
 	}
 
-	bpf_jit_compile(sf);
+	fb_bpf_jit_compile(sf);
 
 	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
 	sfold = fb_priv_cpu->filter;
@@ -77,7 +96,7 @@ static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 
 	if (sfold) {
-		bpf_jit_free(sfold);
+		fb_bpf_jit_free(sfold);
 		kfree(sfold);
 	}
 
@@ -125,7 +144,7 @@ static void fb_bpf_cleanup_filter(struct fb_bpf_priv __percpu *fb_priv_cpu)
 	spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 
 	if (sfold) {
-		bpf_jit_free(sfold);
+		fb_bpf_jit_free(sfold);
 		kfree(sfold);
 	}
 }
@@ -164,7 +183,7 @@ static int fb_bpf_netrx(const struct fblock * const fb,
 
 	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
 	if (fb_priv_cpu->filter) {
-		pkt_len = SK_RUN_FILTER(fb_priv_cpu->filter, skb);
+		pkt_len = FB_SK_RUN_FILTER(fb_priv_cpu->filter, skb);
 		/* No snap, either drop or pass */
 		if (pkt_len < skb->len) {
 			spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
@@ -180,7 +199,6 @@ static int fb_bpf_netrx(const struct fblock * const fb,
 		kfree_skb(skb);
 		return PPE_DROPPED;
 	}
-
 	return PPE_SUCCESS;
 }
 
@@ -461,6 +479,7 @@ err:
 
 static void fb_bpf_dtor(struct fblock *fb)
 {
+	fb_bpf_cleanup_filter_cpus(fb);
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	remove_proc_entry(fb->name, fblock_proc_dir);
 	module_put(THIS_MODULE);
