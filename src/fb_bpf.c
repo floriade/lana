@@ -36,8 +36,13 @@ struct fb_bpf_priv {
 	spinlock_t flock;
 };
 
+struct sock_fprog_kern {
+	unsigned short len;
+	struct sock_filter *filter;
+};
+
 static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
-			      struct sock_fprog *fprog, unsigned int cpu)
+			      struct sock_fprog_kern *fprog, unsigned int cpu)
 {
 	int err;
 	struct sk_filter *sf, *sfold;
@@ -79,7 +84,8 @@ static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 	return 0;
 }
 
-static int fb_bpf_init_filter_cpus(struct fblock *fb, struct sock_fprog *fprog)
+static int fb_bpf_init_filter_cpus(struct fblock *fb,
+				   struct sock_fprog_kern *fprog)
 {
 	int err = 0;
 	unsigned int cpu;
@@ -293,13 +299,16 @@ static int fb_bpf_proc_open(struct inode *inode, struct file *file)
 }
 
 #define MAX_BUFF_SIZ	16384
+#define MAX_INSTR_SIZ	512
 
 static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 				 size_t count, loff_t * offset)
 {
+	int i;
+	ssize_t ret = 0;
+	char *code, *ptr1, *ptr2;
 	size_t len = MAX_BUFF_SIZ;
-	char *code;
-	struct sock_fprog *fp;
+	struct sock_fprog_kern *fp;
 	struct fblock *fb = PDE(file->f_path.dentry->d_inode)->data;
 
 	if (count > MAX_BUFF_SIZ)
@@ -310,14 +319,67 @@ static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 	code = kmalloc(len, GFP_KERNEL);
 	if (!code)
 		return -ENOMEM;
+	fp = kmalloc(sizeof(*fp), GFP_KERNEL);
+	if (!fp)
+		goto err;
+	fp->filter = kmalloc(MAX_INSTR_SIZ * sizeof(struct sock_filter), GFP_KERNEL);
+	if (!fp->filter)
+		goto err2;
 	memset(code, 0, len);
-	if (copy_from_user(code, ubuff, len))
-		return -EFAULT;
+	if (copy_from_user(code, ubuff, len)) {
+		ret = -EFAULT;
+		goto err3;
+	}
 
-	printk(KERN_INFO "Got: '%s'\n", code);
+	ptr1 = code;
+	ptr2 = NULL;
+	fp->len = 0;
+
+	while (fp->len < MAX_INSTR_SIZ && (char *) (code + len) > ptr1) {
+		while (ptr1 && *ptr1 == ' ')
+			ptr1++;
+		fp->filter[fp->len].code = (__u16) simple_strtoul(ptr1, &ptr2, 16);
+		while (ptr2 && (*ptr2 == ' ' || *ptr2 == ','))
+			ptr2++;
+		fp->filter[fp->len].jt = (__u8) simple_strtoul(ptr2, &ptr1, 10);
+		while (ptr1 && (*ptr1 == ' ' || *ptr1 == ','))
+			ptr1++;
+		fp->filter[fp->len].jf = (__u8) simple_strtoul(ptr1, &ptr2, 10);
+		while (ptr2 && (*ptr2 == ' ' || *ptr2 == ','))
+			ptr2++;
+		fp->filter[fp->len].k = (__u32) simple_strtoul(ptr2, &ptr1, 16);
+		while (ptr1 && (*ptr1 == ' ' || *ptr1 == ',' || *ptr1 == '\n'))
+			ptr1++;
+		fp->len++;
+	}
+
+	if (fp->len == MAX_INSTR_SIZ) {
+		printk(KERN_ERR "[%s::%s] Maximun instruction size exeeded!\n",
+		       fb->name, fb->factory->type);
+		goto err3;
+	}
+
+	printk(KERN_ERR "[%s::%s] parsed code:\n", fb->name, fb->factory->type);
+	for (i = 0; i < fp->len; ++i) {
+		printk(KERN_ERR "[%s::%s] %d: c:0x%x jt:%u jf:%u k:0x%x\n",
+		       fb->name, fb->factory->type, i,
+		       fp->filter[i].code, fp->filter[i].jt, fp->filter[i].jf,
+		       fp->filter[i].k);
+	}
 
 	kfree(code);
-	return 0;
+	kfree(fp->filter);
+	kfree(fp);
+
+	return count;
+err3:
+	kfree(fp->filter);
+err2:
+	kfree(fp);
+err:
+	kfree(code);
+	return !ret ? -ENOMEM : ret;
+
 }
 
 static const struct file_operations fb_bpf_proc_fops = {
