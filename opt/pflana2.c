@@ -50,10 +50,6 @@ int main(void)
 		return 0;
 	}
 
-	printf("Hit key to start!\n");
-	getchar();
-	/* XXX: binding to other fblock needs to be implemented */
-
 	idx = device_ifindex("eth10");
 	if (idx < 0) {
 		ret = idx;
