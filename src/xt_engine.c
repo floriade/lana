@@ -85,6 +85,7 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
+	struct engine_disc *emdisc_cpu;
 
 	BUG_ON(!rcu_read_lock_held());
 
@@ -101,7 +102,8 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 		}
 
 		ret = fb->netfb_rx(fb, skb, &dir);
-		/* The FB frees the skb and we don't! */
+		/* The FB frees the skb or not depending on its binding
+		 * and we must not touch it! */
 		put_fblock(fb);
 		engine_inc_fblock_stats();
 		if (ret == PPE_DROPPED) {

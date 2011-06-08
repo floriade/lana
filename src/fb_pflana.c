@@ -54,6 +54,7 @@ struct fb_pflana_priv {
 struct lana_sock {
 	struct sock sk;
 	struct fblock *fb;
+	int ifindex;
 	int bound;
 };
 
@@ -124,7 +125,6 @@ static int lana_sk_init(struct sock* sk)
 
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "%p", &lana->sk);
-	lana->bound = 0;
 	lana->fb = fb_pflana_ctor(name);
 	if (!lana->fb)
 		return -ENOMEM;
@@ -158,7 +158,7 @@ static void lana_sk_free(struct sock *sk)
 	unregister_fblock_namespace(lana->fb);
 }
 
-int lana_raw_release(struct socket *sock)
+static int lana_raw_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 	if (sk) {
@@ -167,6 +167,120 @@ int lana_raw_release(struct socket *sock)
 		lana_sk_free(sk);
 	}
 	return 0;
+}
+
+static int lana_raw_bind(struct socket *sock, struct sockaddr *addr, int len)
+{
+	int idx;
+	struct sock *sk = sock->sk;
+	struct net_device *dev = NULL;
+	struct lana_sock *lana = to_lana_sk(sk);
+
+	if (len < sizeof(struct sockaddr_storage))
+		return -EINVAL;
+	if (addr->sa_family != AF_LANA)
+		return -EINVAL;
+
+	idx = addr->sa_data[0];
+	dev = dev_get_by_index(sock_net(sk), idx);
+	if (dev == NULL)
+		return -ENODEV;
+	lana->ifindex = idx;
+	lana->bound = 1;
+	dev_put(dev);
+
+	return 0;
+}
+
+static unsigned int lana_raw_poll(struct file *file, struct socket *sock,
+				  poll_table *wait)
+{
+	unsigned int mask = 0;
+	struct sock *sk = sock->sk;
+	poll_wait(file, sk_sleep(sk), wait);
+	if (!skb_queue_empty(&sk->sk_receive_queue))
+		mask |= POLLIN | POLLRDNORM;
+	return mask;
+}
+
+static int lana_raw_sendmsg(struct kiocb *iocb, struct socket *sock,
+			    struct msghdr *msg, size_t len)
+{
+	struct sock *sk = sock->sk;
+	return sk->sk_prot->sendmsg(iocb, sk, msg, len);
+}
+
+static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
+			      struct msghdr *msg, size_t len)
+{
+	int err;
+	unsigned int seq;
+	struct net *net = sock_net(sk);
+	struct net_device *dev;
+	struct sockaddr *target;
+	struct sk_buff *skb;
+	struct lana_sock *lana = to_lana_sk(sk);
+	struct fblock *fb = lana->fb;
+	struct fb_pflana_priv *fb_priv_cpu;
+
+	if (msg->msg_name == NULL)
+		return -EDESTADDRREQ;
+	if (msg->msg_namelen < sizeof(struct sockaddr_storage))
+		return -EINVAL;
+
+	target = (struct sockaddr *) msg->msg_name;
+	if (target->sa_family != AF_LANA)
+		return -EAFNOSUPPORT;
+	if (sk->sk_bound_dev_if || lana->bound)
+		dev = dev_get_by_index(net, lana->bound ? lana->ifindex :
+							  sk->sk_bound_dev_if);
+	else
+		return -ENOTCONN;
+	if (!dev || !(dev->flags & IFF_UP)) {
+		err = -EIO;
+		goto drop_put;
+	}
+
+	skb = sock_alloc_send_skb(sk, LL_ALLOCATED_SPACE(dev) + len,
+				  msg->msg_flags & MSG_DONTWAIT, &err);
+	if (!skb)
+		goto drop_put;
+
+	skb_reserve(skb, LL_RESERVED_SPACE(dev));
+	skb_reset_mac_header(skb);
+	skb_reset_network_header(skb);
+
+	skb->pkt_type = PACKET_OUTGOING;
+	skb->dev = dev;
+	skb->sk = sk;
+	skb->protocol = htons(ETH_P_ALL); //FIXME
+	skb->priority = sk->sk_priority;
+	skb->mark = sk->sk_mark;
+
+	err = memcpy_fromiovec((void *) skb_put(skb, len), msg->msg_iov, len);
+	if (err < 0)
+		goto drop;
+	if (skb->pkt_type == PACKET_LOOPBACK) {
+		err = -EOPNOTSUPP;
+		goto drop;
+	}
+
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
+	do {
+		seq = read_seqbegin(&fb_priv_cpu->lock);
+		write_next_idp_to_skb(skb, fb->idp,
+				      fb_priv_cpu->port[TYPE_EGRESS]);
+        } while (read_seqretry(&fb_priv_cpu->lock, seq));
+
+	dev_put(dev);
+        process_packet(skb, TYPE_EGRESS);
+
+	return (err >= 0) ? len : err;
+drop:
+	kfree_skb(skb);
+drop_put:
+	dev_put(dev);
+	return err;
 }
 
 static int lana_proto_recvmsg(struct kiocb *iocb, struct sock *sk,
@@ -218,8 +332,9 @@ static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
-int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
-			       struct msghdr *msg, size_t len, int flags)
+#if 0  /* unused */
+static int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
+				      struct msghdr *msg, size_t len, int flags)
 {
 	int err = 0;
 	long timeout;
@@ -276,6 +391,7 @@ int lana_common_stream_recvmsg(struct kiocb *iocb, struct socket *sock,
 	release_sock(sk);
 	return copied ? : err;
 }
+#endif
 
 static void lana_proto_destruct(struct sock *sk)
 {
@@ -378,20 +494,22 @@ static const struct net_proto_family lana_family_ops = {
 static const struct proto_ops lana_raw_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
+	/* v- supported */
 	.release     = lana_raw_release,
 	.recvmsg     = sock_common_recvmsg,
+	.sendmsg     = lana_raw_sendmsg,
+	.poll	     = lana_raw_poll,
+	.bind	     = lana_raw_bind,
+	/* v- not supported */
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
-	.bind	     = sock_no_bind,
 	.connect     = sock_no_connect,
 	.socketpair  = sock_no_socketpair,
 	.accept      = sock_no_accept,
 	.getname     = sock_no_getname,
-	.poll	     = sock_no_poll,
 	.ioctl       = sock_no_ioctl,
 	.listen      = sock_no_listen,
 	.shutdown    = sock_no_shutdown,
-	.sendmsg     = sock_no_sendmsg,
 	.mmap	     = sock_no_mmap,
 	.sendpage    = sock_no_sendpage,
 };
@@ -404,6 +522,7 @@ static struct proto lana_proto __read_mostly = {
 	.close		= lana_proto_close,
 	.init		= lana_proto_init,
 	.recvmsg	= lana_proto_recvmsg,
+	.sendmsg	= lana_proto_sendmsg,
 	.hash		= lana_proto_hash,
 	.unhash		= lana_proto_unhash,
 	.get_port	= lana_proto_get_port,

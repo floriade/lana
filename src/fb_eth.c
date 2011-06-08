@@ -70,11 +70,12 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp, 1
-				      /*fb_priv_cpu->port[TYPE_INGRESS]*/);
+		write_next_idp_to_skb(skb, fb->idp,
+				      fb_priv_cpu->port[TYPE_INGRESS]);
 	} while (read_seqretry(&fb_priv_cpu->lock, seq));
 
 	process_packet(skb, TYPE_INGRESS);
+
 	return RX_HANDLER_CONSUMED;
 drop:
 	kfree_skb(skb);
@@ -85,8 +86,12 @@ static int fb_eth_netrx(const struct fblock * const fb,
 			struct sk_buff * const skb,
 			enum path_type * const dir)
 {
+	if (!skb->dev) {
+		kfree_skb(skb);
+		return PPE_DROPPED;
+	}
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
-	consume_skb(skb);
+	dev_queue_xmit(skb);
 	return PPE_DROPPED;
 }
 
