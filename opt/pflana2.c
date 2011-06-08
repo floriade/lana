@@ -50,6 +50,10 @@ int main(void)
 		return 0;
 	}
 
+	printf("Hit key to start!\n");
+	getchar();
+	/* XXX: binding to other fblock needs to be implemented */
+
 	idx = device_ifindex("eth10");
 	if (idx < 0) {
 		ret = idx;
@@ -66,7 +70,7 @@ int main(void)
 		goto out;
 	}
 
-	ret = send(sock, buff, sizeof(buff), 0);
+	ret = sendto(sock, buff, sizeof(buff), 0, &sa, sizeof(sa));
 	if (ret < 0) {
 		perror("sendmsg");
 		goto out;

@@ -176,7 +176,7 @@ static int lana_raw_bind(struct socket *sock, struct sockaddr *addr, int len)
 	struct net_device *dev = NULL;
 	struct lana_sock *lana = to_lana_sk(sk);
 
-	if (len < sizeof(struct sockaddr_storage))
+	if (len < sizeof(struct sockaddr))
 		return -EINVAL;
 	if (addr->sa_family != AF_LANA)
 		return -EINVAL;
@@ -225,7 +225,7 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 
 	if (msg->msg_name == NULL)
 		return -EDESTADDRREQ;
-	if (msg->msg_namelen < sizeof(struct sockaddr_storage))
+	if (msg->msg_namelen < sizeof(struct sockaddr))
 		return -EINVAL;
 
 	target = (struct sockaddr *) msg->msg_name;
@@ -268,8 +268,8 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp,
-				      fb_priv_cpu->port[TYPE_EGRESS]);
+		write_next_idp_to_skb(skb, fb->idp, 1
+				      /*fb_priv_cpu->port[TYPE_EGRESS]*/);
         } while (read_seqretry(&fb_priv_cpu->lock, seq));
 
 	dev_put(dev);
