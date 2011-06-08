@@ -310,14 +310,14 @@ static void do_rm(int argc, char **argv)
 static void do_bind(int argc, char **argv)
 {
 	struct lananlmsg lmsg;
-	struct lananlmsg_bind *msg;
+	struct lananlmsg_tuple *msg;
 
 	if (argc != 2)
 		usage();
 
 	memset(&lmsg, 0, sizeof(lmsg));
 	lmsg.cmd = NETLINK_USERCTL_CMD_BIND;
-	msg = (struct lananlmsg_bind *) lmsg.buff;
+	msg = (struct lananlmsg_tuple *) lmsg.buff;
 	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
 	send_netlink(&lmsg);
@@ -326,14 +326,14 @@ static void do_bind(int argc, char **argv)
 static void do_unbind(int argc, char **argv)
 {
 	struct lananlmsg lmsg;
-	struct lananlmsg_unbind *msg;
+	struct lananlmsg_tuple *msg;
 
 	if (argc != 2)
 		usage();
 
 	memset(&lmsg, 0, sizeof(lmsg));
 	lmsg.cmd = NETLINK_USERCTL_CMD_UNBIND;
-	msg = (struct lananlmsg_unbind *) lmsg.buff;
+	msg = (struct lananlmsg_tuple *) lmsg.buff;
 	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
 	send_netlink(&lmsg);
@@ -359,14 +359,14 @@ static void do_replace(int argc, char **argv, int drop)
 static void do_subscribe(int argc, char **argv)
 {
 	struct lananlmsg lmsg;
-	struct lananlmsg_subscribe *msg;
+	struct lananlmsg_tuple *msg;
 
 	if (argc != 2)
 		usage();
 
 	memset(&lmsg, 0, sizeof(lmsg));
 	lmsg.cmd = NETLINK_USERCTL_CMD_SUBSCRIBE;
-	msg = (struct lananlmsg_subscribe *) lmsg.buff;
+	msg = (struct lananlmsg_tuple *) lmsg.buff;
 	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
 	send_netlink(&lmsg);
@@ -375,14 +375,14 @@ static void do_subscribe(int argc, char **argv)
 static void do_unsubscribe(int argc, char **argv)
 {
 	struct lananlmsg lmsg;
-	struct lananlmsg_unsubscribe *msg;
+	struct lananlmsg_tuple *msg;
 
 	if (argc != 2)
 		usage();
 
 	memset(&lmsg, 0, sizeof(lmsg));
 	lmsg.cmd = NETLINK_USERCTL_CMD_UNSUBSCRIBE;
-	msg = (struct lananlmsg_unsubscribe *) lmsg.buff;
+	msg = (struct lananlmsg_tuple *) lmsg.buff;
 	strlcpy(msg->name1, argv[0], sizeof(msg->name1));
 	strlcpy(msg->name2, argv[1], sizeof(msg->name2));
 	send_netlink(&lmsg);

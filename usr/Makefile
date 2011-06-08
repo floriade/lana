@@ -35,6 +35,7 @@ vlink-objs   = vlink.o
 vlink-targ   = vlink
 
 all: build
+	ghc --make Main -o bpfc
 
 build: build_vlink build_fbctl
 
@@ -56,7 +57,10 @@ uninstall:
 	@rm $(DESTDIR)/$(BINDIR)/$(fbctl-targ)
 
 clean:
-	@rm *.o *~ $(vlink-targ) $(fbctl-targ)
+	@rm *.o *~ $(vlink-targ) $(fbctl-targ) || true
+	@find -name "*\.o"  -exec rm '{}' \; || true
+	@find -name "*\.hi" -exec rm '{}' \; || true
+	@rm bpfc || true
 
 help:
 	@echo "make <targets>"
