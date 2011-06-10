@@ -50,6 +50,7 @@ int main(void)
 		return 0;
 	}
 
+	/* XXX: #include <net/if.h> -> if_nametoindex(3) */
 	idx = device_ifindex("eth10");
 	if (idx < 0) {
 		ret = idx;
