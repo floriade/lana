@@ -28,6 +28,7 @@ obj-m    += fb_ethvlink.o
 obj-m    += fb_pflana.o
 obj-m    += fb_bpf.o
 obj-m    += fb_counter.o
+obj-m    += fb_tee.o
 
 MDIR     := /lib/modules/$(shell uname -r)
 KDIR     := $(MDIR)/build
