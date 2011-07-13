@@ -76,6 +76,7 @@ struct fblock_factory {
 	struct module *owner;
 	struct fblock *(*ctor)(char *name);
 	void (*dtor)(struct fblock *fb);
+	void (*dtor_outside_rcu)(struct fblock *fb);
 } ____cacheline_aligned;
 
 struct fblock_notifier {
@@ -117,6 +118,8 @@ static inline void put_fblock(struct fblock *fb)
 {
 	if (likely(!atomic_dec_and_test(&fb->refcnt)))
 		return;
+	if (fb->factory->dtor_outside_rcu)
+		fb->factory->dtor_outside_rcu(fb);
 	call_rcu(&fb->rcu, free_fblock_rcu);
 }
 

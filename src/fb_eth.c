@@ -255,6 +255,10 @@ static void fb_eth_dtor(struct fblock *fb)
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	module_put(THIS_MODULE);
 	instantiated = 0;
+}
+
+static void fb_eth_dtor_outside_rcu(struct fblock *fb)
+{
 	cleanup_fb_eth();
 }
 
@@ -263,6 +267,7 @@ static struct fblock_factory fb_eth_factory = {
 	.mode = MODE_SOURCE,
 	.ctor = fb_eth_ctor,
 	.dtor = fb_eth_dtor,
+	.dtor_outside_rcu = fb_eth_dtor_outside_rcu,
 	.owner = THIS_MODULE,
 };
 
