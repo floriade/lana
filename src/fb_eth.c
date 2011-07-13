@@ -162,6 +162,7 @@ static int fb_eth_event(struct notifier_block *self, unsigned long cmd,
 
 static void cleanup_fb_eth(void)
 {
+	/* XXX: sometimes BUG, scheduling while atomic */
 	struct net_device *dev;
 	rtnl_lock();
 	for_each_netdev(&init_net, dev)	{
