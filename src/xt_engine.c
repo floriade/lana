@@ -51,43 +51,31 @@ static inline void engine_add_bytes_stats(unsigned long bytes)
 	this_cpu_add(iostats->bytes, bytes);
 }
 
-static inline void engine_emerg_tail(struct sk_buff *skb)
-{
-	skb_queue_tail(&(this_cpu_ptr(emdiscs)->ppe_emerg_queue), skb);
-}
-
 void engine_backlog_tail(struct sk_buff *skb, enum path_type dir)
 {
-	//TODO: path information
+	write_path_to_skb(skb, dir);
 	skb_queue_tail(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue), skb);
 }
 EXPORT_SYMBOL(engine_backlog_tail);
 
-static inline struct sk_buff *engine_emerg_test_reduce(enum path_type *dir)
-{
-	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_emerg_queue));
-}
-
 static inline struct sk_buff *engine_backlog_test_reduce(enum path_type *dir)
 {
-	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue));
+	struct sk_buff *skb = NULL;
+	if ((skb = skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue))))
+		(*dir) = read_path_from_skb(skb);
+	return skb;
 }
-
-/* TODO: handle emergency queue, or backlog
- * idea: mark with jiffies where we definately expect the blog to be 
- * present again, peek the skbs, test for jiffies and unlink conditionally
- * if after certain periods the fblock is still missing, drop the skb
- */
 
 /* Main function, must be called in rcu_read_lock context */
 int process_packet(struct sk_buff *skb, enum path_type dir)
 {
-	int ret = PPE_ERROR;
+	int ret;
 	idp_t cont;
 	struct fblock *fb;
 
 	BUG_ON(!rcu_read_lock_held());
-
+pkt:
+	ret = PPE_ERROR;
 	engine_inc_pkts_stats();
 	engine_add_bytes_stats(skb->len);
 
@@ -110,7 +98,8 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 			break;
 		}
 	}
-
+	if ((skb = engine_backlog_test_reduce(&dir)))
+		goto pkt;
 	return ret;
 }
 EXPORT_SYMBOL_GPL(process_packet);

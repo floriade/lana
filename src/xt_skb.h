@@ -16,11 +16,12 @@
 #define MARKER_TIME_MARKED_LAST		(1 << 1)
 
 struct sock_lana_inf {
-	idp_t   idp_dst;
-	idp_t   idp_src;
-	__u32   flags;
-	__u32   errno;
-	__u32   marker;
+	idp_t		idp_dst;
+	idp_t		idp_src;
+	__u32		flags;
+	__u32		errno;
+	__u32		marker;
+	enum path_type	dir;
 };
 
 #define SKB_LANA_INF(skb) ((struct sock_lana_inf *) ((skb)->cb))
@@ -37,6 +38,18 @@ static inline void write_next_idp_to_skb(struct sk_buff *skb, idp_t from,
 static inline idp_t read_next_idp_from_skb(struct sk_buff *skb)
 {
 	return SKB_LANA_INF(skb)->idp_dst;
+}
+
+static inline void write_path_to_skb(struct sk_buff *skb, enum path_type dir)
+{
+	struct sock_lana_inf *sli;
+	sli = SKB_LANA_INF(skb);
+	sli->dir = dir;
+}
+
+static inline enum path_type read_path_from_skb(struct sk_buff *skb)
+{
+	return SKB_LANA_INF(skb)->dir;
 }
 
 static inline void time_mark_skb_last(struct sk_buff *skb)
