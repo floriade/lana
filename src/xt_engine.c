@@ -63,12 +63,12 @@ void engine_backlog_tail(struct sk_buff *skb, enum path_type dir)
 }
 EXPORT_SYMBOL(engine_backlog_tail);
 
-static inline struct sk_buff *engine_emerg_test_reduce(void)
+static inline struct sk_buff *engine_emerg_test_reduce(enum path_type *dir)
 {
 	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_emerg_queue));
 }
 
-static inline struct sk_buff *engine_backlog_test_reduce(void)
+static inline struct sk_buff *engine_backlog_test_reduce(enum path_type *dir)
 {
 	return skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue));
 }
@@ -85,7 +85,6 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	int ret = PPE_ERROR;
 	idp_t cont;
 	struct fblock *fb;
-	struct engine_disc *emdisc_cpu;
 
 	BUG_ON(!rcu_read_lock_held());
 
