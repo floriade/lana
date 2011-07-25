@@ -1,0 +1,489 @@
+\documentclass[times,10pt,twocolumn]{article} 
+\usepackage{main}
+\usepackage{times}
+\usepackage[english]{babel}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage[utf8]{inputenc}
+\usepackage{latexsym}
+\pagestyle{empty}
+
+\parindent0em
+
+\begin{document}
+\title{
+Ideas on context-oriented networking on LANA\\\smallskip [DRAFT]
+}
+
+\author{
+Daniel Borkmann\\
+dborkma@tik.ee.ethz.ch\\
+}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This document includes notes about possible context-oriented networking 
+LANA (Lightweight Autonomic Network Architecture) regarding API design, 
+addressing, routing, stack setup and more; rather loosely organized and 
+(for now) more in the sense of expressing an idea than having a full 
+sophisticated specification.
+\end{abstract}
+
+\Section{Addressing Scheme}
+\label{addr}
+The addressing scheme which is used by userland applications must be
+independent of IPv4 or IPv6 and should be very generic and simple.
+However, it should also fit into the BSD socket API. A \texttt{communication 
+endpoint} in LANA is therefore defined as
+\begin{quote}\texttt{peer}@\texttt{[segment]}\end{quote}
+where
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{peer}$\in\mathcal{L}(peer)$ with arbitrary length
+	\item \texttt{[segment]} is a string concatenation of
+	      \texttt{segment} separated by the character \texttt{.} (dot) to the right
+	\item \texttt{segment}$\in\mathcal{L}(segment)$ with arbitrary length
+\end{itemize}
+and
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item $\Sigma_{1} =\{a,b,c,\ldots,z,0,1,2,\ldots,9\}$
+	\item $\Sigma_{2} =\{$-$\}$
+	\item $\Sigma_{3} =\{.\} \cup \Sigma_{2}$
+	\item $\mathcal{L}(peer)=\{\alpha^{+}(\beta\alpha^{+})^{*}\} \;\vert\; \alpha\in\Sigma_{1},\beta\in\Sigma_{3}$
+	\item $\mathcal{L}(segment)=\{\alpha^{+}(\beta\alpha^{+})^{*}\} \;\vert\; \alpha\in\Sigma_{1},\beta\in\Sigma_{2}$
+\end{itemize}
+
+The concatenation of \texttt{segment}s forms a namespace like in 
+\textit{Java} package namespaces for instance, but with a different
+semantic. So the more \texttt{segment}s are concatenated to the 
+right, the more fine-grained networking \texttt{peer group}, in 
+the sense of 'all \texttt{peer}s within a single \texttt{[segment]}', 
+we have.\newline
+
+An empty \texttt{[segment]} is not allowed, there must be at 
+least one \texttt{segment} and the dot character after the most
+fine-grained \texttt{segment} must be left out.\newline
+
+Examples of valid \texttt{communication endpoint}:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{sensor42@csg.temp.floor1}
+\end{itemize}
+
+Furthermore, there are three special \texttt{peer}s:\newline
+
+A \texttt{peer} called \texttt{*} which defines a broadcast \texttt{peer}, 
+so that a message sent to \texttt{*}@\texttt{[segment]} will be received by
+the whole \texttt{peer group} of the \texttt{[segment]}.\newline
+
+Next to this, there are also multicast \texttt{peer}s, which have an address of 
+form \texttt{+peer}@\texttt{[segment]}, thus the multicast group name
+language is in the same $\mathcal{L}$ as $\mathcal{L}(peer)$, but with a
+\texttt{+} (plus) as prefix.\newline
+
+And the last special \texttt{peer} is used for anycasts, which form an 
+address of \texttt{-peer}@\texttt{[segment]}. Similar to multicast group 
+names, they have a \texttt{-} (minus) instead of \texttt{+} (plus) as 
+prefix.\newline
+
+Examples of special \texttt{communication endpoint}s:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{*@csg.temp.floor1} (broadcast)
+	\item \texttt{+sensors@csg.temp.floor1} (multicast)
+	\item \texttt{-controller@csg.temp.floor1} (anycast)
+\end{itemize}
+
+However, the regular \texttt{communication endpoint}, a concrete instance of 
+\texttt{peer}@\texttt{[segment]}, forms an unique communication address and 
+is represented by a BSD socket object, thus one host can have applications
+running that open sockets and communicate to others. In this addressing scheme
+a \texttt{peer} can be seen (in traditional TCP/IP network architectures) as 
+a combination of an IP address within the \textit{current} LAN \textit{and} 
+a port associated to it that offeres or uses a service. The \texttt{[segment]} 
+part of the addressing scheme can be seen as a specific subnet the \texttt{peer}
+belongs to. So by this, one host has always the same \texttt{[segment]},
+and may have different \texttt{peer}s depending on its applications.\newline
+
+The \texttt{[segment]}s namespace should be well-structured and
+well-defined - similar as DNS for instance, but in this case to describe
+subnets. Note that \texttt{csg.temp.floor1} is a different subnet as
+\texttt{csg.temp}, thus routing is needed to communicate
+with \texttt{peer1}@\texttt{csg.temp.floor1} and \texttt{peer2}@\texttt{csg.temp}. 
+Also, one and the same \texttt{peer} may be in different \texttt{[segment]}s, 
+i.e.
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{sensor42}@\texttt{csg.temp.floor1}
+	\item \texttt{sensor42}@\texttt{csg.temp.floor2}
+\end{itemize}
+
+With the syntax and semantic of \texttt{peer}@\texttt{[segment]},
+IP and port numbers become redundant (conjecture 1).\newline
+
+Now, since both the \texttt{peer} and the \texttt{[segment]} can be strings 
+according to their given $\mathcal{L}$ with arbitrary length, the underlying
+operating system and hardware must have a proper way of handling such 
+strings.\newline
+
+Therefore, the underlying representation to the kernel looks like:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \underline{\texttt{peer}} $\rightarrow$ \texttt{SHA1(peer)}
+	\item \underline{\texttt{[segment]}} $\rightarrow$ \texttt{SHA1([segment])}
+\end{itemize}
+
+Thus we have now a fixed-length representation of
+\underline{\texttt{peer}}@\underline{\texttt{[segment]}} of $2*20$ Byte per
+\texttt{communication endpoint}. We \textit{assume} that \texttt{SHA1} is
+safe enough to use, so that there is no chance to have a kollision of a pair
+of different \texttt{peer}s and at the same time a kollision of a pair of
+different \texttt{[segment]}s (conjecture 2).\newline
+
+The benefit from this addressing scheme is that we will not ran out 
+of addresses respectively \texttt{peer}s as in IPv4 for instance, thus 
+there would be no need to have such a long-time transistion to IPv6.
+Organizational entities can dynamically reorganize their \texttt{[segment]} 
+structure and we do not ran out of \texttt{[segment]}s, too. Furthermore,
+the addressing scheme is more context oriented and consists not just of
+'meaningless numbers'.
+
+\Section{Basic Protocol Types}
+With this addressing scheme we have two basic protocol layers on top of the 
+underlying hardware:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item Hardware address layer (can be MAC or similar)
+	\item \texttt{peer}@\texttt{[segment]} layer
+\end{itemize}
+
+Furthermore, we have three basic protocol types on top of an underlying 
+carrier like Ethernet, InfiniBand or Bluetooth:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{ETH\_P\_LACM} $\rightarrow$ Intra-segment config messages
+	\item \texttt{ETH\_P\_LADM} $\rightarrow$ Intra-segment data messages
+	\item \texttt{ETH\_P\_LRDM} $\rightarrow$ Inter-segment data messages
+\end{itemize}
+
+\texttt{ETH\_P\_LACM} is for name resolution, route resolution and other 
+\texttt{peer}@\texttt{[segment]} management messages. \texttt{ETH\_P\_LADM} is for data 
+messages within a given \texttt{[segment]} thus the 
+\underline{\texttt{[segment]}} must \textit{not} be encoded into the packet. 
+\texttt{ETH\_P\_LRDM} is for data messages between different \texttt{[segment]}s, 
+so that the source and destination \underline{\texttt{[segment]}}
+hashes must be encoded into the packet, since these packets need
+routing.\newline
+
+Concrete identifiers for \texttt{ETH\_P\_LACM}, \texttt{ETH\_P\_LADM} and
+\texttt{ETH\_P\_LRDM} must be choosen in a way, that there is still compatiblity
+respectively no interference of traditional Internet protocols such as IPv4, 
+IPv6 and others.
+
+\Section{Host Information Management}
+Since - as stated in \ref{addr} - one host can have multiple \texttt{peer}s, 
+there are two kernelspace \texttt{peer}@\texttt{[segment]}s per NIC with a 
+\underline{\texttt{peer}} each that has a truly randomly assigned value 
+(i.e. via \texttt{/dev/random}). These two \texttt{peer}s are used for a hosts 
+information management, conrete:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{peer} to hardware address resolution of
+              \texttt{peer}s within the own \texttt{[segment]}
+	\item Inter-\texttt{[segment]} route resolution
+\end{itemize}
+
+Both \texttt{peer}@\texttt{[segment]}s may only exchange messages within the
+\texttt{ETH\_P\_LACM} protocol.\newline
+
+Now for each of these both special kernelspace \texttt{peer}s, a distributed
+hash table (DHT) is assigned
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item $f:$ \underline{\texttt{peer}}$\rightarrow$hardware 
+              address of \texttt{peer}
+	\item $g:$ \underline{\texttt{[segment]}}$\rightarrow$hardware 
+              address of \texttt{peer} that is a gateway to a different 
+              \texttt{[segment]} and has a route to this destination
+\end{itemize}
+so that the information respectively mapping of $f$ and $g$ is autonomously 
+managed within the \texttt{peer group} of this \texttt{[segment]}. By this,
+no broadcast on the hardware address layer is needed at all (conjencture 3),
+thus \texttt{[segment]} may contain more participants as typical subnets of 
+a traditional LAN.\newline
+
+The DHT information management from Kademlia \cite{PeterMaymounkovDavidMazieres} 
+is applied, but with the exception that messages are exchanged on the hardware
+address layer instead of traditional IP. The identifier, which is used in the
+Kademlia XOR routing metric will be the specific kernelspace 
+\underline{\texttt{peer}}.\newline
+
+A resolution of the hardware address of \texttt{peer}s within a 
+\texttt{[segment]} then equals a lookup in the DHT of function $f$ on the 
+hardware address layer. Similar, the resolution of a route equals a lookup 
+in the DHT of function $g$ on the hardware address layer.\newline
+
+Lookups in the DHT are performed in $\mathcal{O}(\log{n})$ where $n$ is the number
+of \texttt{peer}s of the hosts \texttt{[segment]}. Local caches can optinally 
+be applied, so that a lookup in the DHT of $f$ or $g$ does not need to be 
+performed twice within a given period.\newline
+
+Now if a host has multiple NICs and therefore multiple kernelspace 
+\texttt{peer}s, the kernel must of course be able to access the DHTs 
+of the other NICs.
+
+\Section{Routing between \texttt{[segment]}s}
+\label{route}
+As mentioned previously, the communication of \texttt{peer}s within a
+\texttt{peer group} involves no routing at all, so this is not further
+being discussed within this section. Also, asking for a route always 
+equals a DHT lookup on $g$ within the hosts \texttt{[segment]}.\newline
+
+The DHT for the function $g$ can only be filled, if a host has at least
+two NICs connected to different \texttt{[segment]}s. This host then publishes
+its possible routes to its connected \texttt{[segment]}s into the corresponding 
+DHTs $g$.\newline
+
+If for instance a host $x$ with two NICs $NIC_a$, $NIC_b$ is connected to two 
+different \texttt{[segment]}s $S_a$, $S_b$, it announces to the DHT $g$ 
+of $S_b$ via $NIC_b$ that a route to $S_a$ is reachable from $NIC_b$ and 
+vice versa to the DHT $g$ of $S_a$ via $NIC_a$ that a route to $S_b$ is
+reachable from $NIC_a$, so that others can simply perform a lookup to their
+\texttt{[segment]}s DHT $g$ to obtain the related NICs hardware address 
+of $x$ and then forward data packets of type \texttt{ETH\_P\_LRDM}.\newline
+
+Now this mechanism works fine for routing between neighboring 
+\texttt{[segment]}s. However, what about routing between \texttt{[segment]}s
+that are not directly connected to each other?\newline
+
+One possibility would be to have transversely routes next to the 
+\texttt{[segment]}s tree structure. The transversely routes could then be
+regarded as a way of skipping the usual communication path through the tree
+by having a shorter path and therefore to reduce network load on the trees
+upper and root nodes. This structure could be seen similar to a 
+\textit{skip list} as some form of a \textit{skip tree}. By having lots of 
+such transversely routes the network structure is then being meshed by
+having a worst case route of traversing the \texttt{[segment]}s tree.\newline
+
+A worst case routing example is provided next. Here, \texttt{peer1@csg.temp.floor1}
+wants to communicate with \texttt{peer2@csg.staff.bureau1}. Since in the worst
+case there are no transversely routes i.e. directly from \texttt{csg.temp.floor1} to 
+\texttt{csg.staff.bureau1}, we need to traverse the tree to its root \texttt{[segment]} 
+named \texttt{csg} and then downwards to \texttt{csg.staff.bureau1}:\newline
+
+Lookup 1 from \texttt{csg.temp.floor1}:
+\begin{enumerate}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{csg.staff.bureau1}, if failed
+	\begin{enumerate}
+		\setlength{\itemsep}{-1mm}
+		\item \texttt{csg.staff}, if failed
+		\begin{enumerate}
+			\setlength{\itemsep}{-1mm}
+			\item \texttt{csg}, if failed
+			\begin{enumerate}
+				\setlength{\itemsep}{-1mm}
+				\item \texttt{csg.temp}, must succeed, so forward to \texttt{csg.temp}
+			\end{enumerate}
+		\end{enumerate}
+	\end{enumerate}
+\end{enumerate}
+
+Lookup 2 from \texttt{csg.temp}:
+\begin{enumerate}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{csg.staff.bureau1}, if failed
+	\begin{enumerate}
+		\setlength{\itemsep}{-1mm}
+		\item \texttt{csg.staff}, if failed
+		\begin{enumerate}
+			\setlength{\itemsep}{-1mm}
+			\item \texttt{csg}, must succeed, so forward to \texttt{csg}
+		\end{enumerate}
+	\end{enumerate}
+\end{enumerate}
+
+Lookup 3 from \texttt{csg}:
+\begin{enumerate}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{csg.staff.bureau1}, if failed
+	\begin{enumerate}
+		\setlength{\itemsep}{-1mm}
+		\item \texttt{csg.staff}, must succeed, so forward to \texttt{csg.staff}
+	\end{enumerate}
+\end{enumerate}
+
+Lookup 4 from \texttt{csg.staff}:
+\begin{enumerate}
+	\item \texttt{csg.staff.bureau1}, must succeed, so forward to \texttt{csg.staff.bureau1}
+\end{enumerate}
+
+With a more meshed network structure, we could have a best case routing for this specific example
+of:\newline
+
+Lookup 1 from \texttt{csg.temp.floor1}:
+\begin{enumerate}
+	\item \texttt{csg.staff.bureau1}, succeeded, so forward to \texttt{csg.staff.bureau1}
+\end{enumerate}
+
+\Section{Firewalling / Filtering}
+A \texttt{[segment]} can be protected from unwanted traffic by doing a
+string pattern matching (i.e. in hardware) on the \texttt{[segment]}
+string. Since this is represented as \underline{\texttt{[segment]}} one
+can do blacklist or whitelist matching. This is also possible for allwing
+traffic for concrete \underline{\texttt{peer}}@\underline{\texttt{[segment]}}
+for instance. However, pattern matching in the sense of regular expression
+matching will not be possible since \texttt{peer}@\texttt{[segment]} are
+represented as \texttt{SHA1} hashes.
+
+\Section{Multicast Groups}
+A multicast group is handeled as an usual \texttt{peer} within the DHT and the 
+multicast group management is postponed to the hardware address layer, if the harware 
+address layer supports multicast. (still needs more explanation)
+
+\Section{Anycast Groups}
+An anycast group is handeled different within the DHT than the multicast group. If 
+a \texttt{peer} joins an anycast group, then the keys value needs to maintain a list
+of \texttt{peer}s associated to a specific given key. One \texttt{peer} is then returned
+from the list, for instance in a round-robin or random fashion. (still needs more explanation)
+
+\Section{Communication Bootstrap}
+(todo)
+
+\Section{Userspace API}
+The application developer interface for the userland is discussed here.
+
+\SubSection{Addressing Structure}
+The addressing structure defined in \texttt{linux/lana.h} is named
+\texttt{struct sockaddr\_lana} and consists of the elements
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{sa\_family} which is always \texttt{AF\_LANA} or \texttt{PF\_LANA}
+	\item \texttt{sa\_address} which has the form
+	      \texttt{peer}@\texttt{[segment]} as described in \ref{addr}
+\end{itemize}
+
+\SubSection{Segment Map}
+The file \texttt{/etc/segment} must contain the \texttt{[segment]} to NIC 
+mapping of all NICs, i.e.:\newline
+
+\scriptsize{
+\begin{lstlisting}
+eth0:csg.temp.floor1
+eth1:csg.temp.admin
+\end{lstlisting}
+}
+\normalsize
+
+This example implies a direct gateway from \texttt{csg.temp.floor1} to 
+the \texttt{csg.temp.admin} \texttt{[segment]} and vice versa.
+
+\SubSection{Systemcalls}
+Supported BSD socket system calls for LANA are:
+\begin{itemize}
+	\setlength{\itemsep}{-1mm}
+	\item \texttt{socket(2)}
+	\item \texttt{bind(2)}
+	\item \texttt{getsockopt(2)/setsockopt(2)}
+	\item \texttt{select(2)/poll(2)/epoll(2)}
+	\item \texttt{recvfrom(2)}
+	\item \texttt{sendto(2)}
+	\item \texttt{close(2)}
+\end{itemize}
+
+Note that the \texttt{bind(2)} system call must be done before any calls
+to \texttt{recvfrom(2)} or \texttt{sendto(2)} in order to bind the socket
+to a specific \texttt{peer}@\texttt{[segment]} otherwise the kernel will
+assign a randomly choosen string for \texttt{peer} and a randomly selected
+\texttt{[segment]} of \texttt{/etc/segment}. The latter assumes, that this
+socket only wants to \textit{consume} services of other
+\texttt{peer}@\texttt{[segment]}s, without offering some service for others.
+Compare this to the notion of port numbers, where the kernel randomly
+assigns a number for communication on client applications. Then, the kernel
+will do internally a bind before a \texttt{recvfrom(2)} or \texttt{sendto(2)}
+call. However, if a \texttt{bind(2)} is done explicitly and the \texttt{[segment]}
+is different from \texttt{[segment]}s given in \texttt{/etc/segment}, then
+the bind will fail and an error is returned.\newline
+
+With \texttt{setsockopt(2)} one is able join or leave multicast and anycast
+groups.
+
+\SubSection{Message flags}
+Message flags are statical, global and defined in \texttt{linux/lana.h} and 
+represented as bitvectors. They are applied to the \texttt{sendto(2)} call, 
+thus the kernel gets to know the applications needs for communication with 
+the remote \texttt{communication endpoint}, e.g. whether the communication 
+must be reliable or confidential. These needs are named \texttt{communication 
+features}.
+
+\SubSection{Code Example}
+Here is an example C code of how a typical LANA userspace program 
+for a temperature measuring entity could look like:\newline
+
+\scriptsize{
+\lstset{language=C}
+\begin{lstlisting}
+#include <linux/lana.h>
+
+int main(void)
+{
+  ssize_t ret;
+  int sock, err, flags;
+  struct sockaddr_lana own, remote;
+  char buff[256];
+  socklen_t remote_len;
+  ...
+  sock = socket(AF_LANA, SOCK_RAW, 0);
+  ...
+  own.sa_family = AF_LANA;
+  strlcpy(own.sa_address,
+          "sensor42@csg.temp.floor1",
+          sizeof(own.sa_address));
+  bind(sock, (struct sockaddr_in *) &own, sizeof(own));
+  ...
+  remote_len = sizeof(remote);
+  recvfrom(sock, buff, sizeof(buff), 0,
+           (struct sockaddr *) remote,
+           &remote_len);
+  ...
+  memset(&remote, 0, sizeof(remote));
+  remote.sa_family = AF_LANA;
+  strlcpy(remote.sa_address,
+          "-controller@csg.temp.floor1",
+          sizeof(remote.sa_address));
+  memset(buff, 0, sizeof(buff));
+  strlcpy(buff, "temp:20,scale:celsius", sizeof(buff));
+  flags = MSG_GLOBAL | MSG_RELIABLE;
+  sendto(sock, buff, strlen(buff) + 1, flags,
+         (struct sockaddr *) &remote, sizeof(remote));
+  ...
+  memset(&remote, 0, sizeof(remote));
+  remote.sa_family = AF_LANA;
+  strlcpy(remote.sa_address, "*@csg.temp.floor1",
+  	sizeof(remote.sa_address));
+  memset(buff, 0, sizeof(buff));
+  strlcpy(buff, "alive", sizeof(buff));
+  flags = MSG_GLOBAL | MSG_RELIABLE;
+  sendto(sock, buff, strlen(buff) + 1, flags,
+         (struct sockaddr *) &remote, sizeof(remote));
+  ...
+  close(sock);
+  return 0;
+}
+\end{lstlisting}
+}
+\normalsize
+
+\Section{Network Stack Architecture}
+\SubSection{Functional Blocks}
+\SubSection{Information Dispatch Point (IDP)}
+\SubSection{Packet Processing Engine}
+
+\nocite{*}
+\bibliographystyle{abbrv}
+\bibliography{main}
+
+\end{document}
