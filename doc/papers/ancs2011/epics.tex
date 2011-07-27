@@ -279,9 +279,13 @@ Dedicated kernel thread (controlled scheduling) & 900.000\\
 Execution in ksoftirqd & 1.300.000\\
 Linux kernel networking stack & 1.380.000\\
 \end{tabular}
-\caption{Performance evaluation (pps) of different approaches to receiving packets in the Linux kernel. The packets are 64 Bytes long. The evaluation was done on a TODO: CPU/RAM/NETWORKCARD/KERNEL}
+\caption{Performance evaluation (pps) of different approaches to receiving 
+packets in the Linux kernel. The packets are 64 Bytes long. The evaluation 
+was done with the kernel packet generator \texttt{pktgen} on two directly 
+connected machines with Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, an 
+Intel 82566DC-2 NIC and Linux 3.0rc1.}
 \label{tab:performance}
-\end{table}	
+\end{table}
 
 \subsection{Software Available}
 The current sofware is available under the GNU General Public License from 
