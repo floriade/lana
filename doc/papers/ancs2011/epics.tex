@@ -50,6 +50,7 @@
 \usepackage{color}
 \newcommand{\wolfgang}[1]{\textcolor{blue}{\emph{WM: #1}}}
 \newcommand{\ariane}[1]{\textcolor{green}{\emph{AK: #1}}}
+\newcommand{\daniel}[1]{\textcolor{red}{\emph{DB: #1}}}
 
 \usepackage{url}
 \begin{document}
@@ -194,6 +195,7 @@ In this paper we present the \textit{Lightweight Autonomic Network Architecture 
 
 Generally, the LANA network system is built similarly to the network system of the Linux kernel.
 Applications can send and transmit packets via the BSD socket interface and the actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space.
+\daniel{too much is said about the vlink interface. I'd rather save the words for the PPE or functional blocks. I think about a better paragraph for tomorrow}
 The hardware and device drivers interfaces are hidden from the PPE behind a \textit{virtual link interface}. This allows for a simple integration of different underlaying networking technologies such as Ethernet, Bluetooth or InfiniBand. Additionally, virtual link interface devices are represented as usual kernel networking devices and can be managed with standard tools such as \texttt{ifconfig} or \texttt{ethtool}.
 
 Each functional block is implemented as a Linux kernel module. It offers a \textit{receive function} that is registered with the PPE upon module insertion. 
