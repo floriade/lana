@@ -165,12 +165,28 @@ Description of the base architecture see Figure \ref{fig:architecture}.
 
 \begin{figure}
 \centering
-\includegraphics[width=0.5\textwidth]{figures/architecture.pdf}
+\includegraphics[width=0.47\textwidth]{figures/architecture.pdf}
 %\epsfig{file=fly.eps}
-\caption{Architecture - in order to save space we should try to come up with a picture that only uses 1 column.}
+\caption{Lana architecture}
 \label{fig:architecture}
-
 \end{figure}
+
+%\begin{figure}
+%\centering
+%\includegraphics[width=0.4\textwidth]{figures/stack.pdf}
+%\caption{Lana protocol stack showing in which contex which functionality is implemented}
+%\label{fig:stack}
+%\end{figure}
+
+\subsection{Configuration Interface}
+The protocol stack can be configured from user space with the help of a command line tool. The most important commands are summarized below.
+\begin{compactitem}
+\item \texttt{add}, \texttt{rm}: Adds (removes) a functional block from the list of available functional blocks in the kernel. 
+\item \texttt{set}: sets properties of a functional block with a \texttt{key=value} semantic
+\item \texttt{bind}, \texttt{unbind}: Binds (unbinds) a functional block to another in order to be able to send messages to it. 
+\item \texttt{replace}: Replaces one functional block with another functional block. The connections between the blocks are maintained. Private data can either be transferred to the new block or dropped.
+\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one functional block to receive control messages from another functional block.
+\end{compactitem}
 
 \subsection{Improving the Performance}
 During the implementation of our framework we have evaluated different possibilities for the integration of our packet processing engine with the Linux kernel. We think the insights gained are interesting for other researcher that have to do fundamental changes on the Linux protocol stack and hence, we summarize them here. 
@@ -196,33 +212,14 @@ Linux kernel stack & 138000\\
 \label{tab:performance}
 \end{table}	
 
-
-\subsection{Current State}
-\begin{compactitem}
-\item Base machinery working
-\item Implemented Functional blocks: fb\_eth, fb\_ethvlink, fb\_pflana, fb\_bpf, fb\_dummy
-\end{compactitem}
-
-%\begin{table}
-%\centering
-%\caption{Frequency of Special Characters}
-%\begin{tabular}{|c|c|l|} \hline
-%Non-English or Math&Frequency&Comments\\ \hline
-%\O & 1 in 1,000& For Swedish names\\ \hline
-%$\pi$ & 1 in 5& Common in math\\ \hline
-%\$ & 4 in 5 & Used in business\\ \hline
-%$\Psi^2_1$ & 1 in 40,000& Unexplained usage\\
-%\hline\end{tabular}
-%\end{table}
-
+\subsection{Software Available}
+The current sofware is available under the GNU General Public License from \cite{lana}. In addition to the framework it also includes four functional blocks: Ethernet, Berkeley Packet Filter, Tee (duplicate a packet), and Forward (an empty Block that just forwards the packets to another block). The framework does not need any patching of the Linux kernel but needs a new, 2.6.X kernel.
 
 \section{Conclusions and Future Work}
-\begin{compactitem}
-\item network system implemented that is as performant as the linux stack but allows for flexibility (inclusion of new protocols and change at runtime)
-\item Automatic protocol stack setup
-\item Protocol Stack negotiation between different nodes
-\item Performance evaluation with specific scenarios in comparison to other approaches such as click or linux.
-\end{compactitem}
+We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. This allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime to include for example compression or encryption as the networking conditions change. 
+
+In the short term we will compare the performance of real scenarios implemented in our system with the performance of an implementation in other systems (for example default Linux protocol stack or the Click router). In the midterm we will develop a mechanism that automatically sets up a protocol stack for an Application whereby the Application can specify some characteristics the communication channel should have, but not exactly how this has to be achieved. For example the application could require a "reliable communication channel" and a controller would choose between different protocols that provide reliability (e.g., one for wired communication, one for wireless communication, one for wireless, multi-hop communication). The setup of the protocol stack will have to be negotiated between the source and destination node. The end goal will be to have a networked system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions.   
+
 
 %\end{document}  % This is where a 'short' article might terminate
 
