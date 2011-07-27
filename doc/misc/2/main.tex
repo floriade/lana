@@ -357,6 +357,8 @@ stacks=
 \label{iss}
 \begin{itemize}
         \setlength{\itemsep}{-1mm}
+	\item Chicken-and-egg problem: we want to describe a stack structure for
+              communication, but then how to communicate the stack structure?!
 	\item Stack is created from sender to receiver on first \texttt{sendto(2)}
 	\item Can we somehow avoid the \texttt{happ}?
 	\item If if two different applications want different stacks for one
@@ -365,10 +367,8 @@ stacks=
 	      socket, then we use the same stack (needs ref counting) or create
 	      another one?
 	\item Should LSAP describe the \textit{whole} stack or only the 'application stack'?
-	\item Should LSAP allow the description of options for functional blocks? (No)
-	\item PF\_LANA sockets must be a mandatory part of LANA, also the \texttt{APP MUX}
-	\item Chicken-and-egg problem: we want to describe a stack structure for
-              communication, but then how to communicate the stack structure?
+	\item Should LSAP allow the description of options for functional blocks? (Rather not)
+	\item PF\_LANA sockets must be a mandatory part of LANA, also the \texttt{APP MUX}?
 	\item Should LSAP be independant of everything (except hardware address
 	      layer) and come with routing, too?!
 \end{itemize}
