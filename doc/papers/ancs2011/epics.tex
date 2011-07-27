@@ -196,10 +196,10 @@ Moreover, the packet processing engine has per-CPU backlog queues so that
 functional blocks which spawn new network packets can enqueue the like for
 processing.
 
-There are two special functional blocks - those of the virtual link interface 
+There are two special functional blocks - those of the virtual link interfaces 
 communicating with a network driver and those communicating with BSD sockets.
 These functional blocks push network packets either in the drivers transmit 
-queue or in the sockets receive queue. 
+queue or in the sockets receive queue.
 
 \begin{figure}
 \centering
