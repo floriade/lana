@@ -47,6 +47,10 @@
 
 \documentclass{sig-alternate}
 \usepackage{paralist}
+\usepackage{color}
+\newcommand{\wolfgang}[1]{\textcolor{blue}{\emph{WM: #1}}}
+
+
 \begin{document}
 %
 % --- Author Metadata here ---
@@ -55,7 +59,7 @@
 %\crdata{0-12345-67-8/90/01}  % Allows default copyright data (0-89791-88-6/97/05) to be over-ridden - IF NEED BE.
 % --- End of Author Metadata ---
 
-\title{Efficient Implementation of Dynamic Protocol Stacks in Linux}
+\title{Efficient Implementation of Dynamic Protocol Stacks in Linux\wolfgang{title is ok, but could be more trendy ... I'll think about it}}
 %
 % You need the command \numberofauthors to handle the 'placement
 % and alignment' of the authors beneath the title.
@@ -125,10 +129,28 @@ Wolfgang M{\"u}hlbauer\\
 
 \maketitle
 \begin{abstract}
-TODO: rewrite abstract - beginning is copied from an old paper...
-Future network architectures aim at solving the shortcomings of the traditional, static Internet architecture. In order to provide optimal service they have to adapt their functionality to different networking situations. This can be achieved by dividing the networking functionality into modular blocks and combining them as required at runtime.
-In this paper we address the performance aspect of such architectures and we show that their performance is comparable with the performance of a standard Linux protocol stack.
 
+TODO: rewrite abstract - beginning is copied from an old paper...  Future
+network architectures aim at solving the shortcomings of the traditional,
+static Internet architecture. In order to provide optimal service they have to
+adapt their functionality to different networking situations. This can be
+achieved by dividing the networking functionality into modular blocks and
+combining them as required at runtime.  In this paper we address the
+performance aspect of such architectures and we show that their performance is
+comparable with the performance of a standard Linux protocol stack.
+
+\wolfgang{I tried to think about an abstract, see next paragraph. Feel free to change ... It's a little bit long, but first sentence can be dropped, etc. Maybe, it's also useful for the intro}
+Beyond doubt, the Internet has grown out of its infancy. Yet, network
+programming is still widely understood as programming strictly defined socket
+interfaces. Only some frameworks (e.g., ANA, Click, Active Networking) have made a step
+towards \emph{real} network programming by decomposing networking functionality
+into small modular blocks that can be assembled in a flexible manner. In this
+paper, we tackle the challenge of accomodating 3 partially conflicting
+objectives: (i) high flexibility for network programmers and network
+application designers, (ii) re-configuration of the network stack at runtime,
+and (iii) high packet forwarding rates.  First experiences with a prototype
+implementation suggest little performance overhead compared to the standard
+Linux protocol stack. 
 \end{abstract}
 
 % A category with the (minimum) three required fields
@@ -153,6 +175,8 @@ Praesent ac porta ante. Integer sem urna, pretium sed dignissim id, laoreet sit 
 
 
 \section{Light Weight Autonomic Network Architecture (LANA)}
+
+\wolfgang{quickly say first why you propose another architecture; e.g., Click configuration if an kernel cannot be changed at runtime or not happy with Ana's performance; it should be come clear that we try to accommodate conflicting objectives, see my abstract}
 LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
  
 Similar to the Protocol Stack of Linux the protocol stack of LANA is implemented in kernel space and applications can access it over a socket interface. The hardware is hidden between a virtual interface. This interface allows on the one side to plug in different network technoligies such as Ethernet or bluetooth and on the other side functional blocks to have a unified interface. Additionally, virtual networks, similar to VLANs can be built and managed with the standard tools ( \texttt{ifconfig, ifpps, ethtool}. (TODO: descirbe the vlink subsystem better).
