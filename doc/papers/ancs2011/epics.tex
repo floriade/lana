@@ -246,11 +246,12 @@ command line tool. The most important commands are summarized below.
 \item \texttt{replace}: Replaces one functional block with another 
       functional block. The connections between the blocks are maintained. 
       Private data can either be transferred to the new block or dropped.
-\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one 
-      functional block to receive event messages from another functional block.
+%\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one 
+%      functional block to receive event messages from another functional block.
 %      (An implicit subscribtion (unsubscribtion) is done on bind (unbind).)
 \end{compactitem}
-Within the Linux kernel the notification chain framework is used to propagate those configuration messages to the individual functional blocks. This framework is also used to distribute other, internal, configuration messages. 
+Within the Linux kernel the notification chain framework is used to propagate those configuration messages to the individual functional blocks. 
+%This framework is also used to distribute other, internal, configuration messages. 
 
 \subsection{Improving the Performance}
 We have evaluated different possibilities for the integration of the PPE with the 
