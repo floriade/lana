@@ -205,7 +205,7 @@ queue or in the sockets receive queue.
 \centering
 \includegraphics[width=0.47\textwidth]{figures/architecture.pdf}
 %\epsfig{file=fly.eps}
-\caption{Lana architecture}
+\caption{LANA architecture}
 \label{fig:architecture}
 \end{figure}
 
@@ -217,41 +217,79 @@ queue or in the sockets receive queue.
 %\end{figure}
 
 \subsection{Configuration Interface}
-The protocol stack can be configured from user space with the help of a command line tool. The most important commands are summarized below.
+The protocol stack can be configured from user space with the help of a 
+command line tool. The most important commands are summarized below.
 \begin{compactitem}
-\item \texttt{add}, \texttt{rm}: Adds (removes) a functional block from the list of available functional blocks in the kernel. 
-\item \texttt{set}: sets properties of a functional block with a \texttt{key=value} semantic
-\item \texttt{bind}, \texttt{unbind}: Binds (unbinds) a functional block to another in order to be able to send messages to it. 
-\item \texttt{replace}: Replaces one functional block with another functional block. The connections between the blocks are maintained. Private data can either be transferred to the new block or dropped.
-\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one functional block to receive control messages from another functional block.
+\item \texttt{add}, \texttt{rm}: Adds (removes) a functional block from the 
+      list of available functional blocks in the kernel. 
+\item \texttt{set}: sets specific properties of a functional block with a 
+      \texttt{key=value} semantic
+\item \texttt{bind}, \texttt{unbind}: Binds (unbinds) a functional block 
+      to another in order to be able to send messages to it. 
+\item \texttt{replace}: Replaces one functional block with another 
+      functional block. The connections between the blocks are maintained. 
+      Private data can either be transferred to the new block or dropped.
+\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one 
+      functional block to receive event messages from another functional block.
+      (An implicit subscribtion (unsubscribtion) is done on bind (unbind).)
 \end{compactitem}
 
 \subsection{Improving the Performance}
-During the implementation of our framework we have evaluated different possibilities for the integration of our packet processing engine with the Linux kernel. We think the insights gained are interesting for other researcher that have to do fundamental changes on the Linux protocol stack and hence, we summarize them here. 
-Our goal was to be able to process as many \textit{minimum sized Ethernet frames} as the Linux kernel is able to process. In order to compare the performance of the Linux Kernel and the performance of our engine we have dropped all packets in the Linux Kernel protocol stack as soon as they were arrived (TODO: where exactly?). In our system the packets were processed by the fb\_eth functional block followed by two fb\_dummy functional blocks that were simply forwarding the packets. We can distinguish the following three approaches:
-\begin{compactitem}
-\item On each CPU there exists one high priority thread that is responsible for processing LANA packets. This approach leads to a starvation of the interrupt handler (ksoftirqd) and hence the maximal achieved packet rate is only about half as what is achieved by the protocol stack of the Linux kernel. Also changing the priority of the LANA thread to normal only slightly increases the throughput.
-\item Instead of relying completely on the Scheduler of the Linux Kernel we control preemption and scheduling explicitly. This approach still exhibits scheduling overhead, but it increases the performance to about two thirds of the performance of the Linux Kernel. 
-\item Instead of executing the LANA functions in a dedicated thread they are executed directly in the ksoftirqd function. With this approach approximately $95\%$ of the performance of the Linux kernel is achieved.
-\end{compactitem}
-The corresponding numbers are listed in Table \ref{tab:performance}.
+During the implementation of our framework we have evaluated different 
+possibilities for the integration of our packet processing engine with the 
+Linux kernel. We think the insights gained are interesting for other 
+researchers that have to do fundamental changes on the Linux protocol stack 
+and hence, we summarize them here.
 
+Our goal was to be able to process as many \textit{minimum sized Ethernet frames} 
+as the Linux kernel is able to process. In order to compare the performance of 
+the Linux Kernel and the performance of our engine we have bypassed all packets 
+from the Linux Kernel protocol stack into the LANA stack via a
+\texttt{netdev\_rx\_handler} in bottom half context as soon as they arrived.
+
+In our system the packets were processed by the \texttt{fb\_eth} functional 
+block followed by two \texttt{fb\_dummy} functional blocks that were simply 
+forwarding the packets. We can distinguish the following three approaches:
+\begin{compactitem}
+\item On each CPU there exists one high priority thread that is responsible 
+      for processing LANA packets. This approach leads to a 'starvation' of 
+      the software interrupt handler (ksoftirqd) and hence the maximal achieved 
+      packet rate is only about half as what is achieved by the protocol 
+      stack of the Linux kernel. Also changing the priority of the LANA 
+      thread to normal only slightly increases the throughput (since the 
+      ksoftirqd is a low-priority thread).
+\item Instead of relying completely on the process scheduler of the 
+      Linux Kernel we control preemption and scheduling explicitly. This 
+      approach still exhibits scheduling overhead, but it increases the 
+      performance to about two thirds of the performance of the Linux 
+      Kernel.
+\item Instead of executing the LANA functions in a dedicated thread they 
+      are executed directly in the ksoftirqd context. With this approach 
+      approximately $95\%$ of the performance of the Linux kernel is achieved.
+\end{compactitem}
+
+The corresponding numbers are listed in Table \ref{tab:performance}.
 \begin{table}[htb]
-\begin{tabular}{ l l }
-mechanism & performance\\
+\begin{tabular}{ l r }
+Mechanism & Performance\\
 \hline
-dedicated kernel thread (high priority) & 700000\\
-dedicated kernel thread (normal priority) & 750000\\
-dedicated kernel thread (controlled scheduling) & 900000\\
-execution in ksoftirqd & 1300000\\
-Linux kernel stack & 1380000\\
+Dedicated kernel thread (high priority) & 700.000\\
+Dedicated kernel thread (normal priority) & 750.000\\
+Dedicated kernel thread (controlled scheduling) & 900.000\\
+Execution in ksoftirqd & 1.300.000\\
+Linux kernel networking stack & 1.380.000\\
 \end{tabular}
 \caption{Performance evaluation (pps) of different approaches to receiving packets in the Linux kernel. The packets are 64 Bytes long. The evaluation was done on a TODO: CPU/RAM/NETWORKCARD/KERNEL}
 \label{tab:performance}
 \end{table}	
 
 \subsection{Software Available}
-The current sofware is available under the GNU General Public License from \cite{lana}. In addition to the framework it also includes four functional blocks: Ethernet, Berkeley Packet Filter, Tee (duplicate a packet), and Forward (an empty Block that just forwards the packets to another block). The framework does not need any patching of the Linux kernel but needs a new, 2.6.X kernel.
+The current sofware is available under the GNU General Public License from 
+\cite{lana}. In addition to the framework it also includes four functional 
+blocks: Ethernet, Berkeley Packet Filter, Tee (duplicate a packet), Packet 
+Counter and Forward (an empty Block that just forwards the packets to 
+another block). The framework does not need any patching of the Linux kernel
+but needs a new 3.X kernel.
 
 \section{Conclusions and Future Work}
 We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. This allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime to include for example compression or encryption as the networking conditions change. 
