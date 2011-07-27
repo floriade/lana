@@ -49,6 +49,7 @@
 \usepackage{paralist}
 \usepackage{color}
 \newcommand{\wolfgang}[1]{\textcolor{blue}{\emph{WM: #1}}}
+\newcommand{\ariane}[1]{\textcolor{green}{\emph{AK: #1}}}
 
 \usepackage{url}
 \begin{document}
@@ -130,22 +131,13 @@ Wolfgang M{\"u}hlbauer\\
 \maketitle
 \begin{abstract}
 
-TODO: rewrite abstract - beginning is copied from an old paper...  Future
-network architectures aim at solving the shortcomings of the traditional,
-static Internet architecture. In order to provide optimal service they have to
-adapt their functionality to different networking situations. This can be
-achieved by dividing the networking functionality into modular blocks and
-combining them as required at runtime.  In this paper we address the
-performance aspect of such architectures and we show that their performance is
-comparable with the performance of a standard Linux protocol stack.
-
-\wolfgang{I tried to think about an abstract, see next paragraph. Feel free to change ... It's a little bit long, but first sentence can be dropped, etc. Maybe, it's also useful for the intro}
-Beyond doubt, the Internet has grown out of its infancy. Yet, network
-programming is still widely understood as programming strictly defined socket
+%\wolfgang{I tried to think about an abstract, see next paragraph. Feel free to change ... It's a little bit long, but first sentence can be dropped, etc. Maybe, it's also useful for the intro}
+%Beyond doubt, the Internet has grown out of its infancy. Yet, 
+Network programming is widely understood as programming strictly defined socket
 interfaces. Only some frameworks (e.g., ANA, Click, Active Networking) have made a step
 towards \emph{real} network programming by decomposing networking functionality
 into small modular blocks that can be assembled in a flexible manner. In this
-paper, we tackle the challenge of accomodating 3 partially conflicting
+paper, we tackle the challenge of accommodating 3 partially conflicting
 objectives: (i) high flexibility for network programmers and network
 application designers, (ii) re-configuration of the network stack at runtime,
 and (iii) high packet forwarding rates.  First experiences with a prototype
@@ -164,25 +156,29 @@ Linux protocol stack.
 
 \section{Introduction}
 
-The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. 
+Beyond doubt, the Internet has grown out of its infancy. A huge variety of networked applications and a diverse range of protocols are available, ranging from protocols for the communication over fibre, cat5 or over the air to protocols supporting specific applications such as p2p, web or voIP. However, the architecture is not designed to also allow for an easy integration of new protocols between these two layers. We argue that an architecture that would not limit innovation to the outer layers would give the Internet another boost.
+\ariane{should also motivate runtime here.}
 
-None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. 
+Some research with this goal was already done in active networking \cite{ANSurvey1,ANSurvey2}, with the Click modular router \cite{click} or with openflow \cite{openflow}. However, none of the available implementations fulfils the following three partially conflicting objectives. 
+%The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. In this paper we present the architecture of a framework that is designed for the following three goals. 
+\begin{compactenum}
+%\item Provide a platform in which it is easy to test new protocols on end nodes. In order to simplify testing further it should not require any specialized hardware. 
+\item Simple integration and testing of new protocols on end nodes on all layers of the protocol stack.
+\item Runtime reconfiguration of the protocol stack in order to allow for even bigger flexibility.
+\item High performance packet forwarding rate.
+%\item Provide a platform that imposes as little overhead as possible. This is required that the evaluation of new protocols delivers meaningful results. 
+%\item Provide a platform which allows us to continuously optimize the protocol stack. This is especially useful in mobile scenarios where network characteristics such as delay or packet loss change frequently. Being able to use a protocol optimized for the given network characteristics might improve the connection quality drastically.
+\end{compactenum}
 
-In this paper we present the architecture of a framework that is designed for the following three goals. 
-\begin{enumerate}
-\item Provide a platform in which it is easy to test new protocols on end nodes. In order to simplify testing further it should not require any specialized hardware. 
-\item Provide a platform that imposes as little overhead as possible. This is required that the evaluation of new protocols delivers meaningful results. 
-\item Provide a platform which allows us to continuously optimize the protocol stack. This is especially useful in mobile scenarios where network characteristics such as delay or packet loss change frequently. Being able to use a protocol optimized for the given network characteristics might improve the connection quality drastically.
-\end{enumerate}
+Therefore we propose another architecture that was designed with those three goals in mind.
+The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into functional blocks that can be combined as required. Each functional block implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of functional blocks to a protocol stack. 
+The existing implementation of ANA shows the feasibility of such a flexible architecture but it suffers sever performance issues. 
+In this paper we present an architecture that allows for a similar functionality than ANA but we show that this flexibility does not have to come with the cost of reduced performance.
 
-Our architecture is based on the ideas of ANA (Autonomic Network Architecture) \cite{ANAJournal}.
-In ANA networking functionality is divided into functional blocks that can be arranged as required. ANA does not impose any protocols to be used other than Ethernet rather a path through several functional blocks is built dynamically whenever an application is started.   
-While there exists an implementation of ANA it was only designed as a proof of concept architecture and is not useful for the performance evaluation of actual protocols. Whereas in our work achieving a good performance was one of the main driving goals. 
 
 
 \section{Lightweight Autonomic Network Architecture (LANA)}
 
-\section{Light Weight Autonomic Network Architecture (LANA)}
 
 \wolfgang{quickly say first why you propose another architecture; e.g., Click configuration if an kernel cannot be changed at runtime or not happy with Ana's performance; it should be come clear that we try to accommodate conflicting objectives, see my abstract}
 LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
