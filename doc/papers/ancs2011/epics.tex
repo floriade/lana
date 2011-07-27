@@ -60,7 +60,9 @@
 %\crdata{0-12345-67-8/90/01}  % Allows default copyright data (0-89791-88-6/97/05) to be over-ridden - IF NEED BE.
 % --- End of Author Metadata ---
 
-\title{Efficient Implementation of Dynamic Protocol Stacks in Linux\wolfgang{title is ok, but could be more trendy ... I'll think about it}}
+\title{Efficient Implementation of Dynamic Protocol Stacks in Linux}
+% in Linux\wolfgang{title is ok, but could be more trendy ... I'll think about it}}
+
 %
 % You need the command \numberofauthors to handle the 'placement
 % and alignment' of the authors beneath the title.
@@ -159,7 +161,7 @@ Linux protocol stack.
 Beyond doubt, the Internet has grown out of its infancy. A huge variety of networked applications and a diverse range of protocols are available, ranging from protocols for the communication over fibre, cat5 or over the air to protocols supporting specific applications such as p2p, web or voIP. However, the architecture is not designed to also allow for an easy integration of new protocols between these two layers. We argue that an architecture that would not limit innovation to the outer layers would give the Internet another boost.
 \ariane{should also motivate runtime here.}
 
-Some research with this goal was already done in active networking \cite{ANSurvey1,ANSurvey2}, with the Click modular router \cite{click} or with openflow \cite{openflow}. However, none of the available implementations fulfils the following three partially conflicting objectives. 
+Some research with this goal was already done in active networking \cite{ANSurvey2}, with the Click modular router \cite{click} or with openflow \cite{openflow}. However, none of the available implementations fulfils the following three partially conflicting objectives. 
 %The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. In this paper we present the architecture of a framework that is designed for the following three goals. 
 \begin{compactenum}
 %\item Provide a platform in which it is easy to test new protocols on end nodes. In order to simplify testing further it should not require any specialized hardware. 
@@ -171,57 +173,50 @@ Some research with this goal was already done in active networking \cite{ANSurve
 \end{compactenum}
 
 Therefore we propose another architecture that was designed with those three goals in mind.
-The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into functional blocks that can be combined as required. Each functional block implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of functional blocks to a protocol stack. 
+The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into functional blocks that can be combined as required. Each functional block implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of functional blocks to a protocol stack. This allows for the experimentation with protocol stacks that are not known by todays standard operating system and it allows for the optimization of the protocol stack at runtime without communication tear down or application support.
 The existing implementation of ANA shows the feasibility of such a flexible architecture but it suffers sever performance issues. 
-In this paper we present an architecture that allows for a similar functionality than ANA but we show that this flexibility does not have to come with the cost of reduced performance.
+In this paper we present the \textit{Lightweight Autonomic Network Architecture (LANA)}. It allows for a similar functionality than ANA but demonstrates that flexibility does not have to come at the cost of reduced performance.
 
 
 
-\section{Lightweight Autonomic Network Architecture (LANA)}
+\section{LANA}
 
 
-\wolfgang{quickly say first why you propose another architecture; e.g., Click configuration if an kernel cannot be changed at runtime or not happy with Ana's performance; it should be come clear that we try to accommodate conflicting objectives, see my abstract}
-LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
+%\wolfgang{quickly say first why you propose another architecture; e.g., Click configuration if an kernel cannot be changed at runtime or not happy with Ana's performance; it should be come clear that we try to accommodate conflicting objectives, see my abstract}
+%LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
 
-LANA provides a framework for setting up protocol stacks not known by 
-todays standard operating systems. Within LANA it is also possible to 
-change the protocol stack at runtime, without communication teardown or 
-application support. These properties build the basis for a networking 
-system that provides protocol stacks that are better targeted to a 
-networking situation than the well known TCP/IP protocol stack.
- 
-Similar to the protocol stack of Linux' networking subsystem the protocol 
-stack of LANA is implemented in kernel space and applications can access 
-it over the BSD socket interface. On the other hand, hardware and device drivers are 
-hidden behind a virtual link interface. This interface allows on the 
-one side to have multiple virtual interfaces or networks similar to 
-VLANs on different underlying networking technologies such as Ethernet, 
-Bluetooth or InfiniBand and on the other side ingress and egress points to 
-LANA functional blocks with its packet processing engine. Additionally, 
-virtual link interface devices are represented as usual kernel networking 
-devices and can be managed with standard tools such as \texttt{ifconfig}, 
-\texttt{ifpps} or \texttt{ethtool}.
+%LANA provides a framework for setting up protocol stacks not known by 
+%todays standard operating systems. Within LANA it is also possible to 
+%change the protocol stack at runtime, without communication teardown or 
+%application support. These properties build the basis for a networking 
+%system that provides protocol stacks that are better targeted to a 
+%networking situation than the well known TCP/IP protocol stack.
 
-The setup of the control flow between functional blocks is done with event
-messages by the Linux notification chain framework. They are used for setup 
-and teardown of data flow paths between functional blocks or for exchange of
-other internal functional block data.
+Generally, the LANA network system is built similarly to the network system of the Linux kernel.
+Applications can send and transmit packets via the BSD socket interface and the actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space.
+The hardware and device drivers interfaces are hidden from the PPE behind a \textit{virtual link interface}. This allows for a simple integration of different underlaying networking technologies such as Ethernet, Bluetooth or InfiniBand. Additionally, virtual link interface devices are represented as usual kernel networking devices and can be managed with standard tools such as \texttt{ifconfig}, \texttt{ifpps} or \texttt{ethtool}.
 
-Data is transmitted between the functional blocks by function calls and is 
-therefore not being copied between functional blocks. A network packet is 
-processed by the LANAs packet processing engine, which calls receive handlers 
-of functional blocks that are bound to each other in the processing path. Data is then 
-either forwarded to the subsequent functional block or discarded. A certain
-path can be traversed in ingress or egress direction, thus functional
-blocks can also flip the packets direction within the packet processing engine.
-Moreover, the packet processing engine has per-CPU backlog queues so that
-functional blocks which spawn new network packets can enqueue the like for
-processing.
+Each functional block is implemented as a Linux kernel module. It offers a \textit{receive function} that is registered with the PPE upon module insertion. 
+A functional block can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed the packet it returns the identifier of the next functional block that should process this packet. In addition functional blocks belonging to the virtual link interface will queue the packets in the network drivers transmit queue and functional blocks communicating with BSD sockets will queue the packets in the sockets receive queue.
 
-There are two special functional blocks - those of the virtual link interfaces 
-communicating with a network driver and those communicating with BSD sockets.
-These functional blocks push network packets either in the drivers transmit 
-queue or in the sockets receive queue.
+The PPE is responsible for calling one functional block after the other and for queuing packets that need to be processed.
+
+%Data is transmitted between the functional blocks by function calls and is 
+%therefore not being copied between functional blocks.
+% A network packet is 
+%processed by the LANAs packet processing engine, which calls receive handlers 
+%of functional blocks that are bound to each other in the processing path. Data is then 
+%either forwarded to the subsequent functional block or discarded. A certain
+%path can be traversed in ingress or egress direction, thus functional
+%blocks can also flip the packets direction within the packet processing engine.
+%Moreover, the packet processing engine has per-CPU backlog queues so that
+%functional blocks which spawn new network packets can enqueue the like for
+%processing.
+
+%There are two special functional blocks - those of the virtual link interfaces 
+%communicating with a network driver and those communicating with BSD sockets.
+%These functional blocks push network packets either in the drivers transmit 
+%queue or in the sockets receive queue.
 
 \begin{figure}
 \centering
@@ -253,41 +248,30 @@ command line tool. The most important commands are summarized below.
       Private data can either be transferred to the new block or dropped.
 \item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one 
       functional block to receive event messages from another functional block.
-      (An implicit subscribtion (unsubscribtion) is done on bind (unbind).)
+%      (An implicit subscribtion (unsubscribtion) is done on bind (unbind).)
 \end{compactitem}
+Within the Linux kernel the notification chain framework is used to propagate those configuration messages to the individual functional blocks. This framework is also used to distribute other, internal, configuration messages. 
 
 \subsection{Improving the Performance}
-During the implementation of our framework we have evaluated different 
-possibilities for the integration of our packet processing engine with the 
-Linux kernel. We think the insights gained are interesting for other 
-researchers that have to do fundamental changes on the Linux protocol stack 
-and hence, we summarize them here.
+We have evaluated different possibilities for the integration of the PPE with the 
+Linux kernel. We summarize our insights to provide guidance for researchers that have to do fundamental changes on the Linux protocol stack.
 
-Our goal was to be able to process as many \textit{minimum sized Ethernet frames} 
-as the Linux kernel is able to process. In order to compare the performance of 
-the Linux Kernel and the performance of our engine we have bypassed all packets 
-from the Linux Kernel protocol stack into the LANA stack via a
-\texttt{netdev\_rx\_handler} in bottom half context as soon as they arrived.
+We compared the maximum packet reception rate of the Linux kernel while not doing any packet processing with our architecture. Here packets are forwarded between three functional blocks that do only packet forwarding. 
 
-In our system the packets were processed by the \texttt{fb\_eth} functional 
-block followed by two \texttt{fb\_dummy} functional blocks that were simply 
-forwarding the packets. We can distinguish the following three approaches:
+%Our goal was to be able to process as many \textit{minimum sized Ethernet frames} 
+%as the Linux kernel is able to process. In order to compare the performance of 
+%the Linux Kernel and the performance of our engine we have bypassed all packets 
+%from the Linux Kernel protocol stack into the LANA stack via a
+%\texttt{netdev\_rx\_handler} in bottom half context as soon as they arrived.
+
+%In our system the packets were processed by the \texttt{fb\_eth} functional 
+%block followed by two \texttt{fb\_dummy} functional blocks that were simply 
+%forwarding the packets. We can distinguish the following three approaches:
 \begin{compactitem}
-\item On each CPU there exists one high priority thread that is responsible 
-      for processing LANA packets. This approach leads to a 'starvation' of 
-      the software interrupt handler (ksoftirqd) and hence the maximal achieved 
-      packet rate is only about half as what is achieved by the protocol 
-      stack of the Linux kernel. Also changing the priority of the LANA 
-      thread to normal only slightly increases the throughput (since the 
-      ksoftirqd is a low-priority thread).
-\item Instead of relying completely on the process scheduler of the 
-      Linux Kernel we control preemption and scheduling explicitly. This 
-      approach still exhibits scheduling overhead, but it increases the 
-      performance to about two thirds of the performance of the Linux 
-      Kernel.
-\item Instead of executing the LANA functions in a dedicated thread they 
-      are executed directly in the ksoftirqd context. With this approach 
-      approximately $95\%$ of the performance of the Linux kernel is achieved.
+\item One high priority LANA thread per CPU achieves approx. half the performance of the default stack. The performance degradation is due to 'starvation' of the software interrupt handler (ksoftirqd). Changing the priority of the LANA thread only slightly increases the throughput (since the ksoftirqd is a low-priority thread).
+\item Explicit preemption and scheduling control achieves approx. two third of the performance of the default stack. The performance is still reduced by scheduling overhead. 
+\item Execution of the PPE in ksoftirqd context. This approach achieves
+      approximately $95\%$ of the performance of the Linux kernel.
 \end{compactitem}
 
 The corresponding numbers are listed in Table \ref{tab:performance}.
@@ -301,27 +285,33 @@ Dedicated kernel thread (controlled scheduling) & 900.000\\
 Execution in ksoftirqd & 1.300.000\\
 Linux kernel networking stack & 1.380.000\\
 \end{tabular}
-\caption{Performance evaluation (pps) of different approaches to receiving 
-packets in the Linux kernel. The packets are 64 Bytes long. The evaluation 
-was done with the kernel packet generator \texttt{pktgen} on two directly 
-connected machines with Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, an 
-Intel 82566DC-2 NIC and Linux 3.0rc1.}
+\caption{Performance evaluation in pps with 64 Byte packets.
+% The evaluation was done with the kernel packet generator \texttt{pktgen} on two directly 
+%connected machines with 
+(Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, Intel 82566DC-2 NIC, Linux 3.0rc1)}
 \label{tab:performance}
 \end{table}
 
 \subsection{Software Available}
 The current sofware is available under the GNU General Public License from 
 \cite{lana}. In addition to the framework it also includes four functional 
-blocks: Ethernet, Berkeley Packet Filter, Tee (duplicate a packet), Packet 
-Counter and Forward (an empty Block that just forwards the packets to 
+blocks: Ethernet, Berkeley Packet Filter, Tee (duplication of packets), Packet 
+Counter and Forward (an empty block that just forwards the packets to 
 another block). The framework does not need any patching of the Linux kernel
-but needs a new 3.X kernel.
+but it requires a new Linux 3.X kernel.
 
 \section{Conclusions and Future Work}
-We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. This allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime to include for example compression or encryption as the networking conditions change. 
+We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. The flexibility allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime. Both might lead to a protocol stack that is better suited for a given networking situation than the well known TCP/IP protocol stack.
+%to include for example compression or encryption as the networking conditions change. 
 
-In the short term we will compare the performance of real scenarios implemented in our system with the performance of an implementation in other systems (for example default Linux protocol stack or the Click router). In the midterm we will develop a mechanism that automatically sets up a protocol stack for an Application whereby the Application can specify some characteristics the communication channel should have, but not exactly how this has to be achieved. For example the application could require a "reliable communication channel" and a controller would choose between different protocols that provide reliability (e.g., one for wired communication, one for wireless communication, one for wireless, multi-hop communication). The setup of the protocol stack will have to be negotiated between the source and destination node. The end goal will be to have a networked system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions.   
+In the short-term we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
+In the mid-term we will work on mechanisms that automatically configures protocol stacks based on the applications as well as the networks needs. 
+%Applications will characterize which properties a communication channel should have and monitoring elements will provide information about the network. A controller will be responsible for negotiating a protocol stack with a peer and for setting up the protocol stack on the local node.
+The end goal will be to have a networked system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions.   
 
+
+
+%In the midterm we will develop a mechanism that automatically sets up a protocol stack for an Application whereby the Application can specify some characteristics the communication channel should have, but not exactly how this has to be achieved. For example the application could require a "reliable communication channel" and a controller would choose between different protocols that provide reliability (e.g., one for wired communication, one for wireless communication, one for wireless, multi-hop communication). The setup of the protocol stack will have to be negotiated between the source and destination node. 
 
 %\end{document}  % This is where a 'short' article might terminate
 
