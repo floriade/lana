@@ -152,16 +152,15 @@ Placeholder: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesq
 Praesent ac porta ante. Integer sem urna, pretium sed dignissim id, laoreet sit amet sem. Cras ac risus nec nibh tempor gravida. Integer ac ligula sed orci luctus condimentum at quis dui. Etiam dignissim dignissim tellus, et dapibus elit venenatis nec. Sed hendrerit imperdiet lacinia. Sed enim purus, mattis vel ullamcorper vel, malesuada vitae turpis. Pellentesque nec lacus tortor, eget scelerisque lectus. Suspendisse lectus mauris, tempor eget porttitor id, consectetur vel sem. 
 
 
-\section{The Body of The Paper}
+\section{Light Weight Autonomic Network Architecture (LANA)}
+LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
+ 
+Similar to the Protocol Stack of Linux the protocol stack of LANA is implemented in kernel space and applications can access it over a socket interface. The hardware is hidden between a virtual interface. This interface allows on the one side to plug in different network technoligies such as Ethernet or bluetooth and on the other side functional blocks to have a unified interface. Additionally, virtual networks, similar to VLANs can be built and managed with the standard tools ( \texttt{ifconfig, ifpps, ethtool}. (TODO: descirbe the vlink subsystem better).
 
-Description of the base architecture see Figure \ref{fig:architecture}.
-\begin{compactitem}
-\item Environment: kernel space - kernel XXX
-\item Application Interface: socket API 
-\item Hardware Interface: Vlink subsystem
-\item Configuration: what can be configured?, Command line interface 
-\item Internals: state Management, Functional block notifier 
-\end{compactitem}
+The control flow between the functional blocks is done with \textit{events}. They are used for setup and teardown of data flow paths between the functional blocks. (TODO: something else?, anything more specific (how is the subsystem called of the Linux Kernel?))
+
+Data is transmitted between the functional blocks by function calls. Each functional block either calls the processing function of an other functional block or discards the data and returns. There are two special functional blocks - those communicating with a network driver and those communicating with the sockets. Additionally the can put the packets either in the drivers transmit queue or in the sockets receive queue. (TODO: better description of processing engine, backlog queue)
+
 
 \begin{figure}
 \centering
@@ -205,8 +204,8 @@ mechanism & performance\\
 dedicated kernel thread (high priority) & 700000\\
 dedicated kernel thread (normal priority) & 750000\\
 dedicated kernel thread (controlled scheduling) & 900000\\
-execution in ksoftirqd & 130000\\
-Linux kernel stack & 138000\\
+execution in ksoftirqd & 1300000\\
+Linux kernel stack & 1380000\\
 \end{tabular}
 \caption{Performance evaluation (pps) of different approaches to receiving packets in the Linux kernel. The packets are 64 Bytes long. The evaluation was done on a TODO: CPU/RAM/NETWORKCARD/KERNEL}
 \label{tab:performance}
