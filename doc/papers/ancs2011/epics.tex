@@ -47,6 +47,7 @@
 
 \documentclass{sig-alternate}
 \usepackage{paralist}
+\usepackage{url}
 \begin{document}
 %
 % --- Author Metadata here ---
@@ -152,15 +153,47 @@ Placeholder: Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesq
 Praesent ac porta ante. Integer sem urna, pretium sed dignissim id, laoreet sit amet sem. Cras ac risus nec nibh tempor gravida. Integer ac ligula sed orci luctus condimentum at quis dui. Etiam dignissim dignissim tellus, et dapibus elit venenatis nec. Sed hendrerit imperdiet lacinia. Sed enim purus, mattis vel ullamcorper vel, malesuada vitae turpis. Pellentesque nec lacus tortor, eget scelerisque lectus. Suspendisse lectus mauris, tempor eget porttitor id, consectetur vel sem. 
 
 
-\section{Light Weight Autonomic Network Architecture (LANA)}
-LANA provides a framework for setting up protocol stacks not known by todays standard operating systems. Within LANA it is also possible to change the protocol stack at runtime, without communication teardown or application support. These properties build the basis for a networking system that provides protocol stacks that are better targeted to a networking situation than the well known TCP/IP protocol stack.
+\section{Lightweight Autonomic Network Architecture (LANA)}
+
+LANA provides a framework for setting up protocol stacks not known by 
+todays standard operating systems. Within LANA it is also possible to 
+change the protocol stack at runtime, without communication teardown or 
+application support. These properties build the basis for a networking 
+system that provides protocol stacks that are better targeted to a 
+networking situation than the well known TCP/IP protocol stack.
  
-Similar to the Protocol Stack of Linux the protocol stack of LANA is implemented in kernel space and applications can access it over a socket interface. The hardware is hidden between a virtual interface. This interface allows on the one side to plug in different network technoligies such as Ethernet or bluetooth and on the other side functional blocks to have a unified interface. Additionally, virtual networks, similar to VLANs can be built and managed with the standard tools ( \texttt{ifconfig, ifpps, ethtool}. (TODO: descirbe the vlink subsystem better).
+Similar to the protocol stack of Linux' networking subsystem the protocol 
+stack of LANA is implemented in kernel space and applications can access 
+it over the BSD socket interface. On the other hand, hardware and device drivers are 
+hidden between a virtual link interface. This interface allows on the 
+one side to have multiple virtual interfaces or networks similar to 
+VLANs on different underlying networking technoligies such as Ethernet, 
+Bluetooth or InfiniBand and on the other side ingress and egress points to 
+LANA functional blocks with its packet processing engine. Additionally, 
+virtual link interface devices are represented as usual kernel networking 
+devices and can be managed with standard tools such as \texttt{ifconfig}, 
+\texttt{ifpps} or \texttt{ethtool}.
 
-The control flow between the functional blocks is done with \textit{events}. They are used for setup and teardown of data flow paths between the functional blocks. (TODO: something else?, anything more specific (how is the subsystem called of the Linux Kernel?))
+The setup of the control flow between functional blocks is done with event
+messages by the Linux notification chain framework. They are used for setup 
+and teardown of data flow paths between functional blocks or for exchange of
+other internal functional block data.
 
-Data is transmitted between the functional blocks by function calls. Each functional block either calls the processing function of an other functional block or discards the data and returns. There are two special functional blocks - those communicating with a network driver and those communicating with the sockets. Additionally the can put the packets either in the drivers transmit queue or in the sockets receive queue. (TODO: better description of processing engine, backlog queue)
+Data is transmitted between the functional blocks by function calls and is 
+therefore not being copied between functional blocks. A network packet is 
+processed by the LANAs packet processing engine, which calls receive handlers 
+of functional blocks that are bound to each other in the processing path. Data is then 
+either forwarded to the subsequent functional block or discarded. A certain
+path can be traversed in ingress or egress direction, thus functional
+blocks can also flip the packets direction within the packet processing engine.
+Moreover, the packet processing engine has per-CPU backlog queues so that
+functional blocks which spawn new network packets can enqueue the like for
+processing.
 
+There are two special functional blocks - those of the virtual link interface 
+communicating with a network driver and those communicating with BSD sockets.
+These functional blocks push network packets either in the drivers transmit 
+queue or in the sockets receive queue. 
 
 \begin{figure}
 \centering
