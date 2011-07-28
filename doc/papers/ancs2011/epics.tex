@@ -162,6 +162,8 @@ Linux protocol stack.
 Beyond doubt, the Internet has grown out of its infancy. A huge variety of networked applications and a diverse range of protocols are available, ranging from protocols for the communication over fibre, cat5 or over the air to protocols supporting specific applications such as p2p, web or voIP. However, the architecture is not designed to also allow for an easy integration of new protocols between these two layers. We argue that an architecture that would not limit innovation to the outer layers would give the Internet another boost.
 \ariane{should also motivate runtime here.}
 
+Additionaly, 
+
 Some research with this goal was already done in active networking \cite{ANSurvey2}, with the Click modular router \cite{click} or with openflow \cite{openflow}. However, none of the available implementations fulfils the following three partially conflicting objectives. 
 %The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. In this paper we present the architecture of a framework that is designed for the following three goals. 
 \begin{compactenum}
@@ -194,14 +196,18 @@ In this paper we present the \textit{Lightweight Autonomic Network Architecture 
 %networking situation than the well known TCP/IP protocol stack.
 
 Generally, the LANA network system is built similarly to the network subsystem of the Linux kernel.
-Applications can send and transmit packets via the BSD socket interface and the actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space (figure \ref{fig:architecture}).
+Applications can send and transmit packets via the BSD socket interface and the actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space. An overview of the architecture is presented in (Figure \ref{fig:architecture}).
 
 %\daniel{too much is said about the vlink interface. I'd rather save the words for the PPE or functional blocks. I think about a better paragraph for tomorrow}
 
 The hardware and device drivers interfaces are hidden from the PPE behind a \textit{virtual link interface}, which allows a simple integration of different underlaying networking technologies such as Ethernet, Bluetooth or InfiniBand.
 % Additionally, virtual link interface devices are represented as usual kernel networking devices and can be managed with standard tools such as \texttt{ifconfig} or \texttt{ethtool}.
 
-Each functional block is implemented as a Linux kernel module. It offers a \textit{receive handler} that is invoked by the PPE upon packet processing. Functional blocks are built as objects of a specific type. Their build handlers are registered to the LANA core during module registration. Functional blocks can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed the packet it returns the identifier of the next functional block that should process this packet. In addition functional blocks belonging to the virtual link interface will queue the packets in the network drivers transmit queue and functional blocks communicating with BSD sockets will queue the packets in the sockets receive queue.
+Each functional block is implemented as a Linux kernel module. 
+Upon module insertion a constructor for the creation of an instance of the functional block is registered with the PPE. Upon configuration of the protocol stack the instances of the functional blocks are created. The instances register a \textit{receive function} with the PPE. This function is called when a packet needs to be processed.
+%It offers a \textit{receive handler} that is invoked by the PPE upon packet processing. Functional blocks are built as objects of a specific type. Their build handlers are registered to the LANA core during module registration. 
+
+Functional blocks can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed the packet it returns the identifier of the next functional block that should process this packet. In addition functional blocks belonging to the virtual link interface will queue the packets in the network drivers transmit queue and functional blocks communicating with BSD sockets will queue the packets in the sockets receive queue.
 
 The PPE is responsible for calling one functional block after the other and for queuing packets that need to be processed.
 
