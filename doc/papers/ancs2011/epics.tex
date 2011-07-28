@@ -176,7 +176,7 @@ Some research with this goal was already done in active networking \cite{ANSurve
 \end{compactenum}
 
 Therefore we propose another architecture that was designed with these goals in mind.
-The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into functional blocks that can be combined as required. Each functional block implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of functional blocks to a protocol stack. This allows for the experimentation with protocol stacks that are not known by todays standard operating system and it allows for the optimization of the protocol stack at runtime without communication tear down or application support.
+The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into \textit{functional blocks (FB)} that can be combined as required. Each FB implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of FBs to a protocol stack. This allows for the experimentation with protocol stacks that are not known by todays standard operating system and it allows for the optimization of the protocol stack at runtime without communication tear down or application support.
 The existing implementation of ANA shows the feasibility of such a flexible architecture but it suffers sever performance issues. 
 In this paper we present the \textit{Lightweight Autonomic Network Architecture (LANA)}. It allows for a similar functionality than ANA but demonstrates that flexibility does not have to come at the cost of reduced performance.
 
@@ -204,12 +204,12 @@ The hardware and device drivers interfaces are hidden from the PPE behind a \tex
 % Additionally, virtual link interface devices are represented as usual kernel networking devices and can be managed with standard tools such as \texttt{ifconfig} or \texttt{ethtool}.
 
 Each functional block is implemented as a Linux kernel module. 
-Upon module insertion a constructor for the creation of an instance of the functional block is registered with the PPE. Upon configuration of the protocol stack the instances of the functional blocks are created. The instances register a \textit{receive function} with the PPE. This function is called when a packet needs to be processed.
+Upon module insertion a constructor for the creation of an instance of the FB is registered with the PPE. Upon configuration of the protocol stack the instances of the FB are created. The instances register a \textit{receive function} with the PPE. This function is called when a packet needs to be processed.
 %It offers a \textit{receive handler} that is invoked by the PPE upon packet processing. Functional blocks are built as objects of a specific type. Their build handlers are registered to the LANA core during module registration. 
 
-Functional blocks can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed the packet it returns the identifier of the next functional block that should process this packet. In addition functional blocks belonging to the virtual link interface will queue the packets in the network drivers transmit queue and functional blocks communicating with BSD sockets will queue the packets in the sockets receive queue.
+Functional blocks can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed the packet it returns the identifier of the next FB that should process this packet. In addition FB belonging to the virtual link interface will queue the packets in the network drivers transmit queue and FB communicating with BSD sockets will queue the packets in the sockets receive queue.
 
-The PPE is responsible for calling one functional block after the other and for queuing packets that need to be processed.
+The PPE is responsible for calling one FB after the other and for queuing packets that need to be processed.
 
 %Data is transmitted between the functional blocks by function calls and is 
 %therefore not being copied between functional blocks.
@@ -230,7 +230,8 @@ The PPE is responsible for calling one functional block after the other and for 
 
 \begin{figure}
 \centering
-\includegraphics[width=0.4\textwidth]{figures/data_flow.pdf}
+\includegraphics[width=0.35\textwidth]{figures/data_flow.pdf}
+\vspace{-0.2cm}
 \caption{Packet flow in LANA}
 \label{fig:architecture}
 \vspace{-0.5cm}
@@ -246,27 +247,27 @@ The PPE is responsible for calling one functional block after the other and for 
 The protocol stack can be configured from user space with the help of a 
 command line tool. The most important commands are summarized below.
 \begin{compactitem}
-\item \texttt{add}, \texttt{rm}: Adds (removes) a functional block from the 
-      list of available functional blocks in the kernel. 
-\item \texttt{set}: sets specific properties of a functional block with a 
+\item \texttt{add}, \texttt{rm}: Adds (removes) an FB from the 
+      list of available FBs in the kernel. 
+\item \texttt{set}: sets specific properties of a FB with a 
       \texttt{key=value} semantic
-\item \texttt{bind}, \texttt{unbind}: Binds (unbinds) a functional block 
+\item \texttt{bind}, \texttt{unbind}: Binds (unbinds) an FB 
       to another in order to be able to send messages to it. 
-\item \texttt{replace}: Replaces one functional block with another 
-      functional block. The connections between the blocks are maintained. 
+\item \texttt{replace}: Replaces one FB with another 
+      FB. The connections between the blocks are maintained. 
       Private data can either be transferred to the new block or dropped.
 %\item \texttt{subscribe}, \texttt{unsubscribe}: Subscribes (Unsubscribes) one 
 %      functional block to receive event messages from another functional block.
 %      (An implicit subscribtion (unsubscribtion) is done on bind (unbind).)
 \end{compactitem}
-Within the Linux kernel the notification chain framework is used to propagate those configuration messages to the individual functional blocks. 
+Within the Linux kernel the notification chain framework is used to propagate those configuration messages to the individual FBs. 
 %This framework is also used to distribute other, internal, configuration messages. 
 
 \subsection{Improving the Performance}
 We have evaluated different possibilities for the integration of the PPE with the 
 Linux kernel. We summarize our insights to provide guidance for researchers that have to do fundamental changes on the Linux protocol stack.
 
-We compared the maximum packet reception rate of the Linux kernel while not doing any packet processing with our architecture. Here packets are forwarded between three functional blocks that do only packet forwarding. 
+We compared the maximum packet reception rate of the Linux kernel while not doing any packet processing with our architecture. Here packets are forwarded between three FBs that do only packet forwarding. 
 
 %Our goal was to be able to process as many \textit{minimum sized Ethernet frames} 
 %as the Linux kernel is able to process. In order to compare the performance of 
@@ -317,7 +318,7 @@ We have shown that it is possible to implement a flexible protocol stack that ha
 In the short-term we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
 In the mid-term we will work on mechanisms that automatically configures protocol stacks based on the applications as well as the networks needs. 
 %Applications will characterize which properties a communication channel should have and monitoring elements will provide information about the network. A controller will be responsible for negotiating a protocol stack with a peer and for setting up the protocol stack on the local node.
-The end goal will be to have a networked system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions.   
+The end goal is have a networked system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions.   
 
 
 
