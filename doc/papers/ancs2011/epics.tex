@@ -219,16 +219,6 @@ prototype implementation suggest that we can offer comparable functionality and
 flexibility as ANA but at packet forwarding rates comparable to those of the
 standard Linux networking stack. 
 
-
-
-
-Therefore, we propose another architecture that was designed with these objectives in mind.
-The architecture is based on the ideas of the \textit{Autonomic Network Architecture (ANA)}. \cite{ANAJournal}. In ANA network functionality is divided into \textit{functional blocks (FB)} that can be combined as required. Each FB implements a protocol such as \textit{ip, udp, encryption, content centric routing, etc.} ANA does not impose any protocols to be used other than Ethernet, rather it provides a framework that allows for the flexible composition and recomposition of FBs to a protocol stack. This allows for the experimentation with protocol stacks that are not known by todays standard operating system and it allows for the optimization of protocol stacks at runtime without communication tear down or application support.
-The existing implementation of ANA shows the feasibility of such a flexible architecture but it suffers sever performance issues. \wolfgang{We need to say what the key improvement/change is compared to ANA already here. Not clear yet -> kernel-based}
-In this paper we present the \textit{Lightweight Autonomic Network Architecture (LANA)}. It allows for a similar functionality than ANA but demonstrates that flexibility does not have to come at the cost of reduced performance.
-
-
-
 \section{LANA: Approach}
 
 
