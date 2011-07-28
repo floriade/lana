@@ -159,13 +159,36 @@ standard Linux protocol stack.
 %\keywords{ACM proceedings, \LaTeX, text tagging}
 
 \section{Introduction}
+Beyond doubt, the Internet has grown out of its infancy and has become a
+critical infrastructure for private and business applications. Its success is
+largely due to the plethora of transport media (SONET, wired and wireless
+Ethernet, etc.) it uses and to the rich network applications (e.g., web, p2p, VoIP,
+online social networks) it offers. Yet, \emph{network programming} is still
+mainly about programming sockets that form a strictly defined interface between
+the networking (TCP/IP) and the actual application part (Facebook, VoIP, etc.).
+What if designers of network applications could even tailor the networking
+functionality to their needs? We can just speculate about the resulting
+innovations. 
 
-Beyond doubt, the Internet has grown out of its infancy. A huge variety of networked applications and a diverse range of protocols are available, ranging from protocols for the communication over fibre, cat5 or over the air to protocols supporting specific applications such as p2p, web or voIP. However, the architecture is not designed to also allow for an easy integration of new protocols between these two layers. We argue that an architecture that would not limit innovation to the outer layers would give the Internet another boost.
-%\ariane{should also motivate runtime here.}
-Additionally, nowadays protocol stacks assume that the timely variances in a communication channel can be covered by adaptive parameters inside a single protocol. However, this might not be true for long lasting communications (e.g. in sensor networks). Network characteristics, privacy or security concerns might change with time. The protocol stack should be able to accommodate for such changes without the need for restarting the applications. 
+Besides allowing application designers to program their own networking stack,
+we envision future Internet applications that \emph{dynamically} adjust their
+network setup/stack during runtime. To give an example: already nowaday's
+websites sometimes redirect users from an HTTP to an SSL-encrypted HTTPS
+connection before sensitive data is exchanged. The step from dynamic
+application-level (SSL-based) to more comprehensive network-layer (IPsec)
+encryption appears small. Yet, enabling a network application to switch to an
+IPSec connection while retaining connectivity is challenging. 
 
-Some research addressing these goals was already done in active networking \cite{ANSurvey2}, with the Click modular router \cite{click} or with openflow \cite{openflow}. However, none of the available implementations fulfils the following three partially conflicting 
-goals. 
+%Additionally, nowadays protocol stacks assume that the timely variances in a
+%communication channel can be covered by adaptive parameters inside a single
+%protocol. However, this might not be true for long lasting communications (e.g.
+%in sensor networks). Network characteristics, privacy or security concerns
+%might change with time. The protocol stack should be able to accommodate for
+%such changes without the need for restarting the applications. 
+Research efforts in this area include active networking~\cite{ANSurvey2}, Click
+modular router project\cite{click}, or OpenFlow~\cite{openflow}. However, none
+of the available implementations fulfils the following three partially
+conflicting goals. 
 %The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. In this paper we present the architecture of a framework that is designed for the following three goals. 
 \begin{compactenum}
 %\item Provide a platform in which it is easy to test new protocols on end nodes. In order to simplify testing further it should not require any specialized hardware. 
@@ -183,7 +206,7 @@ In this paper we present the \textit{Lightweight Autonomic Network Architecture 
 
 
 
-\section{LANA}
+\section{LANA: Approach}
 
 
 %\wolfgang{quickly say first why you propose another architecture; e.g., Click configuration if an kernel cannot be changed at runtime or not happy with Ana's performance; it should be come clear that we try to accommodate conflicting objectives, see my abstract}
@@ -307,6 +330,7 @@ Linux kernel networking stack & 1.380.000\\
 \end{table}
 \newpage
 \subsection{Software Available}
+\wolfgang{I'd prefer to merge this section 2.1 ``Configuration Interface''. Then, we can market the performance results at a prominent position of the paper, at the end. I would call the new section ``Implementation''}
 The current software is available under the GNU General Public License from 
 \cite{lana}. In addition to the framework it also includes four functional 
 blocks: Ethernet, Berkeley Packet Filter, Tee (duplication of packets), Packet 
