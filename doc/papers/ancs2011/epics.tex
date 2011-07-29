@@ -226,7 +226,8 @@ it suffers sever performance issues.
 %\wolfgang{We need to say what the key
 %improvement/change is compared to ANA already here. Not clear yet ->
 %kernel-based} 
-In contrast to ANA, the proposed LANA architecture is completely written in the Linux kernel and makes use of its optimized structures for packet handling. Additionally, instead of passing packets by copy between individual blocks we use a strict passing by reference approach.
+%In contrast to ANA, the proposed LANA architecture is completely written in the Linux kernel and makes use of its optimized structures for packet handling. Additionally, instead of passing packets by copy between individual blocks we use a strict passing by reference approach.
+In contrast to ANA, the proposed LANA architecture uses a message passing by reference scheme, minimizes the number of threads and uses for packet processing optimized structures provided by the Linux kernel.
 Surprisingly, our first experiences with a
 prototype implementation suggest that we can offer comparable %functionality and
 flexibility as ANA but at packet forwarding rates comparable to those of the
@@ -280,11 +281,11 @@ The PPE is responsible for calling one FB after the other and for queuing packet
 
 \begin{figure}
 \centering
-\includegraphics[width=0.29\textwidth]{figures/data_flow.pdf}
-\vspace{-0.2cm}
+\includegraphics[width=0.31\textwidth]{figures/data_flow.pdf}
+\vspace{-0.1cm}
 \caption{Packet flow in LANA}
 \label{fig:architecture}
-\vspace{-0.3cm}
+\vspace{-0.2cm}
 \end{figure}
 %\begin{figure}
 %\centering
