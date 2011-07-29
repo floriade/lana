@@ -146,7 +146,7 @@ paper, we tackle the challenge of accommodating 3 partially conflicting
 objectives: (i) high flexibility for network programmers,
 % and networkapplication designers, 
 (ii) re-configuration of the network stack at runtime,
-and (iii) high packet forwarding rates.  First experience with a prototype
+and (iii) high packet forwarding rates.  First experiences with a prototype
 implementation in Linux suggest little performance overhead compared to the 
 standard Linux protocol stack. 
 \end{abstract}
@@ -174,8 +174,15 @@ What if designers of network applications could even tailor the networking
 functionality to their needs? We can just speculate about the resulting
 innovations. 
 
-Nowadays, changes in the configuration of a protocol stack usually require applications or even the operating system to be restarted. 
-Such protocol stack changes occur if networking functionality needs to be patched, if the encryption method used is not considered safe anymore or when privacy concerns change. Conceptually, applications should not be harassed by such changes. Therefore, we advocate \textit{run time reconfigurable} protocol stacks. Such protocol stacks could also be used by the various initiatives that work on self* properties in computing to provide an algorithm that configures and adapts the protocol stack autonomously.
+Nowadays, changes in the configuration of a protocol stack usually require
+applications or even the operating system to be restarted.  The need for
+changing the protocol stack can arise if networking functionality needs to be
+patched, if the used encryption method is not considered safe anymore, or when
+privacy concerns change. Ideally, applications should not be affected by such
+changes.  Therefore, we advocate \textit{run time reconfigurable} protocol
+stacks. Such protocol stacks can be useful for various initiatives that work on
+self-star properties in computing by providing an algorithm that configures and
+adapts the protocol stack autonomously.
 
 
 
@@ -196,9 +203,9 @@ Such protocol stack changes occur if networking functionality needs to be patche
 %such changes without the need for restarting the applications. 
 %With respect to \emph{real} network programming, related work in this area
 
-Similar objectives were also set by active networking~\cite{ANSurvey2}, the Click modular router
+Similar objectives were also followed by active networking~\cite{ANSurvey2}, the Click modular router
 project\cite{click}, or OpenFlow~\cite{openflow}, etc. 
-Yet, we are not aware of any research that has achieved the following three partially conflicting goals 
+Yet, we are not aware of any research that has achieved the following three partially conflicting goals:
 %The fast speed of the growth of the Internet and the huge effect on everyday life could lead to the thought that it is perfectly designed and nothing should be changed on the underlying architecture. However, researcher are working continuously on new protocols that improve the communication performance for different communication scenarios. Be it in the area of routing, transport or completely new network architectures. The evaluation of such protocols has shown to be difficult as simulations are not realistic enough and as it is difficult to change anything in standard operating systems protocol stacks. To overcome this difficulty some environments dedicated for testing were built, for example Click \cite{click} and openflow \cite{openflow} in the routing area or NetFPGA \cite{netFPGA} for the evaluation of hardware implementations. None of these platforms is specifically designed for evaluating protocols on the end nodes and none of these platforms are designed for an adaptation of the protocol stack at run time. In this paper we present the architecture of a framework that is designed for the following three goals. 
 \begin{compactenum}
 %\item Provide a platform in which it is easy to test new protocols on end nodes. In order to simplify testing further it should not require any specialized hardware. 
@@ -214,23 +221,21 @@ Architecture (LANA)}. Our architecture borrows ideas from
 ANA~\cite{ANAJournal}, where network functionality is divided into
 \textit{functional blocks (FB)} that can be combined as required. Each FB
 implements a protocol such as \textit{IP, UDP, or content centric
-routing.} ANA does not impose any protocols to be used
-% other than Ethernet
-, rather it provides a framework that allows for the flexible
+routing.} ANA does not impose any protocols to be used. Rather it provides a framework that allows for the flexible
 composition and recomposition of FBs to a protocol stack. This allows for the
-experimentation with protocol stacks that are not known by todays standard
-operating systems and it allows for the optimization of protocol stacks at
+experimentation with protocol stacks that are not known by today's standard
+operating systems, and it allows for the optimization of protocol stacks at
 runtime without communication tear down or application support.  The existing
 implementation of ANA shows the feasibility of such a flexible architecture but
-it suffers sever performance issues. 
+suffers sever performance issues. 
 %\wolfgang{We need to say what the key
 %improvement/change is compared to ANA already here. Not clear yet ->
 %kernel-based} 
 %In contrast to ANA, the proposed LANA architecture is completely written in the Linux kernel and makes use of its optimized structures for packet handling. Additionally, instead of passing packets by copy between individual blocks we use a strict passing by reference approach.
-In contrast to ANA, the proposed LANA architecture uses a message passing by reference scheme, minimizes the number of threads and uses for packet processing optimized structures provided by the Linux kernel.
+In contrast to ANA, the proposed LANA architecture relies on a message passing by reference scheme, minimizes the number of threads, and uses optimized packet processing structures provided by the Linux kernel.
 Surprisingly, our first experiences with a
 prototype implementation suggest that we can offer comparable %functionality and
-flexibility as ANA but at packet forwarding rates comparable to those of the
+flexibility as ANA, but at packet forwarding rates comparable to those of the
 standard Linux networking stack. 
 
 \section{LANA: Approach}
@@ -369,10 +374,10 @@ Linux kernel networking stack & 1.380.000\\
 We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. The flexibility allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime. Both might lead to a protocol stack that is better suited for a given networking situation than the well known TCP/IP protocol stack.
 %to include for example compression or encryption as the networking conditions change. 
 
-In the short-term we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
-In the mid-term we will work on mechanisms that automatically configure protocol stacks based on the applications as well as the networks needs. 
+In the short-term, we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
+In the mid-term, we will work on mechanisms that automatically configure protocol stacks based on the applications as well as the networks needs. 
 %Applications will characterize which properties a communication channel should have and monitoring elements will provide information about the network. A controller will be responsible for negotiating a protocol stack with a peer and for setting up the protocol stack on the local node.
-In the long-term a system that requires less configuration as compared to todays networks and that is able to adapt itself to changing network conditions is envisaged.   
+In the long-term, we envisage a system that requires less configuration as compared to today's networks and that is able to adapt itself to changing network conditions.   
 
 
 
