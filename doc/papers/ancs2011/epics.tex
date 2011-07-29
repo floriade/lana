@@ -160,6 +160,7 @@ standard Linux protocol stack.
 
 %\keywords{ACM proceedings, \LaTeX, text tagging}
 
+\vspace{-0.2cm}
 \section{Introduction}
 Beyond doubt, the Internet has grown out of its infancy and has become a
 critical infrastructure for private and business applications. Its success is
@@ -232,6 +233,7 @@ prototype implementation suggest that we can offer comparable %functionality and
 flexibility as ANA but at packet forwarding rates comparable to those of the
 standard Linux networking stack. 
 
+\vspace{-0.2cm}
 \section{LANA: Approach}
 
 
@@ -280,11 +282,11 @@ The PPE is responsible for calling one FB after the other and for queuing packet
 
 \begin{figure}
 \centering
-\includegraphics[width=0.29\textwidth]{figures/data_flow.pdf}
+\includegraphics[width=0.35\textwidth]{figures/data_flow.pdf}
 \vspace{-0.2cm}
 \caption{Packet flow in LANA}
 \label{fig:architecture}
-\vspace{-0.3cm}
+\vspace{-0.4cm}
 \end{figure}
 %\begin{figure}
 %\centering
@@ -293,6 +295,7 @@ The PPE is responsible for calling one FB after the other and for queuing packet
 %\label{fig:stack}
 %\end{figure}
 
+\vspace{-0.15cm}
 \subsection{Implementation}
 %\subsubsection*{Configuration Interface}
 The protocol stack can be configured from user space with the help of a 
@@ -322,7 +325,7 @@ Counter and Forward (an empty block that forwards the packets to
 another block). The framework does not need any patching of the Linux kernel
 but it requires a new Linux 3.X kernel.
 
-
+\vspace{-0.15cm}
 \subsection{Improving the Performance}
 We have evaluated different possibilities for the integration of the PPE with the 
 Linux kernel. We summarize our insights to provide guidance for researchers that have to do fundamental changes on the Linux protocol stack.
@@ -362,9 +365,10 @@ Linux kernel networking stack & 1.380.000\\
 %connected machines with 
 (Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, Intel 82566DC-2 NIC, Linux 3.0rc1)}
 \label{tab:performance}
-\vspace{-0.1cm}
+\vspace{-0.15cm}
 \end{table}
 
+\vspace{-0.2cm}
 \section{Conclusions and Future Work}
 We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. The flexibility allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime. Both might lead to a protocol stack that is better suited for a given networking situation than the well known TCP/IP protocol stack.
 %to include for example compression or encryption as the networking conditions change. 
