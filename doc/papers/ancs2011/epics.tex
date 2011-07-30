@@ -252,7 +252,7 @@ standard Linux networking stack.
 %networking situation than the well known TCP/IP protocol stack.
 
 Generally, the LANA network system is built similarly to the network subsystem of the Linux kernel.
-Applications can send and transmit packets via the BSD socket interface. The actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space. An overview of the architecture is presented in (Figure \ref{fig:architecture}).
+Applications can send and transmit packets via the BSD socket interface. The actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space. An overview of the architecture is presented in Figure \ref{fig:architecture}.
 
 %\daniel{too much is said about the vlink interface. I'd rather save the words for the PPE or functional blocks. I think about a better paragraph for tomorrow}
 
@@ -307,7 +307,7 @@ command line tool. The most important commands are summarized below.
 \item \texttt{add}, \texttt{rm}: Adds (removes) an FB from the 
       list of available FBs in the kernel. 
 \item \texttt{set}: sets properties of an FB with a 
-      \texttt{key=value} semantic
+      \texttt{key=value} semantic.
 \item \texttt{bind}, \texttt{unbind}: Binds (unbinds) an FB 
       to another FB in order to be able to send messages to it. 
 \item \texttt{replace}: Replaces one FB with another 
@@ -348,7 +348,7 @@ We compared the maximum packet reception rate of the Linux kernel while not doin
 % (since the ksoftirqd is a low-priority thread).
 \item Explicit preemption and scheduling control achieves approx. two third of the performance of the default stack. The performance degradation is due to scheduling overhead. 
 \item Execution of the PPE in ksoftirqd context. This approach achieves
-      approx. $95\%$ of the performance of default stack.
+      approx. $95\%$ of the performance of the default stack.
 \end{compactitem}
 
 The corresponding numbers are listed in Table \ref{tab:performance}.
@@ -356,25 +356,25 @@ The corresponding numbers are listed in Table \ref{tab:performance}.
 \begin{tabular}{ l r }
 Mechanism & Performance\\
 \hline
-Dedicated kernel thread (high priority) & 700.000\\
-Dedicated kernel thread (normal priority) & 750.000\\
-Dedicated kernel thread (controlled scheduling) & 900.000\\
+Kernel threads (high priority) & 700.000\\
+Kernel threads (normal priority) & 750.000\\
+Kernel threads (controlled scheduling) & 900.000\\
 Execution in ksoftirqd & 1.300.000\\
 Linux kernel networking stack & 1.380.000\\
 \end{tabular}
+\vspace{-0.1cm}
 \caption{Performance evaluation in pps with 64 Byte packets.
 % The evaluation was done with the kernel packet generator \texttt{pktgen} on two directly 
 %connected machines with 
 (Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, Intel 82566DC-2 NIC, Linux 3.0rc1)}
 \label{tab:performance}
-\vspace{-0.1cm}
+%\vspace{-0.5cm}
 \end{table}
-
+%\vspace{-0.1cm}
 \section{Conclusions and Future Work}
 We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. The flexibility allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime. Both might lead to a protocol stack that is better suited for a given networking situation than the well known TCP/IP protocol stack.
 %to include for example compression or encryption as the networking conditions change. 
-
-In the short-term, we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
+In the short-term, we will compare the performance of real scenarios in LANA with the performance in other systems (e.g., default Linux stack, Click router, etc.). 
 In the mid-term, we will work on mechanisms that automatically configure protocol stacks based on the applications as well as the networks needs. 
 %Applications will characterize which properties a communication channel should have and monitoring elements will provide information about the network. A controller will be responsible for negotiating a protocol stack with a peer and for setting up the protocol stack on the local node.
 In the long-term, we envisage a system that requires less configuration as compared to today's networks and that is able to adapt itself to changing network conditions.   
