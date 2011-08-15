@@ -6,6 +6,27 @@
  * Copyright 2011 Daniel Borkmann <dborkma@tik.ee.ethz.ch>,
  * Swiss federal institute of technology (ETH Zurich)
  * Subject to the GPL.
+ *
+ * To generate BPF's, do the following:
+ * 1. Install flex + bison
+ *
+ * 2. Download bpfc:
+ *    cd /tmp
+ *    git clone git://repo.or.cz/netsniff-ng.git
+ *    cd netsniff-ng/src/bpfc/
+ *    make
+ *
+ *    vim firstfilter
+ *
+ *    ldh [12]
+ *    jeq #0x800,L1,L2
+ *    L1: ret #0xffffff
+ *    L2: ret #0
+ *
+ *    bpfc firstfilter > code
+ *
+ *    And finally cat the code into the fb's procfs file, e.g.
+ *    cat code > /proc/net/lana/fblock/fb1
  */
 
 #include <linux/kernel.h>
@@ -296,7 +317,7 @@ static int fb_bpf_proc_show_filter(struct seq_file *m, void *v)
 			char sline[32];
 			memset(sline, 0, sizeof(sline));
 			snprintf(sline, sizeof(sline),
-				 "0x%x, %u, %u, 0x%x\n",
+				 "{ 0x%x, %u, %u, 0x%x }\n",
 				 sf->insns[i].code,
 				 sf->insns[i].jt,
 				 sf->insns[i].jf,
@@ -354,7 +375,7 @@ static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 	fp->len = 0;
 
 	while (fp->len < MAX_INSTR_SIZ && (char *) (code + len) > ptr1) {
-		while (ptr1 && *ptr1 == ' ')
+		while (ptr1 && (*ptr1 == ' ' || *ptr1 == '{'))
 			ptr1++;
 		fp->filter[fp->len].code = (__u16) simple_strtoul(ptr1, &ptr2, 16);
 		while (ptr2 && (*ptr2 == ' ' || *ptr2 == ','))
@@ -366,7 +387,8 @@ static ssize_t fb_bpf_proc_write(struct file *file, const char __user * ubuff,
 		while (ptr2 && (*ptr2 == ' ' || *ptr2 == ','))
 			ptr2++;
 		fp->filter[fp->len].k = (__u32) simple_strtoul(ptr2, &ptr1, 16);
-		while (ptr1 && (*ptr1 == ' ' || *ptr1 == ',' || *ptr1 == '\n'))
+		while (ptr1 && (*ptr1 == ' ' || *ptr1 == ',' || *ptr1 == '}' ||
+				*ptr1 == '\n'))
 			ptr1++;
 		fp->len++;
 	}
