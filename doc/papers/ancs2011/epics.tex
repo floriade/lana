@@ -53,6 +53,11 @@
 \newcommand{\daniel}[1]{\textcolor{red}{\emph{DB: #1}}}
 
 \usepackage{url}
+
+\makeatletter
+\let\@copyrightspace\relax
+\makeatother 
+
 \begin{document}
 %
 % --- Author Metadata here ---
@@ -152,13 +157,11 @@ standard Linux protocol stack.
 \end{abstract}
 
 % A category with the (minimum) three required fields
-%\category{H.4}{Information Systems Applications}{Miscellaneous}
-%A category including the fourth, optional field follows...
-%\category{D.2.8}{Software Engineering}{Metrics}[complexity measures, performance measures]
+\category{C.2.1}{Computer Communication Networks}{Network Architecture and Design}
 
-%\terms{Theory}
+\terms{Design, Experimentation, Performance}
 
-%\keywords{ACM proceedings, \LaTeX, text tagging}
+\keywords{Network architecture, flexible network stacks, Future Internet experimentation, performance}
 
 \section{Introduction}
 Beyond doubt, the Internet has grown out of its infancy and has become a
@@ -180,10 +183,9 @@ changing the protocol stack can arise if networking functionality needs to be
 patched, if the used encryption method is not considered safe anymore, or when
 privacy concerns change. Ideally, applications should not be affected by such
 changes.  Therefore, we advocate \textit{run time reconfigurable} protocol
-stacks. Such protocol stacks can be useful for various initiatives that work on
-self-star properties in computing by providing an algorithm that configures and
+stacks. For example, such protocol stacks can be useful for self-star
+properties in computing, since they provide an algorithm that configures and
 adapts the protocol stack autonomously.
-
 
 
 %Besides allowing application designers to program their own networking stack,
@@ -252,7 +254,7 @@ standard Linux networking stack.
 %networking situation than the well known TCP/IP protocol stack.
 
 Generally, the LANA network system is built similarly to the network subsystem of the Linux kernel.
-Applications can send and transmit packets via the BSD socket interface. The actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space. An overview of the architecture is presented in (Figure \ref{fig:architecture}).
+Applications can send and transmit packets via the BSD socket interface. The actual packet processing is done in a \textit{packet processing engine (PPE)} in the kernel space. An overview of the architecture is presented in Figure \ref{fig:architecture}.
 
 %\daniel{too much is said about the vlink interface. I'd rather save the words for the PPE or functional blocks. I think about a better paragraph for tomorrow}
 
@@ -263,7 +265,7 @@ Each functional block is implemented as a Linux kernel module.
 Upon module insertion a constructor for the creation of an instance of the FB is registered with the LANA core. Upon configuration of the protocol stack the instances of the FBs are created. The instances register a \textit{receive function} with the PPE. This function is called when a packet needs to be processed.
 %It offers a \textit{receive handler} that is invoked by the PPE upon packet processing. Functional blocks are built as objects of a specific type. Their build handlers are registered to the LANA core during module registration. 
 
-Functional blocks can either drop a packet, forward a packet to either ingress or egress direction or duplicate a packet. After having processed a packet the FB returns the identifier of the next FB that should process this packet. In addition, FBs belonging to the virtual link interface will queue the packets in the network drivers transmit queue and FBs communicating with BSD sockets will queue the packets in the sockets receive queue.
+Functional blocks can either drop a packet, forward a packet to either ingress or egress direction, or duplicate a packet. After having processed a packet, the FB returns the identifier of the next FB that should process this packet. In addition, FBs belonging to the virtual link interface will queue the packets in the network drivers transmit queue and FBs communicating with BSD sockets will queue the packets in the sockets receive queue.
 
 The PPE is responsible for calling one FB after the other and for queuing packets that need to be processed.
 
@@ -307,7 +309,7 @@ command line tool. The most important commands are summarized below.
 \item \texttt{add}, \texttt{rm}: Adds (removes) an FB from the 
       list of available FBs in the kernel. 
 \item \texttt{set}: sets properties of an FB with a 
-      \texttt{key=value} semantic
+      \texttt{key=value} semantic.
 \item \texttt{bind}, \texttt{unbind}: Binds (unbinds) an FB 
       to another FB in order to be able to send messages to it. 
 \item \texttt{replace}: Replaces one FB with another 
@@ -322,17 +324,20 @@ Within the Linux kernel the notification chain framework is used to propagate th
 
 %\subsubsection*{Available Software}
 The current software is available under the GNU General Public License from 
-\cite{lana}. In addition to the framework it also includes five functional 
+\cite{lana}. In addition to the framework, it also includes five functional 
 blocks: Ethernet, Berkeley Packet Filter, Tee (duplication of packets), Packet 
 Counter and Forward (an empty block that forwards the packets to 
 another block). The framework does not need any patching of the Linux kernel
 but it requires a new Linux 3.X kernel.
 
 \subsection{Improving the Performance}
-We have evaluated different possibilities for the integration of the PPE with the 
-Linux kernel. We summarize our insights to provide guidance for researchers that have to do fundamental changes on the Linux protocol stack.
+We have evaluated different options for the integration of the PPE with
+the Linux kernel. We summarize our insights to provide guidance for researchers
+who apply fundamental changes on the Linux protocol stack.
 
-We compared the maximum packet reception rate of the Linux kernel while not doing any packet processing with LANA. In LANA packets are forwarded between three FBs that do only packet forwarding. 
+We compared the maximum packet reception rate of the Linux kernel while not
+doing any packet processing with LANA. In LANA packets are forwarded between
+three FBs that do only packet forwarding. 
 
 %Our goal was to be able to process as many \textit{minimum sized Ethernet frames} 
 %as the Linux kernel is able to process. In order to compare the performance of 
@@ -347,37 +352,41 @@ We compared the maximum packet reception rate of the Linux kernel while not doin
 \item One high priority LANA thread per CPU achieves approx. half the performance of the default Linux stack. The performance degradation is due to 'starvation' of the software interrupt handler (ksoftirqd). Changing the priority of the LANA thread only slightly increases the throughput.
 % (since the ksoftirqd is a low-priority thread).
 \item Explicit preemption and scheduling control achieves approx. two third of the performance of the default stack. The performance degradation is due to scheduling overhead. 
-\item Execution of the PPE in ksoftirqd context. This approach achieves
-      approx. $95\%$ of the performance of default stack.
+\item Execution of the PPE in ksoftirqd context achieves approx. $95\%$ of the performance of the default stack.
 \end{compactitem}
 
 The corresponding numbers are listed in Table \ref{tab:performance}.
-\begin{table}[htb]
+\begin{table}[t!]
 \begin{tabular}{ l r }
 Mechanism & Performance\\
 \hline
-Dedicated kernel thread (high priority) & 700.000\\
-Dedicated kernel thread (normal priority) & 750.000\\
-Dedicated kernel thread (controlled scheduling) & 900.000\\
+Kernel threads (high priority) & 700.000\\
+Kernel threads (normal priority) & 750.000\\
+Kernel threads (controlled scheduling) & 900.000\\
 Execution in ksoftirqd & 1.300.000\\
 Linux kernel networking stack & 1.380.000\\
 \end{tabular}
+\vspace{-0.1cm}
 \caption{Performance evaluation in pps with 64 Byte packets.
 % The evaluation was done with the kernel packet generator \texttt{pktgen} on two directly 
 %connected machines with 
 (Intel Core 2 Quad Q6600 with 2.40GHz, 4GB RAM, Intel 82566DC-2 NIC, Linux 3.0rc1)}
 \label{tab:performance}
-\vspace{-0.1cm}
+%\vspace{-0.5cm}
 \end{table}
-
+%\vspace{-0.1cm}
 \section{Conclusions and Future Work}
-We have shown that it is possible to implement a flexible protocol stack that has a similar performance than the default protocol stack in the Linux kernel. The flexibility allows for the easy inclusion of new, still to be developed protocols and for the change of the protocol stack at runtime. Both might lead to a protocol stack that is better suited for a given networking situation than the well known TCP/IP protocol stack.
-%to include for example compression or encryption as the networking conditions change. 
-
-In the short-term, we will compare the performance of our system with the performance of other systems (e.g., default Linux stack, Click router, etc.). 
-In the mid-term, we will work on mechanisms that automatically configure protocol stacks based on the applications as well as the networks needs. 
-%Applications will characterize which properties a communication channel should have and monitoring elements will provide information about the network. A controller will be responsible for negotiating a protocol stack with a peer and for setting up the protocol stack on the local node.
-In the long-term, we envisage a system that requires less configuration as compared to today's networks and that is able to adapt itself to changing network conditions.   
+We described how to implement a flexible protocol stack with similar
+performance as the default Linux stack. Its flexibility allows to
+include and test protocols, yet to be developed, and to change the protocol
+stack at runtime. In contrast to TCP/IP, our proposed solution allows to tailor
+the networking layer for the needs of a particular networking situation. In the
+short-term, we will compare LANA performance achieved in real scenarios with
+other systems (e.g., default Linux stack, Click router, etc.).  In the
+mid-term, we plan to work on mechanisms that automatically configure protocol
+stacks based on the needs of applications and networks. In the long-term, we
+envisage a system that requires less configuration as compared to today's
+networks and that is able to adapt itself to changing network conditions.   
 
 
 
@@ -387,7 +396,7 @@ In the long-term, we envisage a system that requires less configuration as compa
 
 %ACKNOWLEDGMENTS are optional
 \section{Acknowledgments}
-The research leading to these results has received funding from the European Union Seventh Framework Programme under grant agreement $n^o 257906$.
+This research has received funding from the European Union 7th Framework Programme (grant $n^o 257906$).
 %
 % The following two commands are all you need in the
 % initial runs of your .tex file to
