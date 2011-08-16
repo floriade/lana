@@ -35,7 +35,6 @@ vlink-objs   = vlink.o
 vlink-targ   = vlink
 
 all: build
-	ghc --make Main -o bpfc
 
 build: build_vlink build_fbctl
 
