@@ -14,11 +14,11 @@
  *    cd /tmp
  *    git clone git://repo.or.cz/netsniff-ng.git
  *    cd netsniff-ng/src/bpfc/
- *    make
+ *    make && make install
  *
  *    vim firstfilter
  *
- *    ldh [12]
+ *    ldh #proto
  *    jeq #0x800,L1,L2
  *    L1: ret #0xffffff
  *    L2: ret #0
@@ -78,8 +78,6 @@ static inline void fb_bpf_jit_compile(struct sk_filter *fp)
 static inline void fb_bpf_jit_free(struct sk_filter *fp)
 {
 }
-
-#define FB_SK_RUN_FILTER(FILTER, SKB) sk_run_filter(SKB, FILTER->insns)
 
 static int fb_bpf_init_filter(struct fb_bpf_priv __percpu *fb_priv_cpu,
 			      struct sock_fprog_kern *fprog, unsigned int cpu)
@@ -204,8 +202,7 @@ static int fb_bpf_netrx(const struct fblock * const fb,
 
 	spin_lock_irqsave(&fb_priv_cpu->flock, flags);
 	if (fb_priv_cpu->filter) {
-		pkt_len = FB_SK_RUN_FILTER(fb_priv_cpu->filter, skb);
-		/* No snap, either drop or pass */
+		pkt_len = SK_RUN_FILTER(fb_priv_cpu->filter, skb);
 		if (pkt_len < skb->len) {
 			spin_unlock_irqrestore(&fb_priv_cpu->flock, flags);
 			kfree_skb(skb);
