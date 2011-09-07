@@ -498,10 +498,14 @@ err:
 
 static void fb_bpf_dtor(struct fblock *fb)
 {
-	fb_bpf_cleanup_filter_cpus(fb);
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	remove_proc_entry(fb->name, fblock_proc_dir);
 	module_put(THIS_MODULE);
+}
+
+static void fb_bpf_dtor_outside_rcu(struct fblock *fb)
+{
+	fb_bpf_cleanup_filter_cpus(fb);
 }
 
 static struct fblock_factory fb_bpf_factory = {
@@ -509,6 +513,7 @@ static struct fblock_factory fb_bpf_factory = {
 	.mode = MODE_DUAL,
 	.ctor = fb_bpf_ctor,
 	.dtor = fb_bpf_dtor,
+	.dtor_outside_rcu = fb_bpf_dtor_outside_rcu,
 	.owner = THIS_MODULE,
 };
 
