@@ -23,10 +23,8 @@
  *    L1: ret #0xffffff
  *    L2: ret #0
  *
- *    bpfc firstfilter > code
- *
  *    And finally cat the code into the fb's procfs file, e.g.
- *    cat code > /proc/net/lana/fblock/fb1
+ *    bpfc firstfilter > /proc/net/lana/fblock/fb1
  */
 
 #include <linux/kernel.h>
