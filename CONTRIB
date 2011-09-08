@@ -1,0 +1,9 @@
+All LANA-derived development and usage tools that are part of the netsniff-ng
+toolkit can be fetched with Git from one of these mirrors:
+
+ * Czech Republic: git://repo.or.cz/netsniff-ng.git
+ * United States: git://github.com/gnumaniacs-org/netsniff-ng.git
+ * Iceland: git://git.cryptoism.org/pub/git/netsniff-ng.git
+
+Web: http://netsniff-ng.org
+
