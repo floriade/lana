@@ -36,9 +36,9 @@ chk-objs   = $(shell find ../src -name "*.[ch]")
 all: $(cocc-objs)
 
 $(cocc-objs): %.cocc: %.cocci
-	@echo "++++++ Applying $< ++++++"
-	@for f in $(chk-objs) ; do                         \
-		spatch -outplace -sp_file $< $$f || true ; \
+	@echo "\n++++++ Applying $< ++++++\n"
+	@for f in $(chk-objs) ; do                        \
+		spatch -outplace -sp_file $< $$f || exit; \
 	done
 
 clean:
