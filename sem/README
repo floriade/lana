@@ -1,0 +1,15 @@
+On Debian/Ubuntu, install the following packages ...
+
+ - ocaml-native-compilers (or alternatively ocaml)
+ - ocaml-findlib
+ - libpycaml-ocaml-dev
+ - libsexplib-camlp4-dev
+ - menhir and libmenhir-ocaml-dev
+
+... then do:
+
+# make spatch
+  (builds and installs Coccinelle)
+$ make
+  (tests SmPL scripts against LANA source)
+
