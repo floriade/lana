@@ -66,8 +66,10 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (unlikely(!skb))
 		return RX_HANDLER_CONSUMED;
-
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
+	if (fb_priv_cpu->port[TYPE_INGRESS] == IDP_UNKNOWN)
+		goto drop;
+
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
 		write_next_idp_to_skb(skb, fb->idp,
