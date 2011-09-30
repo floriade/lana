@@ -39,8 +39,9 @@
  * However, binding is done via fbctl!
  */
 
-#define IFF_VLINK_MAS 0x20000 /* Master device */
-#define IFF_VLINK_DEV 0x40000 /* Slave device */
+#define IFF_VLINK_MAS	0x20000 /* Master device */
+#define IFF_VLINK_DEV	0x40000 /* Slave device */
+#define IFF_IS_BRIDGED  0x60000
 
 /* Ethernet LANA packet with 10 Bit tag ID */
 #define ETH_P_LANA    0xAC00
@@ -116,6 +117,11 @@ static int fb_ethvlink_stop(struct net_device *dev)
 	netif_stop_queue(dev);
 
 	return 0;
+}
+
+static inline int fb_eth_dev_is_bridged(struct net_device *dev)
+{
+	return (dev->priv_flags & IFF_IS_BRIDGED) == IFF_IS_BRIDGED;
 }
 
 static inline int fb_ethvlink_real_dev_is_hooked(struct net_device *dev)
@@ -566,6 +572,8 @@ static int fb_ethvlink_start_hook_dev(struct vlinknlmsg *vhdr,
 	else if (!root)
 		return NETLINK_VLINK_RX_EMERG;
 
+	if (fb_eth_dev_is_bridged(root))
+		goto out;
 	if (fb_ethvlink_real_dev_is_hooked(root))
 		goto out;
 
@@ -778,7 +786,7 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 };
 
 static struct vlink_subsys fb_ethvlink_sys __read_mostly = {
-	.name                = "ethvlink",
+	.name                = "eth-tagged",
 	.type                = VLINKNLGRP_ETHERNET,
 	.rwsem               = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
 };
