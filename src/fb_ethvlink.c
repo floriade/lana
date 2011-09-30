@@ -817,7 +817,7 @@ static int __init init_fb_ethvlink_module(void)
 
 	register_netdevice_notifier(&fb_ethvlink_notifier_block);
 
-	printk(KERN_INFO "[lana] Ethernet vlink layer loaded!\n");
+	printk(KERN_INFO "[lana] Ethernet tagged vlink layer loaded!\n");
 	return 0;
 
 err:
@@ -849,7 +849,7 @@ static void __exit cleanup_fb_ethvlink_module(void)
 	rtnl_link_unregister(&fb_ethvlink_rtnl_ops);
 	vlink_subsys_unregister_batch(&fb_ethvlink_sys);
 
-	printk(KERN_INFO "[lana] Ethernet vlink layer removed!\n");
+	printk(KERN_INFO "[lana] Ethernet tagged vlink layer removed!\n");
 }
 
 module_init(init_fb_ethvlink_module);
@@ -858,5 +858,5 @@ module_exit(cleanup_fb_ethvlink_module);
 MODULE_ALIAS_RTNL_LINK("lana");
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Daniel Borkmann <dborkma@tik.ee.ethz.ch>");
-MODULE_DESCRIPTION("Ethernet virtual link layer driver");
+MODULE_DESCRIPTION("Ethernet tagged virtual link layer driver");
 
