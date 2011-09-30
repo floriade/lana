@@ -166,9 +166,8 @@ static int fb_ethvlink_event(struct notifier_block *self, unsigned long cmd,
 		}
 		put_online_cpus();
 		if (bound)
-			printk(KERN_INFO "[%s::%s] port %s bound to IDP%u\n",
-			       fb->name, fb->factory->type,
-			       path_names[msg->dir], msg->idp);
+			printk(KERN_INFO "[%s::vlink] port %s bound to IDP%u\n",
+			       fb->name, path_names[msg->dir], msg->idp);
 		} break;
 	case FBLOCK_UNBIND_IDP: {
 		int unbound = 0;
@@ -189,9 +188,8 @@ static int fb_ethvlink_event(struct notifier_block *self, unsigned long cmd,
 		}
 		put_online_cpus();
 		if (unbound)
-			printk(KERN_INFO "[%s::%s] port %s unbound\n",
-			       fb->name, fb->factory->type,
-			       path_names[msg->dir]);
+			printk(KERN_INFO "[%s::vlink] port %s unbound\n",
+			       fb->name, path_names[msg->dir]);
 		} break;
 	default:
 		break;
