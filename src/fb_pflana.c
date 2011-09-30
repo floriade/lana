@@ -33,8 +33,9 @@
 #define PF_LANA         AF_LANA
 
 /* LANA protocol types on top of the PF_LANA family */
-#define LANA_PROTO_AUTO 0
-#define LANA_PROTO_RAW  1
+#define LANA_PROTO_AUTO 0	/* Auto-select if none is given */
+#define LANA_PROTO_RAW  1	/* LANA raw proto, currently the only one */
+/* Total num of protos available */
 #define LANA_NPROTO     2
 
 /* Protocols in LANA family */
@@ -87,6 +88,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 	}
 	sk_receive_skb(sk, skb, 0);
 out:
+	/* We are last in chain. */
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
 	return PPE_HALT;
 }
@@ -268,8 +270,8 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
-		write_next_idp_to_skb(skb, fb->idp, 1
-				      /*fb_priv_cpu->port[TYPE_EGRESS]*/);
+		write_next_idp_to_skb(skb, fb->idp,
+				      fb_priv_cpu->port[TYPE_EGRESS]);
         } while (read_seqretry(&fb_priv_cpu->lock, seq));
 
 	dev_put(dev);

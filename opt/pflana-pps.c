@@ -27,20 +27,25 @@ static void sig_handler(int sig)
 		sigint = 1;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
 	int sock, ret;
 	char buff[1600];
         struct timespec before, after;
-	unsigned long long pkts = 0, byte = 0;
+	unsigned long long pkts = 0, byte = 0, max;
 	double x1, x2, elapsed;
 
 	if (geteuid() != 0) {
 		fprintf(stderr, "Not root?!\n");
 		exit(EXIT_FAILURE);
 	}
+	if (argc != 2) {
+		fprintf(stderr, "No pkt number given!\n");
+		exit(EXIT_FAILURE);
+	}
+	max = (unsigned long long) atol(argv[argc - 1]);
 
-	signal(SIGINT, sig_handler);
+//	signal(SIGINT, sig_handler);
 
 	sock = socket(AF_LANA, SOCK_RAW, 0);
 	if (sock < 0) {
@@ -56,7 +61,7 @@ int main(void)
 	memset(&after, 0, sizeof(after));
 
         clock_gettime(CLOCK_REALTIME, &before);
-	while (!sigint) {
+	while (!sigint || pkts > max) {
 		ret = recv(sock, buff, sizeof(buff), 0);
 		if (ret < 0) {
 			perror("recvmsg");
@@ -64,6 +69,7 @@ int main(void)
 		} else {
 			pkts++;
 			byte += ret;
+			printf("got\n");
 		}
 	}
         clock_gettime(CLOCK_REALTIME, &after);
