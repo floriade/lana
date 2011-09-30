@@ -9,14 +9,6 @@
  * Subject to the GPL.
  */
 
-/*
-	TODO:
-	- only one fblock eth per networking device, not one for all
-	- then the egress path is way simpler, since we already know
-	  what skb to bind to!
-	- all vlink fbs must _only_ be allocated via vlink, not fbctl!
- */
-
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -118,11 +110,10 @@ static int fb_eth_netrx(const struct fblock * const fb,
 			struct sk_buff * const skb,
 			enum path_type * const dir)
 {
-	if (!skb->dev) {
-		kfree_skb(skb);
-		return PPE_DROPPED;
-	}
+	struct fb_eth_priv __percpu *fb_priv_cpu;
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
+	skb->dev = fb_priv_cpu->dev;
 	dev_queue_xmit(skb);
 	return PPE_DROPPED;
 }
@@ -343,7 +334,7 @@ static int fb_eth_stop_hook_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	struct net_device *dev;
 	struct fb_eth_dev_node *node;
 
-	if (vhdr->cmd != VLINKNLCMD_START_HOOK_DEVICE)
+	if (vhdr->cmd != VLINKNLCMD_STOP_HOOK_DEVICE)
 		return NETLINK_VLINK_RX_NXT;
 
 	dev = dev_get_by_name(&init_net, vhdr->real_name);
