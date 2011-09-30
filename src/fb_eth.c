@@ -9,6 +9,13 @@
  * Subject to the GPL.
  */
 
+/* TODO:
+	- only one fblock eth per networking device, not one for all
+	- management per vlink tool for setting the device?!
+	- then the egress path is way simpler, since we already know
+	  what skb to bind to!
+ */
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>

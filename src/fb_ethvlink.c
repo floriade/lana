@@ -25,15 +25,19 @@
 #include <linux/if.h>
 #include <linux/list.h>
 #include <linux/u64_stats_sync.h>
+#include <linux/seqlock.h>
 #include <net/rtnetlink.h>
 
+#include "xt_idp.h"
+#include "xt_engine.h"
+#include "xt_skb.h"
 #include "xt_vlink.h"
 #include "xt_fblock.h"
 
 #define IFF_VLINK_MAS 0x20000 /* Master device */
 #define IFF_VLINK_DEV 0x40000 /* Slave device */
 
-/* Ethernet LANA packet with 10 Bit port ID */
+/* Ethernet LANA packet with 10 Bit tag ID */
 #define ETH_P_LANA    0xAC00
 
 struct pcpu_dstats {
@@ -55,12 +59,21 @@ static struct header_ops fb_ethvlink_header_ops __read_mostly;
 static LIST_HEAD(fb_ethvlink_vdevs);
 static DEFINE_SPINLOCK(fb_ethvlink_vdevs_lock);
 
+struct fb_ethvlink_private;
+
+struct fb_ethvlink_private_inner {
+	idp_t port[2];
+	seqlock_t lock;
+	struct fb_ethvlink_private *vdev; /* never changed after setup */
+};
+
 struct fb_ethvlink_private {
-	u16 port;
+	u16 tag;
 	struct list_head list;
 	struct net_device *self;
 	struct net_device *real_dev;
-	int (*netvif_rx)(struct sk_buff *skb, struct net_device *dev);
+	int (*netvif_rx)(struct sk_buff *skb, struct fb_ethvlink_private *vdev);
+	struct fblock *fb;
 };
 
 static int fb_ethvlink_init(struct net_device *dev)
@@ -119,18 +132,10 @@ static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
 				  struct net_device *dev)
 {
 	struct fb_ethvlink_private *dev_priv = netdev_priv(dev);
-
-	/* Exit the lana stack here, egress path */
-	netdev_printk(KERN_DEBUG, dev, "tx'ed packet!\n");
 	skb_set_dev(skb, dev_priv->real_dev);
 	return dev_queue_xmit(skb);
 }
 
-/*
- * Egress path. This is fairly easy, since we enter with our virtual
- * device and just need to lookup the real networking device, reset the
- * skb to the real device and enqueue it. Done!
- */
 netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 				   struct net_device *dev)
 {
@@ -150,29 +155,48 @@ netdev_tx_t fb_ethvlink_start_xmit(struct sk_buff *skb,
 	return ret;
 }
 
-int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
-				  struct net_device *dev)
+static int fb_ethvlink_netrx(const struct fblock * const fb,
+			     struct sk_buff * const skb,
+			     enum path_type * const dir)
 {
-	/* Enter the lana stack here, ingress path */
-	netdev_printk(KERN_DEBUG, dev, "rx'ed packet!\n");
+	struct fb_ethvlink_private_inner __percpu *fb_priv_cpu;
+	/* Egress point */
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
+	skb->dev = fb_priv_cpu->vdev->self;
+	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
+	dev_queue_xmit(skb);
+	return PPE_DROPPED;
+}
+
+int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
+				  struct fb_ethvlink_private *vdev)
+{
+	unsigned int seq;
+	struct fb_ethvlink_private_inner __percpu *fb_priv_cpu;
+
+	/* Ingress point */
+	fb_priv_cpu = this_cpu_ptr(rcu_dereference(vdev->fb->private_data));
+	if (fb_priv_cpu->port[TYPE_INGRESS] == IDP_UNKNOWN)
+		goto drop;
+	do {
+		seq = read_seqbegin(&fb_priv_cpu->lock);
+		write_next_idp_to_skb(skb, vdev->fb->idp,
+				      fb_priv_cpu->port[TYPE_INGRESS]);
+	} while (read_seqretry(&fb_priv_cpu->lock, seq));
+
+        process_packet(skb, TYPE_INGRESS);
+
+	return NET_RX_SUCCESS;
+drop:
+	/* It's not really a dev error if we have no binding ... */
+	kfree_skb(skb);
 	return NET_RX_SUCCESS;
 }
 
-/*
- * Origin __netif_receive_skb, with rcu_read_lock! We're at a point
- * where bridging code and macvlan code is usually invoked, so we're
- * in fast-path on our real device (not virtual!) before all the usual
- * stack is being processed by deliver_skb! This means we return NULL
- * if our lana stack processed the packet, so that the rcu_read_lock
- * gets unlocked and we're done. On the other hand, if we want packages
- * to be processed by the kernel network stack, we go out by delivering
- * the valid pointer to the skb. Basically, here's the point where we
- * demultiplex the ingress path to registered virtual lana devices.
- */
 static rx_handler_result_t fb_ethvlink_handle_frame(struct sk_buff **pskb)
 {
-	int ret;
-	u16 vport;
+	int ret, bypass_drop = 0;
+	u16 vtag;
 	struct sk_buff *skb = *pskb;
 	struct net_device *dev;
 	struct fb_ethvlink_private *vdev;
@@ -196,13 +220,14 @@ static rx_handler_result_t fb_ethvlink_handle_frame(struct sk_buff **pskb)
 	    __constant_htons(ETH_P_LANA))
 		return RX_HANDLER_PASS;
 
-	vport = ntohs(eth_hdr(skb)->h_proto &
+	vtag = ntohs(eth_hdr(skb)->h_proto &
 		      ~__constant_htons(ETH_P_LANA));
 
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
-		if (vport == vdev->port && dev == vdev->real_dev) {
+		if (vtag == vdev->tag && dev == vdev->real_dev) {
 			dstats = this_cpu_ptr(vdev->self->dstats);
-			ret = vdev->netvif_rx(skb, vdev->self);
+			ret = vdev->netvif_rx(skb, vdev);
+			bypass_drop = 1;
 			if (ret == NET_RX_SUCCESS) {
 				u64_stats_update_begin(&dstats->syncp);
 				dstats->rx_packets++;
@@ -215,7 +240,8 @@ static rx_handler_result_t fb_ethvlink_handle_frame(struct sk_buff **pskb)
 	}
 
 drop:
-	kfree_skb(skb);
+	if (!bypass_drop)
+		kfree_skb(skb);
 	return RX_HANDLER_CONSUMED;
 }
 
@@ -313,11 +339,18 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 	return stats;
 }
 
+//TODO
+static struct fblock *fb_ethvlink_build(void)
+{
+	return NULL;
+}
+
 static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 			       struct nlmsghdr *nlh)
 {
 	int ret;
 	unsigned long flags;
+	struct fblock *fb;
 	struct net_device *dev;
 	struct net_device *root;
 	struct fb_ethvlink_private *dev_priv, *vdev;
@@ -339,7 +372,7 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(vdev, &fb_ethvlink_vdevs, list) {
-		if (vdev->port == vhdr->port) {
+		if (vdev->tag == vhdr->port) {
 			rcu_read_unlock();
 			goto err_put;
 		}
@@ -359,13 +392,18 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	if (ret)
 		goto err_free;
 
+	fb = fb_ethvlink_build();
+	if (!fb)
+		goto err_unreg;
+
 	dev->priv_flags |= vhdr->flags;
 	dev->priv_flags |= IFF_VLINK_DEV;
 	dev_priv = netdev_priv(dev);
-	dev_priv->port = vhdr->port;
+	dev_priv->tag = vhdr->port;
 	dev_priv->self = dev;
 	dev_priv->real_dev = root;
 	dev_priv->netvif_rx = fb_ethvlink_handle_frame_virt;
+	dev_priv->fb = fb;
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
 
@@ -380,9 +418,11 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	netif_tx_unlock_bh(dev);
 
 	printk(KERN_INFO "[lana] %s stacked on carrier %s:%u\n",
-	       vhdr->virt_name, vhdr->real_name, dev_priv->port);
+	       vhdr->virt_name, vhdr->real_name, dev_priv->tag);
 	return NETLINK_VLINK_RX_STOP;
 
+err_unreg:
+	unregister_netdevice(dev);
 err_free:
 	dev_put(root);
 	free_netdev(dev);
