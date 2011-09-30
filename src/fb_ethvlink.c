@@ -413,6 +413,7 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 
 static void fb_ethvlink_destroy_fblock(struct fblock *fb)
 {
+	unregister_fblock_namespace_no_rcu(fb);
 	cleanup_fblock(fb);
 	free_percpu(rcu_dereference_raw(fb->private_data));
 	kfree_fblock(fb);
