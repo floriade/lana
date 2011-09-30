@@ -118,9 +118,11 @@ static inline void put_fblock(struct fblock *fb)
 {
 	if (likely(!atomic_dec_and_test(&fb->refcnt)))
 		return;
-	if (fb->factory->dtor_outside_rcu)
-		fb->factory->dtor_outside_rcu(fb);
-	call_rcu(&fb->rcu, free_fblock_rcu);
+	if (fb->factory) {
+		if (fb->factory->dtor_outside_rcu)
+			fb->factory->dtor_outside_rcu(fb);
+		call_rcu(&fb->rcu, free_fblock_rcu);
+	}
 }
 
 /*

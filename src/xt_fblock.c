@@ -582,7 +582,8 @@ EXPORT_SYMBOL_GPL(kfree_fblock);
 void cleanup_fblock(struct fblock *fb)
 {
 	notify_fblock_subscribers(fb, FBLOCK_DOWN, &fb->idp);
-	fb->factory->dtor(fb);
+	if (fb->factory)
+		fb->factory->dtor(fb);
 	kfree(rcu_dereference_raw(fb->others));
 }
 EXPORT_SYMBOL_GPL(cleanup_fblock);
@@ -609,7 +610,7 @@ static int procfs_fblocks(char *page, char **start, off_t offset,
 			continue;
 		has_sub = 0;
 		len += sprintf(page + len, "%s %s %p %u %d [",
-			       fb->name, fb->factory->type,
+			       fb->name, fb->factory ? fb->factory->type : "vlink",
 			       fb, fb->idp,
 			       atomic_read(&fb->refcnt));
 		fn = rcu_dereference_raw(fb->notifiers);

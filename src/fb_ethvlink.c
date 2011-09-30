@@ -34,6 +34,11 @@
 #include "xt_vlink.h"
 #include "xt_fblock.h"
 
+/*
+ * Allocation and cleanup via vlink, not fbctl -> no factory for this on purpose!
+ * However, binding is done via fbctl!
+ */
+
 #define IFF_VLINK_MAS 0x20000 /* Master device */
 #define IFF_VLINK_DEV 0x40000 /* Slave device */
 
@@ -64,7 +69,7 @@ struct fb_ethvlink_private;
 struct fb_ethvlink_private_inner {
 	idp_t port[2];
 	seqlock_t lock;
-	struct fb_ethvlink_private *vdev; /* never changed after setup */
+	struct fb_ethvlink_private *vdev; /* Must never change after setup! */
 };
 
 struct fb_ethvlink_private {
@@ -126,6 +131,73 @@ static inline void fb_ethvlink_make_real_dev_hooked(struct net_device *dev)
 static inline void fb_ethvlink_make_real_dev_unhooked(struct net_device *dev)
 {
 	dev->priv_flags &= ~IFF_VLINK_MAS;
+}
+
+static int fb_ethvlink_event(struct notifier_block *self, unsigned long cmd,
+			     void *args)
+{
+	int ret = NOTIFY_OK;
+	unsigned int cpu;
+	struct fblock *fb;
+	struct fb_ethvlink_private_inner __percpu *fb_priv;
+
+	rcu_read_lock();
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
+	fb_priv = (struct fb_ethvlink_private_inner __percpu *) rcu_dereference_raw(fb->private_data);
+	rcu_read_unlock();
+
+	switch (cmd) {
+	case FBLOCK_BIND_IDP: {
+		int bound = 0;
+		struct fblock_bind_msg *msg = args;
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_ethvlink_private_inner *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == IDP_UNKNOWN) {
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = msg->idp;
+				write_sequnlock(&fb_priv_cpu->lock);
+				bound = 1;
+			} else {
+				ret = NOTIFY_BAD;
+				break;
+			}
+		}
+		put_online_cpus();
+		if (bound)
+			printk(KERN_INFO "[%s::%s] port %s bound to IDP%u\n",
+			       fb->name, fb->factory->type,
+			       path_names[msg->dir], msg->idp);
+		} break;
+	case FBLOCK_UNBIND_IDP: {
+		int unbound = 0;
+		struct fblock_bind_msg *msg = args;
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_ethvlink_private_inner *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == msg->idp) {
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
+				write_sequnlock(&fb_priv_cpu->lock);
+				unbound = 1;
+			} else {
+				ret = NOTIFY_BAD;
+				break;
+			}
+		}
+		put_online_cpus();
+		if (unbound)
+			printk(KERN_INFO "[%s::%s] port %s unbound\n",
+			       fb->name, fb->factory->type,
+			       path_names[msg->dir]);
+		} break;
+	default:
+		break;
+	}
+
+	return ret;
 }
 
 static int fb_ethvlink_queue_xmit(struct sk_buff *skb,
@@ -339,9 +411,60 @@ fb_ethvlink_get_stats64(struct net_device *dev,
 	return stats;
 }
 
-//TODO
-static struct fblock *fb_ethvlink_build(void)
+static void fb_ethvlink_destroy_fblock(struct fblock *fb)
 {
+	cleanup_fblock(fb);
+	free_percpu(rcu_dereference_raw(fb->private_data));
+	kfree_fblock(fb);
+	module_put(THIS_MODULE);
+}
+
+static struct fblock *fb_ethvlink_build_fblock(struct fb_ethvlink_private *vdev)
+{
+	int ret = 0;
+	unsigned int cpu;
+	struct fblock *fb;
+	struct fb_ethvlink_private_inner __percpu *fb_priv;
+
+	fb = alloc_fblock(GFP_ATOMIC);
+	if (!fb)
+		return NULL;
+
+	fb_priv = alloc_percpu(struct fb_ethvlink_private_inner);
+	if (!fb_priv)
+		goto err;
+
+	get_online_cpus();
+	for_each_online_cpu(cpu) {
+		struct fb_ethvlink_private_inner *fb_priv_cpu;
+		fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+		seqlock_init(&fb_priv_cpu->lock);
+		fb_priv_cpu->port[0] = IDP_UNKNOWN;
+		fb_priv_cpu->port[1] = IDP_UNKNOWN;
+		fb_priv_cpu->vdev = vdev;
+	}
+	put_online_cpus();
+
+	ret = init_fblock(fb, vdev->self->name, fb_priv);
+	if (ret)
+		goto err2;
+	fb->netfb_rx = fb_ethvlink_netrx; /* For transmission only */
+	fb->event_rx = fb_ethvlink_event; /* Supports (un)binding only */
+	fb->factory = NULL;
+
+	ret = register_fblock_namespace(fb);
+	if (ret)
+		goto err3;
+	__module_get(THIS_MODULE);
+	smp_wmb();
+	return fb;
+err3:
+	cleanup_fblock_ctor(fb);
+err2:
+	free_percpu(fb_priv);
+err:
+	kfree_fblock(fb);
+	fb = NULL;
 	return NULL;
 }
 
@@ -350,7 +473,6 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 {
 	int ret;
 	unsigned long flags;
-	struct fblock *fb;
 	struct net_device *dev;
 	struct net_device *root;
 	struct fb_ethvlink_private *dev_priv, *vdev;
@@ -392,21 +514,18 @@ static int fb_ethvlink_add_dev(struct vlinknlmsg *vhdr,
 	if (ret)
 		goto err_free;
 
-	fb = fb_ethvlink_build();
-	if (!fb)
-		goto err_unreg;
-
+	dev_priv = netdev_priv(dev);
 	dev->priv_flags |= vhdr->flags;
 	dev->priv_flags |= IFF_VLINK_DEV;
-	dev_priv = netdev_priv(dev);
 	dev_priv->tag = vhdr->port;
 	dev_priv->self = dev;
 	dev_priv->real_dev = root;
 	dev_priv->netvif_rx = fb_ethvlink_handle_frame_virt;
-	dev_priv->fb = fb;
+	dev_priv->fb = fb_ethvlink_build_fblock(dev_priv);
+	if (!dev_priv->fb)
+		goto err_unreg;
 
 	netif_stacked_transfer_operstate(dev_priv->real_dev, dev);
-
 	dev_put(dev_priv->real_dev);
 
 	spin_lock_irqsave(&fb_ethvlink_vdevs_lock, flags);
@@ -531,9 +650,14 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 		goto err_put;
 	if ((dev->flags & IFF_RUNNING) == IFF_RUNNING)
 		goto err_put;
+	dev_priv = netdev_priv(dev);
+	if (atomic_read(&dev_priv->fb->refcnt) > 2) {
+		printk(KERN_INFO "Cannot remove vlink dev! Still in use by "
+		       "others!\n");
+		goto err_put;
+	}
 
 	dev_put(dev);
-	dev_priv = netdev_priv(dev);
 
 	count = 0;
 	rcu_read_lock();
@@ -559,6 +683,7 @@ static int fb_ethvlink_rm_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 	list_del_rcu(&dev_priv->list);
 	spin_unlock_irqrestore(&fb_ethvlink_vdevs_lock, flags);
 
+	fb_ethvlink_destroy_fblock(dev_priv->fb);
 	fb_ethvlink_rm_dev_common(dev);
 
 	return NETLINK_VLINK_RX_STOP;

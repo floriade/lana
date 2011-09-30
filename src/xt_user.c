@@ -64,12 +64,18 @@ static int userctl_replace(struct lananlmsg *lmsg)
 	struct fblock *fb1, *fb2;
 	struct lananlmsg_replace *msg =	(struct lananlmsg_replace *) lmsg->buff;
 
+	/*
+	 * XXX: vlink blocks may not be replaced during runtime, since they
+	 * are directly bound to hardware. Fuckup? Yes or no? Too many side
+	 * effects. These blocks should not be changed anyway.
+	 */
+
 	fb1 = search_fblock_n(msg->name1);
-	if (!fb1)
+	if (!fb1 || !fb1->factory)
 		return -EINVAL;
 
 	fb2 = search_fblock_n(msg->name2);
-	if (!fb2) {
+	if (!fb2 || !fb2->factory) {
 		put_fblock(fb1);
 		return -EINVAL;
 	}
@@ -158,6 +164,11 @@ static int userctl_remove(struct lananlmsg *lmsg)
 	fb = search_fblock_n(msg->name);
 	if (!fb)
 		return -EINVAL;
+	if (!fb->factory) {
+		/* vlink types have no factory */
+		put_fblock(fb);
+		return -EINVAL;
+	}
 
 	if (atomic_read(&fb->refcnt) > 2) {
 		/* Still in use by others */
