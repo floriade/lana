@@ -9,11 +9,12 @@
  * Subject to the GPL.
  */
 
-/* TODO:
+/*
+	TODO:
 	- only one fblock eth per networking device, not one for all
-	- management per vlink tool for setting the device?!
 	- then the egress path is way simpler, since we already know
 	  what skb to bind to!
+	- all vlink fbs must _only_ be allocated via vlink, not fbctl!
  */
 
 #include <linux/module.h>
