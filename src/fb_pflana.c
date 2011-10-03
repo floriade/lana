@@ -96,7 +96,66 @@ out:
 static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 			   void *args)
 {
-	return 0;
+	int ret = NOTIFY_OK;
+	unsigned int cpu;
+	struct fblock *fb;
+	struct fb_pflana_priv __percpu *fb_priv;
+
+	rcu_read_lock();
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
+	fb_priv = (struct fb_pflana_priv __percpu *) rcu_dereference_raw(fb->private_data);
+	rcu_read_unlock();
+
+	switch (cmd) {
+	case FBLOCK_BIND_IDP: {
+		int bound = 0;
+		struct fblock_bind_msg *msg = args;
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_pflana_priv *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == IDP_UNKNOWN) {
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = msg->idp;
+				write_sequnlock(&fb_priv_cpu->lock);
+				bound = 1;
+			} else {
+				ret = NOTIFY_BAD;
+				break;
+			}
+		}
+		put_online_cpus();
+		if (bound)
+			printk(KERN_INFO "[%s::bsdsock] port %s bound to IDP%u\n",
+			       fb->name, path_names[msg->dir], msg->idp);
+		} break;
+	case FBLOCK_UNBIND_IDP: {
+		int unbound = 0;
+		struct fblock_bind_msg *msg = args;
+		get_online_cpus();
+		for_each_online_cpu(cpu) {
+			struct fb_pflana_priv *fb_priv_cpu;
+			fb_priv_cpu = per_cpu_ptr(fb_priv, cpu);
+			if (fb_priv_cpu->port[msg->dir] == msg->idp) {
+				write_seqlock(&fb_priv_cpu->lock);
+				fb_priv_cpu->port[msg->dir] = IDP_UNKNOWN;
+				write_sequnlock(&fb_priv_cpu->lock);
+				unbound = 1;
+			} else {
+				ret = NOTIFY_BAD;
+				break;
+			}
+		}
+		put_online_cpus();
+		if (unbound)
+			printk(KERN_INFO "[%s::bsdsock] port %s unbound\n",
+			       fb->name, path_names[msg->dir]);
+		} break;
+	default:
+		break;
+	}
+
+	return ret;
 }
 
 static struct fblock *get_bound_fblock(struct fblock *self, enum path_type dir)
@@ -117,7 +176,7 @@ static inline struct lana_sock *to_lana_sk(const struct sock *sk)
 	return container_of(sk, struct lana_sock, sk);
 }
 
-static struct fblock *fb_pflana_ctor(char *name);
+static struct fblock *fb_pflana_build_fblock(char *name);
 
 static int lana_sk_init(struct sock* sk)
 {
@@ -127,7 +186,7 @@ static int lana_sk_init(struct sock* sk)
 
 	memset(name, 0, sizeof(name));
 	snprintf(name, sizeof(name), "%p", &lana->sk);
-	lana->fb = fb_pflana_ctor(name);
+	lana->fb = fb_pflana_build_fblock(name);
 	if (!lana->fb)
 		return -ENOMEM;
 	get_online_cpus();
@@ -140,6 +199,8 @@ static int lana_sk_init(struct sock* sk)
 	smp_wmb();
 	return 0;
 }
+
+static void fb_pflana_destroy_fblock(struct fblock *fb);
 
 static void lana_sk_free(struct sock *sk)
 {
@@ -157,7 +218,8 @@ static void lana_sk_free(struct sock *sk)
 		fblock_unbind(lana->fb, fb_bound);
 		put_fblock(fb_bound);
 	}
-	unregister_fblock_namespace(lana->fb);
+
+	fb_pflana_destroy_fblock(lana->fb);
 }
 
 static int lana_raw_release(struct socket *sock)
@@ -611,9 +673,7 @@ static void cleanup_fb_pflana(void)
 		pflana_proto_unregister(rcu_dereference_raw(proto_tab[i]));
 }
 
-static struct fblock_factory fb_pflana_factory;
-
-static struct fblock *fb_pflana_ctor(char *name)
+static struct fblock *fb_pflana_build_fblock(char *name)
 {
 	int ret = 0;
 	unsigned int cpu;
@@ -641,7 +701,7 @@ static struct fblock *fb_pflana_ctor(char *name)
 		goto err2;
 	fb->netfb_rx = fb_pflana_netrx;
 	fb->event_rx = fb_pflana_event;
-	fb->factory = &fb_pflana_factory;
+	fb->factory = NULL;
 	ret = register_fblock_namespace(fb);
 	if (ret)
 		goto err3;
@@ -657,36 +717,23 @@ err:
 	return NULL;
 }
 
-static void fb_pflana_dtor(struct fblock *fb)
+static void fb_pflana_destroy_fblock(struct fblock *fb)
 {
+	unregister_fblock_namespace_no_rcu(fb);
+	cleanup_fblock(fb);
 	free_percpu(rcu_dereference_raw(fb->private_data));
+	kfree_fblock(fb);
 	module_put(THIS_MODULE);
 }
 
-static struct fblock_factory fb_pflana_factory = {
-	.type = "pflana",
-	.mode = MODE_SINK,
-	.ctor = fb_pflana_ctor,
-	.dtor = fb_pflana_dtor,
-	.owner = THIS_MODULE,
-};
-
 static int __init init_fb_pflana_module(void)
 {
-	int ret;
-	ret = init_fb_pflana();
-	if (ret)
-		return ret;
-	ret = register_fblock_type(&fb_pflana_factory);
-	if (ret)
-		cleanup_fb_pflana();
-	return ret;
+	return init_fb_pflana();
 }
 
 static void __exit cleanup_fb_pflana_module(void)
 {
 	cleanup_fb_pflana();
-	unregister_fblock_type(&fb_pflana_factory);
 }
 
 module_init(init_fb_pflana_module);
