@@ -39,13 +39,13 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Not root?!\n");
 		exit(EXIT_FAILURE);
 	}
-	if (argc != 2) {
-		fprintf(stderr, "No pkt number given!\n");
-		exit(EXIT_FAILURE);
-	}
-	max = (unsigned long long) atol(argv[argc - 1]);
-
-//	signal(SIGINT, sig_handler);
+//	if (argc != 2) {
+//		fprintf(stderr, "No pkt number given!\n");
+//		exit(EXIT_FAILURE);
+//	}
+//	max = (unsigned long long) atol(argv[argc - 1]);
+//
+	signal(SIGINT, sig_handler);
 
 	sock = socket(AF_LANA, SOCK_RAW, 0);
 	if (sock < 0) {
@@ -61,7 +61,7 @@ int main(int argc, char **argv)
 	memset(&after, 0, sizeof(after));
 
         clock_gettime(CLOCK_REALTIME, &before);
-	while (!sigint || pkts > max) {
+	while (!sigint/* || pkts > max*/) {
 		ret = recv(sock, buff, sizeof(buff), 0);
 		if (ret < 0) {
 			perror("recvmsg");
@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 		} else {
 			pkts++;
 			byte += ret;
-			printf("got\n");
+//			printf("got\n");
 		}
 	}
         clock_gettime(CLOCK_REALTIME, &after);
