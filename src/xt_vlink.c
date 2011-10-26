@@ -67,6 +67,7 @@ int vlink_subsys_register(struct vlink_subsys *n)
 	if (slot != -1) {
 		n->id = slot;
 		vlink_subsystem_table[slot] = n;
+		__module_get(THIS_MODULE);
 	}
 	vlink_unlock();
 	return slot == -1 ? -ENOMEM : 0;
@@ -83,6 +84,7 @@ void vlink_subsys_unregister(struct vlink_subsys *n)
 		if (vlink_subsystem_table[i] == n && i == n->id) {
 			vlink_subsystem_table[i] = NULL;
 			n->id = 0;
+			module_put(THIS_MODULE);
 			break;
 		}
 	}
@@ -218,6 +220,7 @@ void vlink_subsys_unregister_batch(struct vlink_subsys *n)
 		if (vlink_subsystem_table[i] == n && i == n->id) {
 			vlink_subsystem_table[i] = NULL;
 			n->id = 0;
+			module_put(THIS_MODULE);
 			break;
 		}
 	}
@@ -231,19 +234,22 @@ static int __vlink_invoke(struct vlink_subsys *n,
 			  struct vlinknlmsg *vmsg,
 			  struct nlmsghdr *nlh)
 {
-	int ret = 0;
+	int ret = 0, nret;
 	struct vlink_callback *hb, *hn;
 
 	hb = n->head;
 	while (hb) {
 		hn = hb->next;
-
+		nret = 0;
 		ret = hb->rx(vmsg, nlh);
-		if ((ret & NETLINK_VLINK_RX_EMERG) ==
-		    NETLINK_VLINK_RX_EMERG ||
-		    (ret & NETLINK_VLINK_RX_STOP) ==
-		    NETLINK_VLINK_RX_STOP)
+		if ((ret & NETLINK_VLINK_RX_EMERG) == NETLINK_VLINK_RX_EMERG ||
+		    (nret = (ret & NETLINK_VLINK_RX_STOP) == NETLINK_VLINK_RX_STOP)) {
+			if (vmsg->cmd == VLINKNLCMD_START_HOOK_DEVICE && nret)
+				__module_get(n->owner);
+			if (vmsg->cmd == VLINKNLCMD_STOP_HOOK_DEVICE && nret)
+				module_put(n->owner);
 			break;
+		}
 		hb = hn;
 	}
 

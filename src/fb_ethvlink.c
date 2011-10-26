@@ -787,6 +787,7 @@ static struct rtnl_link_ops fb_ethvlink_rtnl_ops __read_mostly = {
 
 static struct vlink_subsys fb_ethvlink_sys __read_mostly = {
 	.name                = "eth-tagged",
+	.owner               = THIS_MODULE,
 	.type                = VLINKNLGRP_ETHERNET,
 	.rwsem               = __RWSEM_INITIALIZER(fb_ethvlink_sys.rwsem),
 };

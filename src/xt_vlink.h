@@ -14,6 +14,7 @@
 #include <linux/types.h>
 #include <linux/rwsem.h>
 #include <linux/netlink.h>
+#include <linux/module.h>
 #include <linux/if.h>
 
 #define NETLINK_VLINK_RX_OK     0  /* Receive went okay, notify next     */
@@ -82,6 +83,7 @@ struct vlink_subsys {
 	char *name;
 	u32 type:16,
 	    id:16;
+	struct module *owner;
 	struct rw_semaphore rwsem;
 	struct vlink_callback *head;
 };

@@ -279,6 +279,7 @@ static void fb_eth_destroy_fblock(struct fblock *fb)
 
 static struct vlink_subsys fb_eth_sys __read_mostly = {
 	.name = "eth",
+	.owner = THIS_MODULE,
 	.type = VLINKNLGRP_ETHERNET,
 	.rwsem = __RWSEM_INITIALIZER(fb_eth_sys.rwsem),
 };
