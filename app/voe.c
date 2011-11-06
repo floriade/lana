@@ -250,7 +250,7 @@ int main(int argc, char **argv)
 			((int*) outpacket)[6+6+2] = send_timestamp;
 			send_timestamp += FRAME_SIZE;
 
-			rc = sendto(sd, outpacket, PACKETSIZE + 4, 0,
+			rc = sendto(sd, outpacket, PACKETSIZE+4+6+6+2, 0,
 				    &sa, sizeof(sa));
 			if (rc < 0)
 				panic("cannot send to socket");
