@@ -49,10 +49,14 @@
 #include <speex/speex_jitter.h>
 #include <speex/speex_echo.h>
 #include <sched.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
 
 #include "alsa.h"
 #include "die.h"
 #include "xmalloc.h"
+
+#define AF_LANA		27
 
 #define MAX_MSG		1500
 #define SAMPLING_RATE	48000
@@ -60,13 +64,50 @@
 #define PACKETSIZE	43
 #define CHANNELS	1
 
+/* TODO: add support for SIOCGIFINDEX into AF_LANA */
+static int device_ifindex(const char *ifname)
+{
+	int ret, sock, index;
+	struct ifreq ifr;
+
+	sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (sock < 0)
+		return sock;
+
+	memset(&ifr, 0, sizeof(ifr));
+	strncpy(ifr.ifr_name, ifname, strlen(ifname));
+
+	ret = ioctl(sock, SIOCGIFINDEX, &ifr);
+	if (!ret)
+		index = ifr.ifr_ifindex;
+	else
+		index = -1;
+
+	close(sock);
+	return index;
+}
+
+void hack_mac(char *dst, char *src, size_t len)
+{
+	unsigned int dst1[6];
+	/* Fucked up crap. */
+	sscanf(src, "%x:%x:%x:%x:%x:%x",
+	       &dst1[0], &dst1[1], &dst1[2],
+	       &dst1[3], &dst1[4], &dst1[5]);
+	dst[0] = (uint8_t) dst1[0];
+	dst[1] = (uint8_t) dst1[1];
+	dst[2] = (uint8_t) dst1[2];
+	dst[3] = (uint8_t) dst1[3];
+	dst[4] = (uint8_t) dst1[4];
+	dst[5] = (uint8_t) dst1[5];
+}
+
 int main(int argc, char **argv)
 {
-	int i, sd, rc, n, tmp;
-	struct sockaddr_in cli_addr, remote_addr;
+	int i, sd, rc, n, tmp, idx;
+	struct sockaddr sa;
 	char msg[MAX_MSG];
-	struct hostent *h;
-	int local_port, remote_port, nfds;
+	int nfds;
 	int send_timestamp = 0;
 	int recv_started = 0;
 	struct pollfd *pfds;
@@ -77,32 +118,33 @@ int main(int argc, char **argv)
 	struct sched_param param;
 	JitterBuffer *jitter;
 	SpeexEchoState *echo_state;
+	char mac_own[6], mac_remote[6];
 
-	if (argc != 5)
-		panic("Usage %s plughw:0,0 <rhost> <lport> <rport>\n", argv[0]);
-  
-	h = gethostbyname(argv[2]);
-	if (h == NULL)
-		panic("%s: unknown host '%s' \n", argv[0], argv[2]);
+	if (argc != 4)
+		panic("Usage %s plughw:0,0 <lmac in xx:xx:xx:xx:xx:xx> <rmac>\n", argv[0]);
+ 
+	hack_mac(mac_own, argv[2], strlen(argv[2]));
+	hack_mac(mac_remote, argv[3], strlen(argv[3]));
+ 
+	/* XXX: #include <net/if.h> -> if_nametoindex(3) */
+	idx = device_ifindex("eth0");
+	if (idx < 0)
+		panic("device_ifindex fucked up!\n");
 
-	local_port = atoi(argv[3]);
-	remote_port = atoi(argv[4]);
-   
-	remote_addr.sin_family = h->h_addrtype;
-	memcpy(&remote_addr.sin_addr.s_addr, h->h_addr_list[0], h->h_length);
-	remote_addr.sin_port = htons(remote_port);
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_family = AF_LANA;
+	sa.sa_data[0] = (uint8_t) idx;
 
-	sd = socket(AF_INET, SOCK_DGRAM, 0);
+	sd = socket(AF_LANA, SOCK_RAW, 0);
 	if (sd < 0)
 		panic("%s: cannot open socket \n", argv[0]);
 
-	cli_addr.sin_family = AF_INET;
-	cli_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	cli_addr.sin_port = htons(local_port);
-
-	rc = bind(sd, (struct sockaddr *) &cli_addr, sizeof(cli_addr));
+	rc = bind(sd, &sa, sizeof(sa));
 	if (rc < 0)
-		panic("%s: cannot bind port\n", argv[0]);
+		panic("bind fucked up!\n");
+
+	printf("If ready hit key!\n"); //user must do binding
+	getchar();
 
 	dev = alsa_open(argv[1], SAMPLING_RATE, CHANNELS, FRAME_SIZE);
 
@@ -134,9 +176,8 @@ int main(int argc, char **argv)
 	speex_echo_ctl(echo_state, SPEEX_ECHO_SET_SAMPLING_RATE, &tmp);
 
 	alsa_start(dev);
-   
 	while (1) {
-		poll(pfds, nfds+1, -1);
+		poll(pfds, nfds + 1, -1);
 
 		/* Received packets */
 		if (pfds[nfds].revents & POLLIN) {
@@ -144,8 +185,8 @@ int main(int argc, char **argv)
 			int recv_timestamp = ((int*) msg)[0];
 
 			JitterBufferPacket packet;
-			packet.data = msg+4;
-			packet.len = n-4;
+			packet.data = msg+4+6+6+2;
+			packet.len = n-4-6-6-2;
 			packet.timestamp = recv_timestamp;
 			packet.span = FRAME_SIZE;
 			packet.sequence = 0;
@@ -192,23 +233,25 @@ int main(int argc, char **argv)
 			char outpacket[MAX_MSG];
 
 			alsa_read(dev, pcm, FRAME_SIZE);
-
 			/* Perform echo cancellation */
 			speex_echo_capture(echo_state, pcm, pcm2);
 			for (i = 0; i < FRAME_SIZE * CHANNELS; ++i)
 				pcm[i] = pcm2[i];
 
 			celt_encode(enc_state, pcm, NULL, (unsigned char *)
-				    (outpacket + 4), PACKETSIZE);
+				    (outpacket+4+6+6+2), PACKETSIZE);
 
 			/* Pseudo header: four null bytes and a 32-bit
-			   timestamp */
-			((int*)outpacket)[0] = send_timestamp;
+			   timestamp; XXX hack */
+			memcpy(outpacket,mac_remote,6);
+			memcpy(outpacket+6,mac_own,6);
+			outpacket[6+6] = (uint8_t) 0xac;
+			outpacket[6+6+1] = (uint8_t) 0xdc;
+			((int*) outpacket)[6+6+2] = send_timestamp;
 			send_timestamp += FRAME_SIZE;
 
-			rc = sendto(sd, outpacket, PACKETSIZE+4, 0,
-				    (struct sockaddr *) &remote_addr,
-				    sizeof(remote_addr));
+			rc = sendto(sd, outpacket, PACKETSIZE + 4, 0,
+				    &sa, sizeof(sa));
 			if (rc < 0)
 				panic("cannot send to socket");
 		}
