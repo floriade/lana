@@ -26,12 +26,13 @@ struct engine_iostats {
 	unsigned long long pkts;
 	unsigned long long fblocks;
 	unsigned long long timer;
+	unsigned long long timer_cpu_miss;
 } ____cacheline_aligned;
 
 struct engine_disc {
 	struct sk_buff_head ppe_backlog_queue;
 	struct tasklet_hrtimer htimer;
-	int active;
+	int active, cpu;
 } ____cacheline_aligned;
 
 static struct engine_iostats __percpu *iostats;
@@ -54,6 +55,11 @@ static inline void engine_inc_timer_stats(void)
 	this_cpu_inc(iostats->timer);
 }
 
+static inline void engine_inc_timer_cpu_miss_stats(void)
+{
+	this_cpu_inc(iostats->timer_cpu_miss);
+}
+
 static inline void engine_add_bytes_stats(unsigned long bytes)
 {
 	this_cpu_add(iostats->bytes, bytes);
@@ -70,6 +76,15 @@ static inline struct sk_buff *engine_backlog_test_reduce(enum path_type *dir)
 {
 	struct sk_buff *skb = NULL;
 	if ((skb = skb_dequeue(&(this_cpu_ptr(emdiscs)->ppe_backlog_queue))))
+		(*dir) = read_path_from_skb(skb);
+	return skb;
+}
+
+static inline struct sk_buff *engine_backlog_queue_test_reduce(enum path_type *dir,
+							       struct sk_buff_head *list)
+{
+	struct sk_buff *skb = NULL;
+	if ((skb = skb_dequeue(list)))
 		(*dir) = read_path_from_skb(skb);
 	return skb;
 }
@@ -139,23 +154,32 @@ EXPORT_SYMBOL_GPL(process_packet);
 
 static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 {
+	/* Note: we could end up on a different CPU */
 	enum path_type dir;
 	struct sk_buff *skb;
-	struct engine_disc *disc = this_cpu_ptr(emdiscs);
 	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
+	struct engine_disc *disc = container_of(thr, struct engine_disc, htimer);
 
-	if (likely(engine_this_cpu_is_active()))
+	if (likely(ACCESS_ONCE(disc->active)))
 		goto out;
 	if (skb_queue_empty(&disc->ppe_backlog_queue))
 		goto out;
+	if (disc->cpu != smp_processor_id()) {
+		engine_inc_timer_cpu_miss_stats();
+		if (skb_queue_len(&disc->ppe_backlog_queue) <= 150)
+			goto out;
+	}
+
 	rcu_read_lock();
-	skb = engine_backlog_test_reduce(&dir);
+
+	skb = engine_backlog_queue_test_reduce(&dir, &disc->ppe_backlog_queue);
 	BUG_ON(!skb);
 	process_packet(skb, dir);
+
 	rcu_read_unlock();
 out:
 	engine_inc_timer_stats();
-	tasklet_hrtimer_start(thr, ktime_set(0, 10000000),
+	tasklet_hrtimer_start(thr, ktime_set(0, 50000000),
 			      HRTIMER_MODE_REL);
 	return HRTIMER_NORESTART;
 }
@@ -172,9 +196,10 @@ static int engine_procfs(char *page, char **start, off_t offset,
 		struct engine_disc *emdisc_cpu;
 		iostats_cpu = per_cpu_ptr(iostats, cpu);
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
-		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%llu\t%u\n",
+		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%llu\t%llu\t%u\n",
 			       cpu, iostats_cpu->pkts, iostats_cpu->bytes,
 			       iostats_cpu->fblocks, iostats_cpu->timer,
+			       iostats_cpu->timer_cpu_miss,
 			       skb_queue_len(&emdisc_cpu->ppe_backlog_queue));
 	}
 	put_online_cpus();
@@ -197,6 +222,8 @@ int init_engine(void)
 		iostats_cpu->bytes = 0;
 		iostats_cpu->pkts = 0;
 		iostats_cpu->fblocks = 0;
+		iostats_cpu->timer = 0;
+		iostats_cpu->timer_cpu_miss = 0;
 	}
 	put_online_cpus();
 
@@ -208,12 +235,13 @@ int init_engine(void)
 		struct engine_disc *emdisc_cpu;
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
 		emdisc_cpu->active = 0;
+		emdisc_cpu->cpu = cpu;
 		skb_queue_head_init(&emdisc_cpu->ppe_backlog_queue);
 		tasklet_hrtimer_init(&emdisc_cpu->htimer,
 				     engine_timer_handler,
 				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
 		tasklet_hrtimer_start(&emdisc_cpu->htimer,
-				      ktime_set(0, 10000000),
+				      ktime_set(0, 50000000),
 				      HRTIMER_MODE_REL);
 	}
 	put_online_cpus();
