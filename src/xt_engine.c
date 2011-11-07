@@ -14,26 +14,28 @@
 #include <linux/cache.h>
 #include <linux/proc_fs.h>
 #include <linux/rcupdate.h>
+#include <linux/hrtimer.h>
+#include <linux/interrupt.h>
 
 #include "xt_engine.h"
 #include "xt_skb.h"
 #include "xt_fblock.h"
 
-// todo: low prio per-cpu thread that triggers engine's backlog every 100ms
-
 struct engine_iostats {
 	unsigned long long bytes;
 	unsigned long long pkts;
 	unsigned long long fblocks;
+	unsigned long long timer;
 } ____cacheline_aligned;
 
 struct engine_disc {
 	struct sk_buff_head ppe_backlog_queue;
+	struct tasklet_hrtimer htimer;
+	int active;
 } ____cacheline_aligned;
 
 static struct engine_iostats __percpu *iostats;
 static struct engine_disc __percpu *emdiscs;
-
 extern struct proc_dir_entry *lana_proc_dir;
 static struct proc_dir_entry *engine_proc;
 
@@ -45,6 +47,11 @@ static inline void engine_inc_pkts_stats(void)
 static inline void engine_inc_fblock_stats(void)
 {
 	this_cpu_inc(iostats->fblocks);
+}
+
+static inline void engine_inc_timer_stats(void)
+{
+	this_cpu_inc(iostats->timer);
 }
 
 static inline void engine_add_bytes_stats(unsigned long bytes)
@@ -67,6 +74,21 @@ static inline struct sk_buff *engine_backlog_test_reduce(enum path_type *dir)
 	return skb;
 }
 
+static inline void engine_this_cpu_set_active(void)
+{
+	this_cpu_write(emdiscs->active, 1);
+}
+
+static inline void engine_this_cpu_set_inactive(void)
+{
+	this_cpu_write(emdiscs->active, 0);
+}
+
+static inline int engine_this_cpu_is_active(void)
+{
+	return this_cpu_read(emdiscs->active);
+}
+
 /* Main function, must be called in rcu_read_lock context */
 int process_packet(struct sk_buff *skb, enum path_type dir)
 {
@@ -75,8 +97,16 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	struct fblock *fb;
 
 	BUG_ON(!rcu_read_lock_held());
+
+	if (engine_this_cpu_is_active()) {
+		engine_backlog_tail(skb, dir);
+		return 0;
+	}
 pkt:
 	ret = PPE_ERROR;
+
+	engine_this_cpu_set_active();
+
 	engine_inc_pkts_stats();
 	engine_add_bytes_stats(skb->len);
 
@@ -101,9 +131,34 @@ pkt:
 	}
 	if ((skb = engine_backlog_test_reduce(&dir)))
 		goto pkt;
+
+	engine_this_cpu_set_inactive();
 	return ret;
 }
 EXPORT_SYMBOL_GPL(process_packet);
+
+static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
+{
+	enum path_type dir;
+	struct sk_buff *skb;
+	struct engine_disc *disc = this_cpu_ptr(emdiscs);
+	struct tasklet_hrtimer *thr = container_of(self, struct tasklet_hrtimer, timer);
+
+	if (likely(engine_this_cpu_is_active()))
+		goto out;
+	if (skb_queue_empty(&disc->ppe_backlog_queue))
+		goto out;
+	rcu_read_lock();
+	skb = engine_backlog_test_reduce(&dir);
+	BUG_ON(!skb);
+	process_packet(skb, dir);
+	rcu_read_unlock();
+out:
+	engine_inc_timer_stats();
+	tasklet_hrtimer_start(thr, ktime_set(0, 10000000),
+			      HRTIMER_MODE_REL);
+	return HRTIMER_NORESTART;
+}
 
 static int engine_procfs(char *page, char **start, off_t offset,
 			 int count, int *eof, void *data)
@@ -117,9 +172,9 @@ static int engine_procfs(char *page, char **start, off_t offset,
 		struct engine_disc *emdisc_cpu;
 		iostats_cpu = per_cpu_ptr(iostats, cpu);
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
-		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%u\n",
+		len += sprintf(page + len, "CPU%u:\t%llu\t%llu\t%llu\t%llu\t%u\n",
 			       cpu, iostats_cpu->pkts, iostats_cpu->bytes,
-			       iostats_cpu->fblocks,
+			       iostats_cpu->fblocks, iostats_cpu->timer,
 			       skb_queue_len(&emdisc_cpu->ppe_backlog_queue));
 	}
 	put_online_cpus();
@@ -152,7 +207,14 @@ int init_engine(void)
 	for_each_online_cpu(cpu) {
 		struct engine_disc *emdisc_cpu;
 		emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
+		emdisc_cpu->active = 0;
 		skb_queue_head_init(&emdisc_cpu->ppe_backlog_queue);
+		tasklet_hrtimer_init(&emdisc_cpu->htimer,
+				     engine_timer_handler,
+				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
+		tasklet_hrtimer_start(&emdisc_cpu->htimer,
+				      ktime_set(0, 10000000),
+				      HRTIMER_MODE_REL);
 	}
 	put_online_cpus();
 
@@ -180,6 +242,7 @@ void cleanup_engine(void)
 		for_each_online_cpu(cpu) {
 			struct engine_disc *emdisc_cpu;
 			emdisc_cpu = per_cpu_ptr(emdiscs, cpu);
+			tasklet_hrtimer_cancel(&emdisc_cpu->htimer);
 			skb_queue_purge(&emdisc_cpu->ppe_backlog_queue);
 		}
 		put_online_cpus();
