@@ -51,11 +51,14 @@ int main(void)
 	}
 
 	/* XXX: #include <net/if.h> -> if_nametoindex(3) */
-	idx = device_ifindex("eth10");
+	idx = device_ifindex("eth0");
 	if (idx < 0) {
 		ret = idx;
 		goto out;
 	}
+
+	printf("Hit key1!\n");
+	getchar();
 
 	memset(&sa, 0, sizeof(sa));
 	sa.sa_family = AF_LANA;
@@ -67,10 +70,13 @@ int main(void)
 		goto out;
 	}
 
-	ret = sendto(sock, buff, sizeof(buff), 0, &sa, sizeof(sa));
-	if (ret < 0) {
-		perror("sendmsg");
-		goto out;
+	while (1) {
+		ret = sendto(sock, buff, sizeof(buff), 0, &sa, sizeof(sa));
+		if (ret < 0) {
+			perror("sendmsg");
+			goto out;
+		}
+		printf("sent packet!\n");
 	}
 
 	ret = 0;

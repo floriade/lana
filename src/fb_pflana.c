@@ -274,6 +274,7 @@ static int lana_raw_sendmsg(struct kiocb *iocb, struct socket *sock,
 	return sk->sk_prot->sendmsg(iocb, sk, msg, len);
 }
 
+/* Todo later: send bound dev from fb_eth, not from userspace */
 static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 			      struct msghdr *msg, size_t len)
 {
@@ -319,7 +320,6 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 	skb->sk = sk;
 	skb->protocol = htons(ETH_P_ALL); //FIXME
 	skb->priority = sk->sk_priority;
-	skb->mark = sk->sk_mark;
 
 	err = memcpy_fromiovec((void *) skb_put(skb, len), msg->msg_iov, len);
 	if (err < 0)
@@ -329,15 +329,18 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 		goto drop;
 	}
 
+	rcu_read_lock();
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
 		write_next_idp_to_skb(skb, fb->idp,
 				      fb_priv_cpu->port[TYPE_EGRESS]);
         } while (read_seqretry(&fb_priv_cpu->lock, seq));
+	rcu_read_unlock();
 
 	dev_put(dev);
-        process_packet(skb, TYPE_EGRESS);
+	engine_backlog_tail(skb, TYPE_EGRESS);
+//        process_packet(skb, TYPE_EGRESS);
 
 	return (err >= 0) ? len : err;
 drop:

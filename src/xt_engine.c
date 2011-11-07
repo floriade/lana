@@ -19,6 +19,8 @@
 #include "xt_skb.h"
 #include "xt_fblock.h"
 
+// todo: low prio per-cpu thread that triggers engine's backlog every 100ms
+
 struct engine_iostats {
 	unsigned long long bytes;
 	unsigned long long pkts;

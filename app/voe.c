@@ -182,6 +182,8 @@ int main(int argc, char **argv)
 		/* Received packets */
 		if (pfds[nfds].revents & POLLIN) {
 			n = recv(sd, msg, MAX_MSG, 0);
+			if (n <= 0)
+				continue;
 			int recv_timestamp = ((int*) msg)[0];
 
 			JitterBufferPacket packet;
@@ -212,18 +214,15 @@ int main(int argc, char **argv)
 					packet.data=NULL;
 				celt_decode(dec_state, (const unsigned char *)
 					    packet.data, packet.len, pcm);
-			} else {
-				for (i = 0; i < FRAME_SIZE * CHANNELS; ++i)
-					pcm[i] = 0;
+
+				/* Playback the audio and reset the echo canceller
+				   if we got an underrun */
+
+				if (alsa_write(dev, pcm, FRAME_SIZE)) 
+					speex_echo_state_reset(echo_state);
+				/* Put frame into playback buffer */
+				speex_echo_playback(echo_state, pcm);
 			}
-
-			/* Playback the audio and reset the echo canceller
-			   if we got an underrun */
-
-			if (alsa_write(dev, pcm, FRAME_SIZE)) 
-				speex_echo_state_reset(echo_state);
-			/* Put frame into playback buffer */
-			speex_echo_playback(echo_state, pcm);
 		}
 
 		/* Audio available from the soundcard (capture) */
@@ -254,6 +253,7 @@ int main(int argc, char **argv)
 				    &sa, sizeof(sa));
 			if (rc < 0)
 				panic("cannot send to socket");
+			printf("frame sent!\n");
 		}
 	}
 
