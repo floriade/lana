@@ -34,11 +34,6 @@
 #include "xt_vlink.h"
 #include "xt_fblock.h"
 
-/*
- * Allocation and cleanup via vlink, not fbctl -> no factory for this on purpose!
- * However, binding is done via fbctl!
- */
-
 #define IFF_VLINK_MAS	0x20000 /* Master device */
 #define IFF_VLINK_DEV	0x40000 /* Slave device */
 #define IFF_IS_BRIDGED  0x60000
@@ -70,7 +65,7 @@ struct fb_ethvlink_private;
 struct fb_ethvlink_private_inner {
 	idp_t port[2];
 	seqlock_t lock;
-	struct fb_ethvlink_private *vdev; /* Must never change after setup! */
+	struct fb_ethvlink_private *vdev;
 };
 
 struct fb_ethvlink_private {
@@ -148,8 +143,10 @@ static int fb_ethvlink_event(struct notifier_block *self, unsigned long cmd,
 	struct fb_ethvlink_private_inner __percpu *fb_priv;
 
 	rcu_read_lock();
-	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
-	fb_priv = (struct fb_ethvlink_private_inner __percpu *) rcu_dereference_raw(fb->private_data);
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier,
+					      nb)->self);
+	fb_priv = (struct fb_ethvlink_private_inner __percpu *)
+			rcu_dereference_raw(fb->private_data);
 	rcu_read_unlock();
 
 	switch (cmd) {
@@ -236,7 +233,6 @@ static int fb_ethvlink_netrx(const struct fblock * const fb,
 			     enum path_type * const dir)
 {
 	struct fb_ethvlink_private_inner __percpu *fb_priv_cpu;
-	/* Egress point */
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	skb->dev = fb_priv_cpu->vdev->self;
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
@@ -250,7 +246,6 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
 	unsigned int seq;
 	struct fb_ethvlink_private_inner __percpu *fb_priv_cpu;
 
-	/* Ingress point */
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(vdev->fb->private_data));
 	if (fb_priv_cpu->port[TYPE_INGRESS] == IDP_UNKNOWN)
 		goto drop;
@@ -264,7 +259,6 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
 
 	return NET_RX_SUCCESS;
 drop:
-	/* It's not really a dev error if we have no binding ... */
 	kfree_skb(skb);
 	return NET_RX_SUCCESS;
 }
@@ -453,8 +447,8 @@ static struct fblock *fb_ethvlink_build_fblock(struct fb_ethvlink_private *vdev)
 	ret = init_fblock(fb, vdev->self->name, fb_priv);
 	if (ret)
 		goto err2;
-	fb->netfb_rx = fb_ethvlink_netrx; /* For transmission only */
-	fb->event_rx = fb_ethvlink_event; /* Supports (un)binding only */
+	fb->netfb_rx = fb_ethvlink_netrx;
+	fb->event_rx = fb_ethvlink_event;
 	fb->factory = NULL;
 
 	ret = register_fblock_namespace(fb);

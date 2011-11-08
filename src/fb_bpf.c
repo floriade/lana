@@ -10,7 +10,7 @@
  * To generate BPF's, do the following:
  * 1. Install flex + bison
  *
- * 2. Download bpfc:
+ * 2. Download bpfc from http://netsniff-ng.org i.e.:
  *    cd /tmp
  *    git clone git://repo.or.cz/netsniff-ng.git
  *    cd netsniff-ng/src/bpfc/

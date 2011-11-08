@@ -102,8 +102,10 @@ static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 	struct fb_pflana_priv __percpu *fb_priv;
 
 	rcu_read_lock();
-	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
-	fb_priv = (struct fb_pflana_priv __percpu *) rcu_dereference_raw(fb->private_data);
+	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier,
+					      nb)->self);
+	fb_priv = (struct fb_pflana_priv __percpu *)
+			rcu_dereference_raw(fb->private_data);
 	rcu_read_unlock();
 
 	switch (cmd) {
@@ -158,7 +160,8 @@ static int fb_pflana_event(struct notifier_block *self, unsigned long cmd,
 	return ret;
 }
 
-static struct fblock *get_bound_fblock(struct fblock *self, enum path_type dir)
+static struct fblock *get_bound_fblock(struct fblock *self,
+				       enum path_type dir)
 {
 	idp_t fbidp;
 	unsigned int seq;
@@ -339,8 +342,7 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 	rcu_read_unlock();
 
 	dev_put(dev);
-	engine_backlog_tail(skb, TYPE_EGRESS);
-//        process_packet(skb, TYPE_EGRESS);
+        process_packet(skb, TYPE_EGRESS);
 
 	return (err >= 0) ? len : err;
 drop:
@@ -561,13 +563,11 @@ static const struct net_proto_family lana_family_ops = {
 static const struct proto_ops lana_raw_ops = {
 	.family	     = PF_LANA,
 	.owner       = THIS_MODULE,
-	/* v- supported */
 	.release     = lana_raw_release,
 	.recvmsg     = sock_common_recvmsg,
 	.sendmsg     = lana_raw_sendmsg,
 	.poll	     = lana_raw_poll,
 	.bind	     = lana_raw_bind,
-	/* v- not supported */
 	.setsockopt  = sock_no_setsockopt,
 	.getsockopt  = sock_no_getsockopt,
 	.connect     = sock_no_connect,
@@ -655,7 +655,6 @@ static int init_fb_pflana(void)
 	for (i = 0; i < LANA_NPROTO; ++i)
 		rcu_assign_pointer(proto_tab[i], NULL);
 
-	/* Default proto types we definately want to load */
 	ret = pflana_proto_register(LANA_PROTO_RAW, &lana_proto_raw);
 	if (ret)
 		return ret;

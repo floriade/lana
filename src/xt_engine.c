@@ -80,8 +80,8 @@ static inline struct sk_buff *engine_backlog_test_reduce(enum path_type *dir)
 	return skb;
 }
 
-static inline struct sk_buff *engine_backlog_queue_test_reduce(enum path_type *dir,
-							       struct sk_buff_head *list)
+static inline struct sk_buff *
+engine_backlog_queue_test_reduce(enum path_type *dir, struct sk_buff_head *list)
 {
 	struct sk_buff *skb = NULL;
 	if ((skb = skb_dequeue(list)))
@@ -104,7 +104,6 @@ static inline int engine_this_cpu_is_active(void)
 	return this_cpu_read(emdiscs->active);
 }
 
-/* Main function, must be called in rcu_read_lock context */
 int process_packet(struct sk_buff *skb, enum path_type dir)
 {
 	int ret;
@@ -112,7 +111,6 @@ int process_packet(struct sk_buff *skb, enum path_type dir)
 	struct fblock *fb;
 
 	BUG_ON(!rcu_read_lock_held());
-
 	if (engine_this_cpu_is_active()) {
 		engine_backlog_tail(skb, dir);
 		return 0;
@@ -121,7 +119,6 @@ pkt:
 	ret = PPE_ERROR;
 
 	engine_this_cpu_set_active();
-
 	engine_inc_pkts_stats();
 	engine_add_bytes_stats(skb->len);
 
@@ -144,6 +141,7 @@ pkt:
 			break;
 		}
 	}
+
 	if ((skb = engine_backlog_test_reduce(&dir)))
 		goto pkt;
 
@@ -179,7 +177,7 @@ static enum hrtimer_restart engine_timer_handler(struct hrtimer *self)
 	rcu_read_unlock();
 out:
 	engine_inc_timer_stats();
-	tasklet_hrtimer_start(thr, ktime_set(0, 50000000),
+	tasklet_hrtimer_start(thr, ktime_set(0, 100000000),
 			      HRTIMER_MODE_REL);
 	return HRTIMER_NORESTART;
 }
@@ -241,7 +239,7 @@ int init_engine(void)
 				     engine_timer_handler,
 				     CLOCK_REALTIME, HRTIMER_MODE_ABS);
 		tasklet_hrtimer_start(&emdisc_cpu->htimer,
-				      ktime_set(0, 50000000),
+				      ktime_set(0, 100000000),
 				      HRTIMER_MODE_REL);
 	}
 	put_online_cpus();

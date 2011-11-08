@@ -34,7 +34,7 @@
 struct fb_eth_priv {
 	idp_t port[2];
 	seqlock_t lock;
-	struct net_device *dev; /* Must never change after setup! */
+	struct net_device *dev;
 };
 
 static LIST_HEAD(fb_eth_devs);
@@ -301,7 +301,7 @@ static int fb_eth_start_hook_dev(struct vlinknlmsg *vhdr, struct nlmsghdr *nlh)
 
 	if (fb_eth_dev_is_bridged(dev))
 		goto out;
-	if (fb_ethvlink_real_dev_is_hooked(dev)) /* need to check this, too */
+	if (fb_ethvlink_real_dev_is_hooked(dev))
 		goto out;
 
 	node = kmalloc(sizeof(*node), GFP_KERNEL);

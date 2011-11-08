@@ -44,9 +44,6 @@ static int fb_counter_netrx(const struct fblock * const fb,
 	struct fb_counter_priv __percpu *fb_priv_cpu;
 
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference_raw(fb->private_data));
-#ifdef __DEBUG
-	printk("Got skb on %p on ppe%d!\n", fb, smp_processor_id());
-#endif
 	prefetchw(skb->cb);
 	do {
 		seq = read_seqbegin(&fb_priv_cpu->lock);
@@ -79,10 +76,6 @@ static int fb_counter_event(struct notifier_block *self, unsigned long cmd,
 	fb = rcu_dereference_raw(container_of(self, struct fblock_notifier, nb)->self);
 	fb_priv = (struct fb_counter_priv __percpu *) rcu_dereference_raw(fb->private_data);
 	rcu_read_unlock();
-
-#ifdef __DEBUG
-	printk("Got event %lu on %p!\n", cmd, fb);
-#endif
 
 	switch (cmd) {
 	case FBLOCK_BIND_IDP: {
