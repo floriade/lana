@@ -246,6 +246,8 @@ int fb_ethvlink_handle_frame_virt(struct sk_buff *skb,
 	unsigned int seq;
 	struct fb_ethvlink_private_inner __percpu *fb_priv_cpu;
 
+	skb_orphan(skb);
+
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(vdev->fb->private_data));
 	if (fb_priv_cpu->port[TYPE_INGRESS] == IDP_UNKNOWN)
 		goto drop;

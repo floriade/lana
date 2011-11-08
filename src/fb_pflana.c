@@ -332,6 +332,8 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 		goto drop;
 	}
 
+	skb_orphan(skb);
+
 	rcu_read_lock();
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {

@@ -88,6 +88,8 @@ static rx_handler_result_t fb_eth_handle_frame(struct sk_buff **pskb)
 	if (!fb)
 		goto drop;
 
+	skb_orphan(skb);
+
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	if (fb_priv_cpu->port[TYPE_INGRESS] == IDP_UNKNOWN)
 		goto drop;
