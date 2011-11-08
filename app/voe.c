@@ -163,9 +163,9 @@ int main(int argc, char **argv)
 	enc_state = celt_encoder_create(mode, CHANNELS, NULL);
 	dec_state = celt_decoder_create(mode, CHANNELS, NULL);
 
-//	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
-//	if (sched_setscheduler(0, SCHED_FIFO, &param))
-//		whine("sched_setscheduler error!\n");
+	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
+	if (sched_setscheduler(0, SCHED_FIFO, &param))
+		whine("sched_setscheduler error!\n");
    
 	/* Setup all file descriptors for poll()ing */
 	nfds = alsa_nfds(dev);
@@ -188,15 +188,14 @@ int main(int argc, char **argv)
 
 	alsa_start(dev);
 	while (!sigint) {
-		printf("Do poll!\n");
 		poll(pfds, nfds + 1, -1);
 
-#if 1
 		/* Received packets */
 		if (pfds[nfds].revents & POLLIN) {
 			n = recv(sd, msg, MAX_MSG, 0);
 			if (n <= 0)
 				continue;
+			printf("packet received!\n");
 			int recv_timestamp = ((int*) msg)[0];
 
 			JitterBufferPacket packet;
@@ -237,7 +236,6 @@ int main(int argc, char **argv)
 				speex_echo_playback(echo_state, pcm);
 			}
 		}
-#endif
 
 		/* Audio available from the soundcard (capture) */
 		if (alsa_cap_ready(dev, pfds, nfds)) {

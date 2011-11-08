@@ -86,7 +86,7 @@ static int fb_pflana_netrx(const struct fblock * const fb,
 		kfree_skb(skb);
 		skb = nskb;
 	}
-	sk_receive_skb(sk, skb, 0);
+	sock_queue_rcv_skb(sk, skb);
 out:
 	/* We are last in chain. */
 	write_next_idp_to_skb(skb, fb->idp, IDP_UNKNOWN);
@@ -336,11 +336,11 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 
 	dev_put(dev);
 
-	err = dev_queue_xmit(skb);
-	if (err > 0)
-		err = net_xmit_errno(err);
+//	err = dev_queue_xmit(skb);
+//	if (err > 0)
+//		err = net_xmit_errno(err);
 
-#if 0
+#if 1
 	rcu_read_lock();
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
@@ -395,6 +395,8 @@ static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	int err = -EPROTONOSUPPORT;
 
+	kfree_skb(skb);
+#if 0
 	switch (sk->sk_protocol) {
 	case LANA_PROTO_RAW:
 		err = sock_queue_rcv_skb(sk, skb);
@@ -406,7 +408,7 @@ static int lana_proto_backlog_rcv(struct sock *sk, struct sk_buff *skb)
 		err = -EPROTONOSUPPORT;
 		break;
 	}
-
+#endif
 	return err ? NET_RX_DROP : NET_RX_SUCCESS;
 }
 
