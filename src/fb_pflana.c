@@ -297,14 +297,19 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 		return -EINVAL;
 
 	target = (struct sockaddr *) msg->msg_name;
-	if (target->sa_family != AF_LANA)
+	if (unlikely(target->sa_family != AF_LANA))
 		return -EAFNOSUPPORT;
-	if (sk->sk_bound_dev_if || lana->bound)
+
+	lock_sock(sk);
+	if (sk->sk_bound_dev_if || lana->bound) {
 		dev = dev_get_by_index(net, lana->bound ? lana->ifindex :
-							  sk->sk_bound_dev_if);
-	else
-		return -ENOTCONN;
-	if (!dev || !(dev->flags & IFF_UP)) {
+				       sk->sk_bound_dev_if);
+	} else {
+		dev = dev_getfirstbyhwtype(sock_net(sk), ETH_P_ALL); //FIXME
+	}
+	release_sock(sk);
+
+	if (!dev || !(dev->flags & IFF_UP) || unlikely(len > dev->mtu)) {
 		err = -EIO;
 		goto drop_put;
 	}
@@ -315,25 +320,27 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
 		goto drop_put;
 
 	skb_reserve(skb, LL_RESERVED_SPACE(dev));
+
 	skb_reset_mac_header(skb);
 	skb_reset_network_header(skb);
-
-	skb->pkt_type = PACKET_OUTGOING;
-	skb->dev = dev;
-	skb->sk = sk;
-	skb->protocol = htons(ETH_P_ALL); //FIXME
-	skb->priority = sk->sk_priority;
 
 	err = memcpy_fromiovec((void *) skb_put(skb, len), msg->msg_iov, len);
 	if (err < 0)
 		goto drop;
-	if (skb->pkt_type == PACKET_LOOPBACK) {
-		err = -EOPNOTSUPP;
-		goto drop;
-	}
+
+	skb->dev = dev;
+	skb->sk = sk;
+	skb->protocol = htons(ETH_P_ALL); //FIXME
 
 	skb_orphan(skb);
 
+	dev_put(dev);
+
+	err = dev_queue_xmit(skb);
+	if (err > 0)
+		err = net_xmit_errno(err);
+
+#if 0
 	rcu_read_lock();
 	fb_priv_cpu = this_cpu_ptr(rcu_dereference(fb->private_data));
 	do {
@@ -343,8 +350,8 @@ static int lana_proto_sendmsg(struct kiocb *iocb, struct sock *sk,
         } while (read_seqretry(&fb_priv_cpu->lock, seq));
 	rcu_read_unlock();
 
-	dev_put(dev);
         process_packet(skb, TYPE_EGRESS);
+#endif
 
 	return (err >= 0) ? len : err;
 drop:
