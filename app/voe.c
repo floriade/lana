@@ -5,6 +5,9 @@
  * Subject to the GPL.
  */
 
+/* NOTE: make sure you also have the alsa userspace tools compiled with
+ *       the same version! */
+
 /*
  * Copyright (C) 2011 Daniel Borkmann (major cleanups, improvements, fixed bugs,
  *                                     new API, used PF_LANA instead of IPv4/UDP)
@@ -194,9 +197,10 @@ int main(int argc, char **argv)
 		if (pfds[nfds].revents & POLLIN) {
 			n = recv(sd, msg, MAX_MSG, 0);
 			if (n <= 0)
-				continue;
-			printf("packet received!\n");
-			int recv_timestamp = ((int*) msg)[0];
+				goto blubb;
+			if (msg[6+6] != 0xac && msg[6+6+1] != 0xdc)
+				goto blubb;
+			int recv_timestamp = ((int*) msg)[6+6+2];
 
 			JitterBufferPacket packet;
 			packet.data = msg+4+6+6+2;
@@ -210,7 +214,7 @@ int main(int argc, char **argv)
 			jitter_buffer_put(jitter, &packet);
 			recv_started = 1;
 		}
-
+blubb:
 		/* Ready to play a frame (playback) */
 		if (alsa_play_ready(dev, pfds, nfds)) {
 			short pcm[FRAME_SIZE * CHANNELS];
@@ -265,7 +269,6 @@ int main(int argc, char **argv)
 				    &sa, sizeof(sa));
 			if (rc < 0)
 				panic("cannot send to socket");
-			printf("frame sent!\n");
 		}
 	}
 
