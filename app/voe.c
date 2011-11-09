@@ -166,9 +166,9 @@ int main(int argc, char **argv)
 	enc_state = celt_encoder_create(mode, CHANNELS, NULL);
 	dec_state = celt_decoder_create(mode, CHANNELS, NULL);
 
-	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
-	if (sched_setscheduler(0, SCHED_FIFO, &param))
-		whine("sched_setscheduler error!\n");
+//	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
+//	if (sched_setscheduler(0, SCHED_FIFO, &param))
+//		whine("sched_setscheduler error!\n");
    
 	/* Setup all file descriptors for poll()ing */
 	nfds = alsa_nfds(dev);
@@ -195,11 +195,16 @@ int main(int argc, char **argv)
 
 		/* Received packets */
 		if (pfds[nfds].revents & POLLIN) {
+			memset(msg, 0, MAX_MSG);
 			n = recv(sd, msg, MAX_MSG, 0);
 			if (n <= 0)
+				continue;
+			if ((uint8_t)msg[6+6] != 0xac &&
+			    (uint8_t)msg[6+6+1] != 0xdc) {
+				printf("Wrong ethertype!\n");
+				memset(msg, 0, MAX_MSG);
 				goto blubb;
-			if (msg[6+6] != 0xac && msg[6+6+1] != 0xdc)
-				goto blubb;
+			}
 			int recv_timestamp = ((int*) msg)[6+6+2];
 
 			JitterBufferPacket packet;
