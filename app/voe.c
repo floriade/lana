@@ -233,14 +233,8 @@ int main(int argc, char **argv)
 			if (n <= 0)
 				goto do_alsa;
 			pkts_in++;
-//			if ((uint8_t)msg[6+6] != 0xac &&
-//			    (uint8_t)msg[6+6+1] != 0xdc) {
-//				printf("Wrong ethertype!\n");
-//				memset(msg, 0, MAX_MSG);
-//				goto blubb;
-//			}
-			int recv_timestamp = ((int*) msg)[/*6+6+2*/0];
-
+			int recv_timestamp;
+			memcpy(&recv_timestamp, msg, sizeof(recv_timestamp));
 			JitterBufferPacket packet;
 			packet.data = msg+4/*+6+6+2*/;
 			packet.len = n-4/*-6-6-2*/;
@@ -256,7 +250,7 @@ int main(int argc, char **argv)
 do_alsa:
 		/* Ready to play a frame (playback) */
 		if (alsa_play_ready(dev, pfds, nfds)) {
-			short pcm[FRAME_SIZE * CHANNELS];
+			short pcm[FRAME_SIZE * CHANNELS] = {0};
 			if (recv_started) {
 				JitterBufferPacket packet;
 				/* Get audio from the jitter buffer */
@@ -301,7 +295,7 @@ do_alsa:
 			memcpy(outpacket+6,mac_own,6);
 			outpacket[6+6] = (uint8_t) 0xac;
 			outpacket[6+6+1] = (uint8_t) 0xdc;
-			((int*) outpacket)[6+6+2] = send_timestamp;
+			memcpy(outpacket+6+6+2, &send_timestamp, sizeof(send_timestamp));
 			send_timestamp += FRAME_SIZE;
 
 			rc = sendto(sd, outpacket, PACKETSIZE+4+6+6+2, 0,
