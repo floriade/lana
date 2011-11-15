@@ -44,6 +44,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -68,12 +71,32 @@
 #define PACKETSIZE	43
 #define CHANNELS	1
 
-sig_atomic_t sigint = 0;
+static sig_atomic_t sigint = 0;
+static sig_atomic_t pkts_in = 0, pkts_out = 0;
+static struct itimerval itimer;
+static unsigned long interval = 100;
 
 void sighandler(int nr)
 {
 	if (nr == SIGINT)
 		sigint = 1;
+}
+
+static char blubber[] = {'-', '\\', '|', '/'};
+
+static void timer_elapsed(int number)
+{
+	unsigned int in = pkts_in, out = pkts_out;
+
+	itimer.it_interval.tv_sec = 0;
+	itimer.it_interval.tv_usec = interval;
+	itimer.it_value.tv_sec = 0;
+	itimer.it_value.tv_usec = interval;
+
+	printf("\rnet: in %c, out %c\t",
+	       blubber[in % sizeof(blubber)], blubber[out % sizeof(blubber)]);
+	fflush(stdout);
+	setitimer(ITIMER_REAL, &itimer, NULL); 
 }
 
 /* TODO: add support for SIOCGIFINDEX into AF_LANA */
@@ -116,7 +139,7 @@ void hack_mac(char *dst, char *src, size_t len)
 
 int main(int argc, char **argv)
 {
-	int i, sd, rc, n, tmp, idx;
+	int /*i,*/ sd, rc, n, tmp, idx;
 	struct sockaddr sa;
 	char msg[MAX_MSG];
 	int nfds;
@@ -166,9 +189,9 @@ int main(int argc, char **argv)
 	enc_state = celt_encoder_create(mode, CHANNELS, NULL);
 	dec_state = celt_decoder_create(mode, CHANNELS, NULL);
 
-//	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
-//	if (sched_setscheduler(0, SCHED_FIFO, &param))
-//		whine("sched_setscheduler error!\n");
+	param.sched_priority = sched_get_priority_min(SCHED_FIFO);
+	if (sched_setscheduler(0, SCHED_FIFO, &param))
+		whine("sched_setscheduler error!\n");
    
 	/* Setup all file descriptors for poll()ing */
 	nfds = alsa_nfds(dev);
@@ -189,7 +212,17 @@ int main(int argc, char **argv)
 	tmp = SAMPLING_RATE;
 	speex_echo_ctl(echo_state, SPEEX_ECHO_SET_SAMPLING_RATE, &tmp);
 
+	register_signal_f(SIGALRM, timer_elapsed, SA_SIGINFO);
+
 	alsa_start(dev);
+	printf("ALSA started!\n");
+
+	itimer.it_interval.tv_sec = 0;
+	itimer.it_interval.tv_usec = interval;
+	itimer.it_value.tv_sec = 0;
+	itimer.it_value.tv_usec = interval;
+	setitimer(ITIMER_REAL, &itimer, NULL);
+
 	while (!sigint) {
 		poll(pfds, nfds + 1, -1);
 
@@ -198,18 +231,19 @@ int main(int argc, char **argv)
 			memset(msg, 0, MAX_MSG);
 			n = recv(sd, msg, MAX_MSG, 0);
 			if (n <= 0)
-				continue;
-			if ((uint8_t)msg[6+6] != 0xac &&
-			    (uint8_t)msg[6+6+1] != 0xdc) {
-				printf("Wrong ethertype!\n");
-				memset(msg, 0, MAX_MSG);
-				goto blubb;
-			}
-			int recv_timestamp = ((int*) msg)[6+6+2];
+				goto do_alsa;
+			pkts_in++;
+//			if ((uint8_t)msg[6+6] != 0xac &&
+//			    (uint8_t)msg[6+6+1] != 0xdc) {
+//				printf("Wrong ethertype!\n");
+//				memset(msg, 0, MAX_MSG);
+//				goto blubb;
+//			}
+			int recv_timestamp = ((int*) msg)[/*6+6+2*/0];
 
 			JitterBufferPacket packet;
-			packet.data = msg+4+6+6+2;
-			packet.len = n-4-6-6-2;
+			packet.data = msg+4/*+6+6+2*/;
+			packet.len = n-4/*-6-6-2*/;
 			packet.timestamp = recv_timestamp;
 			packet.span = FRAME_SIZE;
 			packet.sequence = 0;
@@ -219,7 +253,7 @@ int main(int argc, char **argv)
 			jitter_buffer_put(jitter, &packet);
 			recv_started = 1;
 		}
-blubb:
+do_alsa:
 		/* Ready to play a frame (playback) */
 		if (alsa_play_ready(dev, pfds, nfds)) {
 			short pcm[FRAME_SIZE * CHANNELS];
@@ -235,28 +269,28 @@ blubb:
 					packet.data=NULL;
 				celt_decode(dec_state, (const unsigned char *)
 					    packet.data, packet.len, pcm);
-
-				/* Playback the audio and reset the echo canceller
-				   if we got an underrun */
-
-				if (alsa_write(dev, pcm, FRAME_SIZE)) 
-					speex_echo_state_reset(echo_state);
-				/* Put frame into playback buffer */
-				speex_echo_playback(echo_state, pcm);
 			}
+			/* Playback the audio and reset the echo canceller
+			   if we got an underrun */
+
+			alsa_write(dev, pcm, FRAME_SIZE);
+//			if (alsa_write(dev, pcm, FRAME_SIZE)) 
+//				speex_echo_state_reset(echo_state);
+			/* Put frame into playback buffer */
+//			speex_echo_playback(echo_state, pcm);
 		}
 
 		/* Audio available from the soundcard (capture) */
 		if (alsa_cap_ready(dev, pfds, nfds)) {
-			short pcm[FRAME_SIZE * CHANNELS],
-			      pcm2[FRAME_SIZE * CHANNELS];
+			short pcm[FRAME_SIZE * CHANNELS];
+			      //pcm2[FRAME_SIZE * CHANNELS];
 			char outpacket[MAX_MSG];
 
 			alsa_read(dev, pcm, FRAME_SIZE);
 			/* Perform echo cancellation */
-			speex_echo_capture(echo_state, pcm, pcm2);
-			for (i = 0; i < FRAME_SIZE * CHANNELS; ++i)
-				pcm[i] = pcm2[i];
+//			speex_echo_capture(echo_state, pcm, pcm2);
+//			for (i = 0; i < FRAME_SIZE * CHANNELS; ++i)
+//				pcm[i] = pcm2[i];
 
 			celt_encode(enc_state, pcm, NULL, (unsigned char *)
 				    (outpacket+4+6+6+2), PACKETSIZE);
@@ -274,8 +308,15 @@ blubb:
 				    &sa, sizeof(sa));
 			if (rc < 0)
 				panic("cannot send to socket");
+			pkts_out++;
 		}
 	}
+
+	itimer.it_interval.tv_sec = 0;
+	itimer.it_interval.tv_usec = 0;
+	itimer.it_value.tv_sec = 0;
+	itimer.it_value.tv_usec = 0;
+	setitimer(ITIMER_REAL, &itimer, NULL); 
 
 	close(sd);
 	return 0;
