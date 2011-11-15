@@ -5,6 +5,8 @@
  * Subject to the GPL.
  */
 
+/* apt-get install libcelt0-0 libcelt-dev libspeexdsp1 libspeexdsp-dev libasound2-dev libasound2 */
+
 /* NOTE: make sure you also have the alsa userspace tools compiled with
  *       the same version! */
 
