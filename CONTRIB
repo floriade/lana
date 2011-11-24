@@ -1,9 +1,15 @@
-All LANA-derived development and usage tools that are part of the netsniff-ng
-toolkit can be fetched with Git from one of these mirrors:
+All LANA-derived development and debug tools that are part of the netsniff-ng
+toolkit can be fetched with Git from:
 
- * Czech Republic: git://repo.or.cz/netsniff-ng.git
- * United States: git://github.com/gnumaniacs/netsniff-ng.git
- * Iceland: git://git.cryptoism.org/pub/git/netsniff-ng.git
+  http://netsniff-ng.org
 
-Web: http://netsniff-ng.org
+git clone git://github.com/gnumaniacs/netsniff-ng.git
+
+This includes:
+
+  - trafgen, a zero-copy high-performance traffic generator
+  - bpfc, a Berkeley Packet Filter compiler
+  - ifpps, a top-like kernel statistics monitor
+  - netsniff-ng, a zero-copy network analyzer
+  - and more
 

@@ -19,7 +19,7 @@ GRUB_CMDLINE_LINUX_DEFAULT="".
 
 Once you've set this up, simply compile ANA with:
 
-$ cd <path-to-ana>/src/
+$ cd {src/,usr/,app/}
 $ make
 
 Now you can insmod the generated kernel modules and have a look at 'dmesg'

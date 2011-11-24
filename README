@@ -1,63 +1,39 @@
-             ------------------------------------------
-             Lightweight Autonomic Network Architecture
-             ------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
+          Lightweight Autonomic Network Architecture (LANA)
+\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+Web: http://www.epics-project.eu/
+Abstract: http://dl.acm.org/citation.cfm?id=2065222
 
 Network programming is widely understood as programming strictly defined socket
-interfaces. Only some frameworks have made a step towards real network programming
-by decomposing networking functionality into small modular blocks that can be 
-assembled in a flexible manner. In this work, we tackle the challenge of 
-accommodating 3 partially conflicting objectives: (i) high flexibility for 
-network programmers, (ii) re-configuration of the network stack at runtime, and 
-(iii) high packet forwarding rates. First experiences with a prototype
-implementation in Linux suggest little performance overhead compared to the 
-standard Linux protocol stack.
+interfaces. Only some frameworks have made a step towards 'real' network
+programming by decomposing networking functionality into small modular blocks
+(functional blocks) that can be assembled in a flexible, graph-like manner. In
+this work, we tackle the challenge of accommodating 3 partially conflicting
+objectives:
 
-Beyond doubt, the Internet has grown out of its infancy and has become a critical
-infrastructure for private and business applications. Its success is largely due
-to the plethora of transport media it uses and to the rich set of network
-applications it offers. Yet, network programming is still mainly about programming
-sockets that form a strictly defined interface between the networking (TCP/IP)
-and the actual application part (Facebook, VoIP, etc.). What if designers of
-network applications could even tailor the networking functionality to their
-needs? We can just speculate about the resulting innovations.
-Nowadays, changes in the configuration of a protocol stack usually require
-applications or even the operating system to be restarted. The need for changing
-the protocol stack can arise if networking functionality needs to be patched, if
-the used encryption method is not considered safe anymore, or when privacy
-concerns change. Ideally, applications should not be affected by such changes.
-Therefore, we advocate run time reconfigurable protocol stacks. For example, 
-such protocol stacks can be useful for self-star properties in computing, since
-they provide an algorithm that configures and adapts the protocol stack
-autonomously.
+   (i) high flexibility for network programmers,
+  (ii) re-configuration of the network stack at runtime, and 
+ (iii) high packet forwarding rates.
 
-Similar objectives were also followed by active networking [3], the Click modular
-router project[4], or OpenFlow [5], etc. Yet, we are not aware of any research
-that has achieved the following three partially conflicting goals:
-  1. Simple integration and testing of new protocols on end
-     nodes on all layers of the protocol stack.
-  2. Runtime reconfiguration of the protocol stack in order
-     to allow for even bigger flexibility.
-  3. High performance packet forwarding rates.
-In this work, we propose the Lightweight Autonomic Network Architecture (LANA).
-Our architecture borrows ideas from ANA [2], where network functionality is
-divided into functional blocks (FB) that can be combined as required.
-Each FB implements a protocol such as IP, UDP, or content centric routing. ANA
-does not impose any protocols to be used. Rather it provides a framework that
-allows for the flexible composition and recomposition of FBs to a protocol stack.
-This allows for the experimentation with protocol stacks that are not known by
-today’s standard operating systems, and it allows for the optimization of
-protocol stacks at runtime without communication tear down or application
-support. The existing implementation of ANA shows the feasibility of such a
-flexible architecture but suffers sever performance issues. In contrast to ANA,
-the proposed LANA architecture relies on a message passing by reference scheme,
-minimizes the number of threads, and uses optimized packet processing structures
-provided by the Linux kernel. Surprisingly, our first experiences with a
-prototype implementation suggest that we can offer comparable flexibility as
-ANA, but at packet forwarding rates comparable to those of the standard Linux
-networking stack.
+First experiences with a prototype implementation in Linux suggest little
+performance overhead compared to the standard Linux protocol stack.
 
-This research has received funding from the European Union 7th Framework
-Programme (grant no 257906).
+How to browse the source:
+   src/             - Contains all kernel modules of LANA
+   usr/             - Contains userspace configuration tools for LANA
+   app/             - Contains a voice-over-Ethernet application that
+                      uses PF_LANA BSD sockets
+   sem/             - Contains a set of semantic patches that can be
+                      used with Coccinelle (http://coccinelle.lip6.fr/)
+   opt/             - Contains misc stuff, not really important
+   doc/             - The name says everything, you need LaTeX for this
 
-Web: http://www.ana-project.org/, http://www.epics-project.eu/
+Within the src/ folder, there are files named:
+   fb_*.c           - These are functional block kernel modules
+   core.c           - LANA core loader (-> lana.ko)
+   xt_*.{c,h}       - LANA core extensions
+
+For questions, bugs and other things, you can write the authors, see the
+REPORTING-BUGS file. Happy Kernel Hacking! :-)
 
